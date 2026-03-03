@@ -159,6 +159,35 @@ func TestGaplessOptionSet(t *testing.T) {
 	}
 }
 
+func TestReplayGainDefault(t *testing.T) {
+	e := newTestEngine(t)
+
+	if v := e.ReplayGain(); v != "track" {
+		t.Fatalf("expected default replaygain=track, got %q", v)
+	}
+}
+
+func TestSetReplayGain(t *testing.T) {
+	e := newTestEngine(t)
+
+	for _, mode := range []string{"album", "no", "track"} {
+		if err := e.SetReplayGain(mode); err != nil {
+			t.Fatalf("SetReplayGain(%q) error: %v", mode, err)
+		}
+		if v := e.ReplayGain(); v != mode {
+			t.Fatalf("expected replaygain=%q, got %q", mode, v)
+		}
+	}
+}
+
+func TestSetReplayGainInvalid(t *testing.T) {
+	e := newTestEngine(t)
+
+	if err := e.SetReplayGain("bogus"); err == nil {
+		t.Fatal("expected error for invalid replaygain mode")
+	}
+}
+
 func TestPlaybackStateString(t *testing.T) {
 	tests := []struct {
 		state PlaybackState
