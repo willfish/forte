@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/willfish/forte/internal/metadata"
 	"github.com/willfish/forte/internal/player"
 )
 
@@ -120,6 +122,61 @@ func (p *PlayerService) State() string {
 		return "stopped"
 	}
 	return p.engine.State().String()
+}
+
+// MediaTitle returns the title of the currently playing track.
+func (p *PlayerService) MediaTitle() string {
+	if p.engine == nil {
+		return ""
+	}
+	return p.engine.MediaTitle()
+}
+
+// MediaArtist returns the artist of the currently playing track.
+func (p *PlayerService) MediaArtist() string {
+	if p.engine == nil {
+		return ""
+	}
+	return p.engine.MediaArtist()
+}
+
+// MediaAlbum returns the album of the currently playing track.
+func (p *PlayerService) MediaAlbum() string {
+	if p.engine == nil {
+		return ""
+	}
+	return p.engine.MediaAlbum()
+}
+
+// Next skips to the next track in the playlist.
+func (p *PlayerService) Next() {
+	if p.engine != nil {
+		p.engine.Next()
+	}
+}
+
+// Previous skips to the previous track in the playlist.
+func (p *PlayerService) Previous() {
+	if p.engine != nil {
+		p.engine.Previous()
+	}
+}
+
+// Artwork returns the album artwork for the currently playing track
+// as a base64-encoded data URI, or an empty string if unavailable.
+func (p *PlayerService) Artwork() string {
+	if p.engine == nil {
+		return ""
+	}
+	path := p.engine.MediaPath()
+	if path == "" {
+		return ""
+	}
+	data, mime, err := metadata.ReadArtwork(path)
+	if err != nil || len(data) == 0 {
+		return ""
+	}
+	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)
 }
 
 // SetReplayGain sets the ReplayGain mode: "track", "album", or "no" (off).
