@@ -39,6 +39,20 @@ func (p *PlayerService) Play(path string) error {
 	return p.engine.Play(path)
 }
 
+// Pause pauses the current playback.
+func (p *PlayerService) Pause() {
+	if p.engine != nil {
+		p.engine.Pause()
+	}
+}
+
+// Resume resumes paused playback.
+func (p *PlayerService) Resume() {
+	if p.engine != nil {
+		p.engine.Resume()
+	}
+}
+
 // Stop halts the current playback.
 func (p *PlayerService) Stop() {
 	if p.engine != nil {
@@ -46,12 +60,50 @@ func (p *PlayerService) Stop() {
 	}
 }
 
-// Playing reports whether audio is currently playing.
-func (p *PlayerService) Playing() bool {
-	if p.engine == nil {
-		return false
+// Seek seeks to the given position in seconds.
+func (p *PlayerService) Seek(seconds float64) {
+	if p.engine != nil {
+		p.engine.Seek(seconds)
 	}
-	return p.engine.Playing()
+}
+
+// SetVolume sets the volume (0-100).
+func (p *PlayerService) SetVolume(percent int) {
+	if p.engine != nil {
+		p.engine.SetVolume(percent)
+	}
+}
+
+// Volume returns the current volume (0-100).
+func (p *PlayerService) Volume() int {
+	if p.engine == nil {
+		return 0
+	}
+	return p.engine.Volume()
+}
+
+// Position returns the current playback position in seconds.
+func (p *PlayerService) Position() float64 {
+	if p.engine == nil {
+		return 0
+	}
+	return p.engine.Position()
+}
+
+// Duration returns the duration of the current track in seconds.
+func (p *PlayerService) Duration() float64 {
+	if p.engine == nil {
+		return 0
+	}
+	return p.engine.Duration()
+}
+
+// State returns the current playback state as a string.
+func (p *PlayerService) State() string {
+	if p.engine == nil {
+		return "stopped"
+	}
+	return p.engine.State().String()
 }
 
 // Version returns the mpv library version string.

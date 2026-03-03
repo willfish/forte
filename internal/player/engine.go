@@ -10,6 +10,26 @@ import (
 	mpv "github.com/gen2brain/go-mpv"
 )
 
+// PlaybackState represents the current state of the player.
+type PlaybackState int
+
+const (
+	StateStopped PlaybackState = iota
+	StatePlaying
+	StatePaused
+)
+
+func (s PlaybackState) String() string {
+	switch s {
+	case StatePlaying:
+		return "playing"
+	case StatePaused:
+		return "paused"
+	default:
+		return "stopped"
+	}
+}
+
 // ErrMpvNotFound is returned when libmpv cannot be loaded.
 var ErrMpvNotFound = errors.New(
 	"mpv not found: install mpv (e.g. 'sudo apt install libmpv-dev' or 'nix-shell -p mpv')",
@@ -17,10 +37,10 @@ var ErrMpvNotFound = errors.New(
 
 // Engine wraps an mpv instance for audio playback.
 type Engine struct {
-	mu      sync.Mutex
-	handle  *mpv.Mpv
-	playing bool
-	stop    chan struct{}
+	mu     sync.Mutex
+	handle *mpv.Mpv
+	state  PlaybackState
+	stop   chan struct{}
 }
 
 // NewEngine initialises mpv for audio-only playback.
@@ -31,19 +51,15 @@ func NewEngine() (*Engine, error) {
 		return nil, ErrMpvNotFound
 	}
 
-	if err := m.SetOptionString("audio-display", "no"); err != nil {
-		m.TerminateDestroy()
-		return nil, fmt.Errorf("mpv set audio-display: %w", err)
-	}
-
-	if err := m.SetOptionString("vo", "null"); err != nil {
-		m.TerminateDestroy()
-		return nil, fmt.Errorf("mpv set vo: %w", err)
-	}
-
-	if err := m.SetOptionString("terminal", "no"); err != nil {
-		m.TerminateDestroy()
-		return nil, fmt.Errorf("mpv set terminal: %w", err)
+	for _, opt := range [][2]string{
+		{"audio-display", "no"},
+		{"vo", "null"},
+		{"terminal", "no"},
+	} {
+		if err := m.SetOptionString(opt[0], opt[1]); err != nil {
+			m.TerminateDestroy()
+			return nil, fmt.Errorf("mpv set %s: %w", opt[0], err)
+		}
 	}
 
 	if err := m.Initialize(); err != nil {
@@ -70,8 +86,32 @@ func (e *Engine) Play(path string) error {
 		return fmt.Errorf("mpv loadfile: %w", err)
 	}
 
-	e.playing = true
+	e.state = StatePlaying
 	return nil
+}
+
+// Pause pauses the current playback.
+func (e *Engine) Pause() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if e.state != StatePlaying {
+		return
+	}
+	_ = e.handle.SetProperty("pause", mpv.FormatFlag, true)
+	e.state = StatePaused
+}
+
+// Resume resumes paused playback.
+func (e *Engine) Resume() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if e.state != StatePaused {
+		return
+	}
+	_ = e.handle.SetProperty("pause", mpv.FormatFlag, false)
+	e.state = StatePlaying
 }
 
 // Stop stops the current playback.
@@ -80,14 +120,63 @@ func (e *Engine) Stop() {
 	defer e.mu.Unlock()
 
 	_ = e.handle.Command([]string{"stop"})
-	e.playing = false
+	e.state = StateStopped
 }
 
-// Playing reports whether audio is currently playing.
-func (e *Engine) Playing() bool {
+// Seek seeks to the given position in seconds.
+func (e *Engine) Seek(seconds float64) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.playing
+
+	if e.state == StateStopped {
+		return
+	}
+	_ = e.handle.CommandString(fmt.Sprintf("seek %f absolute", seconds))
+}
+
+// SetVolume sets the volume (0-100).
+func (e *Engine) SetVolume(percent int) {
+	if percent < 0 {
+		percent = 0
+	}
+	if percent > 100 {
+		percent = 100
+	}
+	_ = e.handle.SetProperty("volume", mpv.FormatDouble, float64(percent))
+}
+
+// Volume returns the current volume (0-100).
+func (e *Engine) Volume() int {
+	v, err := e.handle.GetProperty("volume", mpv.FormatDouble)
+	if err != nil {
+		return 0
+	}
+	return int(v.(float64))
+}
+
+// Position returns the current playback position in seconds.
+func (e *Engine) Position() float64 {
+	v, err := e.handle.GetProperty("time-pos", mpv.FormatDouble)
+	if err != nil {
+		return 0
+	}
+	return v.(float64)
+}
+
+// Duration returns the duration of the current track in seconds.
+func (e *Engine) Duration() float64 {
+	v, err := e.handle.GetProperty("duration", mpv.FormatDouble)
+	if err != nil {
+		return 0
+	}
+	return v.(float64)
+}
+
+// State returns the current playback state.
+func (e *Engine) State() PlaybackState {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.state
 }
 
 // Close shuts down the mpv instance.
@@ -117,7 +206,7 @@ func (e *Engine) eventLoop() {
 		switch event.EventID {
 		case mpv.EventEnd:
 			e.mu.Lock()
-			e.playing = false
+			e.state = StateStopped
 			e.mu.Unlock()
 			slog.Debug("playback ended")
 		case mpv.EventFileLoaded:
