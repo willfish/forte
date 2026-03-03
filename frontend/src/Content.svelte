@@ -2,6 +2,7 @@
   import { getCurrentView, onViewChange, type View } from './lib/stores';
   import AlbumGrid from './AlbumGrid.svelte';
   import AlbumView from './AlbumView.svelte';
+  import Settings from './Settings.svelte';
 
   let currentView = $state<View>(getCurrentView());
   let selectedAlbumId = $state<number | null>(null);
@@ -31,10 +32,7 @@
       <p>Your playlists will appear here.</p>
     </div>
   {:else if currentView === 'settings'}
-    <div class="placeholder">
-      <h2>Settings</h2>
-      <p>Application settings will appear here.</p>
-    </div>
+    <Settings />
   {/if}
 </main>
 

@@ -4,6 +4,9 @@
   import NowPlayingBar from './NowPlayingBar.svelte';
   import ShortcutHelp from './ShortcutHelp.svelte';
   import { handleKeydown } from './lib/shortcuts';
+  import { initTheme } from './lib/theme';
+
+  initTheme();
 
   let showHelp = $state(false);
 
