@@ -41,6 +41,7 @@ type Engine struct {
 	handle *mpv.Mpv
 	state  PlaybackState
 	stop   chan struct{}
+	done   chan struct{} // closed when event loop exits
 }
 
 // NewEngine initialises mpv for audio-only playback.
@@ -72,6 +73,7 @@ func NewEngine() (*Engine, error) {
 	e := &Engine{
 		handle: m,
 		stop:   make(chan struct{}),
+		done:   make(chan struct{}),
 	}
 
 	go e.eventLoop()
@@ -233,6 +235,7 @@ func (e *Engine) ReplayGain() string {
 // Close shuts down the mpv instance.
 func (e *Engine) Close() {
 	close(e.stop)
+	<-e.done // wait for the event loop goroutine to exit
 	e.handle.TerminateDestroy()
 }
 
@@ -242,6 +245,7 @@ func (e *Engine) Version() string {
 }
 
 func (e *Engine) eventLoop() {
+	defer close(e.done)
 	for {
 		select {
 		case <-e.stop:
