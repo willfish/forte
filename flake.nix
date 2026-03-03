@@ -20,8 +20,8 @@
             golangci-lint
             govulncheck
             pkg-config
-            gtk3
-            webkitgtk_4_1
+            gtk4
+            webkitgtk_6_0
             mpv
           ];
 

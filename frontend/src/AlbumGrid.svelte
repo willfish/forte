@@ -85,7 +85,10 @@
     <div class="loading">Loading albums...</div>
   {:else if albums.length === 0}
     <div class="empty">
-      <p>No albums in your library yet.</p>
+      <svg class="empty-icon" viewBox="0 0 24 24" width="64" height="64" fill="currentColor">
+        <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+      </svg>
+      <p class="empty-title">No albums yet</p>
       <p class="hint">Add music folders in Settings to get started.</p>
     </div>
   {:else}
@@ -176,13 +179,23 @@
     color: var(--text-secondary);
   }
 
-  .empty p {
-    margin: 0.25rem 0;
+  .empty-icon {
+    opacity: 0.3;
+    margin-bottom: 1rem;
+  }
+
+  .empty-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 0.5rem;
   }
 
   .hint {
-    font-size: 0.85rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
     opacity: 0.7;
+    margin: 0;
   }
 
   .grid {
