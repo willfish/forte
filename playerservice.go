@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/willfish/forte/internal/metadata"
@@ -12,7 +13,9 @@ import (
 
 // PlayerService exposes audio playback controls to the frontend.
 type PlayerService struct {
-	engine *player.Engine
+	engine     *player.Engine
+	queue      *player.Queue
+	manualSkip int32 // atomic: set before explicit Next/Previous to suppress auto-advance
 }
 
 // ServiceStartup initialises the mpv engine when the application starts.
@@ -22,6 +25,16 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 		return fmt.Errorf("player startup: %w", err)
 	}
 	p.engine = e
+	p.queue = player.NewQueue()
+
+	// When mpv auto-advances to the next track (gapless), advance the queue.
+	e.SetOnTrackChange(func() {
+		if atomic.CompareAndSwapInt32(&p.manualSkip, 1, 0) {
+			return // explicit Next/Previous already updated the queue
+		}
+		p.queue.Next()
+	})
+
 	return nil
 }
 
@@ -31,6 +44,75 @@ func (p *PlayerService) ServiceShutdown() error {
 		p.engine.Close()
 	}
 	return nil
+}
+
+// PlayQueue replaces the queue with the given tracks and starts playback
+// from startAt. This is the primary entry point for playing from the UI.
+func (p *PlayerService) PlayQueue(tracks []player.QueueTrack, startAt int) error {
+	if p.engine == nil {
+		return fmt.Errorf("player not initialised")
+	}
+	p.queue.Replace(tracks, startAt)
+	paths := p.queue.Paths(startAt)
+	if len(paths) == 0 {
+		return nil
+	}
+	atomic.StoreInt32(&p.manualSkip, 1) // suppress callback for initial load
+	return p.engine.PlayAll(paths)
+}
+
+// QueueAppend adds a track to the end of the queue.
+// If nothing is playing, it does not start playback.
+func (p *PlayerService) QueueAppend(track player.QueueTrack) {
+	p.queue.Append(track)
+}
+
+// QueueInsertNext inserts a track immediately after the current track.
+func (p *PlayerService) QueueInsertNext(track player.QueueTrack) {
+	p.queue.InsertAfterCurrent(track)
+}
+
+// QueueRemove removes the track at the given index.
+// If the removed track was the current track, playback restarts from
+// the new current position.
+func (p *PlayerService) QueueRemove(index int) error {
+	wasCurrent := p.queue.Remove(index)
+	if wasCurrent && p.engine != nil {
+		cur := p.queue.Current()
+		if cur == nil {
+			p.engine.Stop()
+			return nil
+		}
+		paths := p.queue.Paths(p.queue.Position())
+		if len(paths) > 0 {
+			atomic.StoreInt32(&p.manualSkip, 1)
+			return p.engine.PlayAll(paths)
+		}
+	}
+	return nil
+}
+
+// QueueMove moves a track from one position to another.
+func (p *PlayerService) QueueMove(from, to int) {
+	p.queue.Move(from, to)
+}
+
+// QueueClear clears the queue and stops playback.
+func (p *PlayerService) QueueClear() {
+	p.queue.Clear()
+	if p.engine != nil {
+		p.engine.Stop()
+	}
+}
+
+// GetQueue returns all tracks in the queue.
+func (p *PlayerService) GetQueue() []player.QueueTrack {
+	return p.queue.Tracks()
+}
+
+// GetQueuePosition returns the current queue position (-1 if empty).
+func (p *PlayerService) GetQueuePosition() int {
+	return p.queue.Position()
 }
 
 // Play starts playback of the audio file at the given path.
@@ -156,16 +238,24 @@ func (p *PlayerService) MediaPath() string {
 	return p.engine.MediaPath()
 }
 
-// Next skips to the next track in the playlist.
+// Next skips to the next track in the queue.
 func (p *PlayerService) Next() {
-	if p.engine != nil {
+	if p.engine == nil {
+		return
+	}
+	if p.queue.Next() {
+		atomic.StoreInt32(&p.manualSkip, 1)
 		p.engine.Next()
 	}
 }
 
-// Previous skips to the previous track in the playlist.
+// Previous skips to the previous track in the queue.
 func (p *PlayerService) Previous() {
-	if p.engine != nil {
+	if p.engine == nil {
+		return
+	}
+	if p.queue.Previous() {
+		atomic.StoreInt32(&p.manualSkip, 1)
 		p.engine.Previous()
 	}
 }
