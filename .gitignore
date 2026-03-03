@@ -1,0 +1,17 @@
+# Build artifacts
+.task
+bin/
+frontend/dist
+frontend/node_modules
+
+# Nix/direnv
+.direnv/
+.go/
+result
+
+# OS
+.DS_Store
+
+# Platform build artifacts
+build/linux/appimage/build
+build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
