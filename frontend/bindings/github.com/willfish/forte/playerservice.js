@@ -60,6 +60,22 @@ export function GetQueuePosition() {
 }
 
 /**
+ * GetRepeat returns the current repeat mode as a string.
+ * @returns {$CancellablePromise<string>}
+ */
+export function GetRepeat() {
+    return $Call.ByID(3949558547);
+}
+
+/**
+ * GetShuffle returns whether shuffle mode is active.
+ * @returns {$CancellablePromise<boolean>}
+ */
+export function GetShuffle() {
+    return $Call.ByID(4278779269);
+}
+
+/**
  * MediaAlbum returns the album of the currently playing track.
  * @returns {$CancellablePromise<string>}
  */
@@ -226,12 +242,31 @@ export function Seek(seconds) {
 }
 
 /**
+ * SetRepeat sets the repeat mode: "off", "all", or "one".
+ * @param {string} mode
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetRepeat(mode) {
+    return $Call.ByID(76083775, mode);
+}
+
+/**
  * SetReplayGain sets the ReplayGain mode: "track", "album", or "no" (off).
  * @param {string} mode
  * @returns {$CancellablePromise<void>}
  */
 export function SetReplayGain(mode) {
     return $Call.ByID(804885384, mode);
+}
+
+/**
+ * SetShuffle enables or disables shuffle mode.
+ * When toggled, the mpv playlist is rebuilt to match the new order.
+ * @param {boolean} enabled
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetShuffle(enabled) {
+    return $Call.ByID(3896707945, enabled);
 }
 
 /**

@@ -35,6 +35,19 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 		p.queue.Next()
 	})
 
+	// When the mpv playlist ends, loop back if repeat-all is on.
+	e.SetOnPlaylistEnd(func() {
+		if p.queue.Repeat() != player.RepeatAll {
+			return
+		}
+		p.queue.SetPosition(0)
+		paths := p.queue.Paths(0)
+		if len(paths) > 0 {
+			atomic.StoreInt32(&p.manualSkip, 1)
+			_ = p.engine.PlayAll(paths)
+		}
+	})
+
 	return nil
 }
 
@@ -113,6 +126,50 @@ func (p *PlayerService) GetQueue() []player.QueueTrack {
 // GetQueuePosition returns the current queue position (-1 if empty).
 func (p *PlayerService) GetQueuePosition() int {
 	return p.queue.Position()
+}
+
+// SetShuffle enables or disables shuffle mode.
+// When toggled, the mpv playlist is rebuilt to match the new order.
+func (p *PlayerService) SetShuffle(enabled bool) {
+	p.queue.SetShuffle(enabled)
+	if p.engine == nil {
+		return
+	}
+	// Rebuild the mpv playlist from the track after current.
+	pos := p.queue.Position()
+	if pos < 0 {
+		return
+	}
+	upcoming := p.queue.Paths(pos + 1)
+	p.engine.ReplaceUpcoming(upcoming)
+}
+
+// GetShuffle returns whether shuffle mode is active.
+func (p *PlayerService) GetShuffle() bool {
+	return p.queue.Shuffled()
+}
+
+// SetRepeat sets the repeat mode: "off", "all", or "one".
+func (p *PlayerService) SetRepeat(mode string) {
+	var rm player.RepeatMode
+	switch mode {
+	case "all":
+		rm = player.RepeatAll
+	case "one":
+		rm = player.RepeatOne
+	default:
+		rm = player.RepeatOff
+	}
+	p.queue.SetRepeat(rm)
+
+	if p.engine != nil {
+		p.engine.SetLoopFile(rm == player.RepeatOne)
+	}
+}
+
+// GetRepeat returns the current repeat mode as a string.
+func (p *PlayerService) GetRepeat() string {
+	return p.queue.Repeat().String()
 }
 
 // Play starts playback of the audio file at the given path.
@@ -243,9 +300,23 @@ func (p *PlayerService) Next() {
 	if p.engine == nil {
 		return
 	}
+	repeat := p.queue.Repeat()
+	if repeat == player.RepeatOne {
+		// Repeat-one: seek to start instead of advancing.
+		p.engine.Seek(0)
+		return
+	}
 	if p.queue.Next() {
 		atomic.StoreInt32(&p.manualSkip, 1)
-		p.engine.Next()
+		if repeat == player.RepeatAll && p.queue.Position() == 0 {
+			// Wrapped around: reload playlist from the start.
+			paths := p.queue.Paths(0)
+			if len(paths) > 0 {
+				_ = p.engine.PlayAll(paths)
+			}
+		} else {
+			p.engine.Next()
+		}
 	}
 }
 
@@ -254,9 +325,22 @@ func (p *PlayerService) Previous() {
 	if p.engine == nil {
 		return
 	}
+	repeat := p.queue.Repeat()
+	if repeat == player.RepeatOne {
+		p.engine.Seek(0)
+		return
+	}
 	if p.queue.Previous() {
 		atomic.StoreInt32(&p.manualSkip, 1)
-		p.engine.Previous()
+		if repeat == player.RepeatAll && p.queue.Position() == p.queue.Len()-1 {
+			// Wrapped backward: reload playlist from the end.
+			paths := p.queue.Paths(p.queue.Position())
+			if len(paths) > 0 {
+				_ = p.engine.PlayAll(paths)
+			}
+		} else {
+			p.engine.Previous()
+		}
 	}
 }
 
