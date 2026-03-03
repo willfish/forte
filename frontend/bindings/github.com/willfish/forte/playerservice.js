@@ -54,6 +54,14 @@ export function MediaArtist() {
 }
 
 /**
+ * MediaPath returns the file path of the currently playing track.
+ * @returns {$CancellablePromise<string>}
+ */
+export function MediaPath() {
+    return $Call.ByID(3316771859);
+}
+
+/**
  * MediaTitle returns the title of the currently playing track.
  * @returns {$CancellablePromise<string>}
  */
