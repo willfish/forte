@@ -13,8 +13,16 @@ func openTestDB(t *testing.T) *DB {
 	if err != nil {
 		t.Fatalf("OpenDB() error: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	return db
+}
+
+// mustExec runs db.Exec and fails the test on error.
+func mustExec(t *testing.T, db *DB, query string, args ...any) {
+	t.Helper()
+	if _, err := db.Exec(query, args...); err != nil {
+		t.Fatalf("exec %q: %v", query, err)
+	}
 }
 
 func TestOpenDB(t *testing.T) {
@@ -47,13 +55,13 @@ func TestMigrationIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first OpenDB: %v", err)
 	}
-	db1.Close()
+	_ = db1.Close()
 
 	db2, err := OpenDB(path)
 	if err != nil {
 		t.Fatalf("second OpenDB: %v", err)
 	}
-	db2.Close()
+	_ = db2.Close()
 }
 
 func TestTablesExist(t *testing.T) {
@@ -115,20 +123,17 @@ func TestFTS5Search(t *testing.T) {
 	db := openTestDB(t)
 
 	// Insert artist + album + track.
-	db.Exec("INSERT INTO artists (name) VALUES (?)", "Beethoven")
-	db.Exec("INSERT INTO albums (artist_id, title, year) VALUES (1, 'Symphony No. 9', 1824)")
-	db.Exec(`INSERT INTO tracks (album_id, artist_id, title, track_number, file_path)
+	mustExec(t, db, "INSERT INTO artists (name) VALUES (?)", "Beethoven")
+	mustExec(t, db, "INSERT INTO albums (artist_id, title, year) VALUES (1, 'Symphony No. 9', 1824)")
+	mustExec(t, db, `INSERT INTO tracks (album_id, artist_id, title, track_number, file_path)
 		VALUES (1, 1, 'Ode to Joy', 4, '/music/ode.flac')`)
 
 	// Populate FTS index (content-less table: stores rowid only, columns for matching).
-	_, err := db.Exec("INSERT INTO fts_tracks (rowid, title, artist, album, genre) VALUES (1, 'Ode to Joy', 'Beethoven', 'Symphony No. 9', 'Classical')")
-	if err != nil {
-		t.Fatalf("insert fts: %v", err)
-	}
+	mustExec(t, db, "INSERT INTO fts_tracks (rowid, title, artist, album, genre) VALUES (1, 'Ode to Joy', 'Beethoven', 'Symphony No. 9', 'Classical')")
 
 	// Exact match - join FTS rowid back to tracks table.
 	var title string
-	err = db.QueryRow(`SELECT t.title FROM fts_tracks f
+	err := db.QueryRow(`SELECT t.title FROM fts_tracks f
 		JOIN tracks t ON t.id = f.rowid
 		WHERE fts_tracks MATCH 'Beethoven'`).Scan(&title)
 	if err != nil {
@@ -170,7 +175,7 @@ func TestForeignKeyConstraint(t *testing.T) {
 func TestUniqueFilePath(t *testing.T) {
 	db := openTestDB(t)
 
-	db.Exec("INSERT INTO artists (name) VALUES ('A')")
+	mustExec(t, db, "INSERT INTO artists (name) VALUES ('A')")
 	_, err := db.Exec(`INSERT INTO tracks (artist_id, title, file_path) VALUES (1, 'T1', '/music/a.flac')`)
 	if err != nil {
 		t.Fatalf("first insert: %v", err)
@@ -185,8 +190,8 @@ func TestUniqueFilePath(t *testing.T) {
 func TestCueSheetColumns(t *testing.T) {
 	db := openTestDB(t)
 
-	db.Exec("INSERT INTO artists (name) VALUES ('A')")
-	db.Exec("INSERT INTO albums (artist_id, title) VALUES (1, 'Album')")
+	mustExec(t, db, "INSERT INTO artists (name) VALUES ('A')")
+	mustExec(t, db, "INSERT INTO albums (artist_id, title) VALUES (1, 'Album')")
 
 	_, err := db.Exec(`INSERT INTO tracks (album_id, artist_id, title, file_path, cue_file_path, start_ms, end_ms)
 		VALUES (1, 1, 'CUE Track', '/music/album.flac', '/music/album.cue', 0, 330000)`)
@@ -211,7 +216,7 @@ func TestCueSheetColumns(t *testing.T) {
 func TestServerColumns(t *testing.T) {
 	db := openTestDB(t)
 
-	db.Exec("INSERT INTO artists (name) VALUES ('A')")
+	mustExec(t, db, "INSERT INTO artists (name) VALUES ('A')")
 	_, err := db.Exec(`INSERT INTO tracks (artist_id, title, file_path, server_id, remote_id)
 		VALUES (1, 'Remote Track', '', 'subsonic-1', 'tr-42')`)
 	if err != nil {
@@ -231,16 +236,18 @@ func TestServerColumns(t *testing.T) {
 func TestCascadeDelete(t *testing.T) {
 	db := openTestDB(t)
 
-	db.Exec("INSERT INTO artists (name) VALUES ('A')")
-	db.Exec("INSERT INTO genres (name) VALUES ('Rock')")
-	db.Exec(`INSERT INTO tracks (artist_id, title, file_path) VALUES (1, 'T', '/a.flac')`)
-	db.Exec("INSERT INTO track_genres (track_id, genre_id) VALUES (1, 1)")
+	mustExec(t, db, "INSERT INTO artists (name) VALUES ('A')")
+	mustExec(t, db, "INSERT INTO genres (name) VALUES ('Rock')")
+	mustExec(t, db, `INSERT INTO tracks (artist_id, title, file_path) VALUES (1, 'T', '/a.flac')`)
+	mustExec(t, db, "INSERT INTO track_genres (track_id, genre_id) VALUES (1, 1)")
 
 	// Deleting the track should cascade to track_genres.
-	db.Exec("DELETE FROM tracks WHERE id = 1")
+	mustExec(t, db, "DELETE FROM tracks WHERE id = 1")
 
 	var count int
-	db.QueryRow("SELECT COUNT(*) FROM track_genres").Scan(&count)
+	if err := db.QueryRow("SELECT COUNT(*) FROM track_genres").Scan(&count); err != nil {
+		t.Fatalf("count track_genres: %v", err)
+	}
 	if count != 0 {
 		t.Errorf("track_genres count = %d after cascade delete, want 0", count)
 	}
@@ -259,7 +266,7 @@ func TestOpenDBCreatesFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenDB: %v", err)
 	}
-	db.Close()
+	_ = db.Close()
 
 	if _, err := os.Stat(path); err != nil {
 		t.Errorf("database file not created: %v", err)
