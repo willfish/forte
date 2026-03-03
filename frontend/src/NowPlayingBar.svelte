@@ -5,6 +5,12 @@
   let position = $state(0);
   let duration = $state(0);
   let volume = $state(100);
+  let title = $state('');
+  let artist = $state('');
+  let album = $state('');
+  let artworkSrc = $state('');
+  let muted = $state(false);
+  let volumeBeforeMute = $state(100);
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
   function startPolling() {
@@ -14,6 +20,9 @@
       position = await PlayerService.Position();
       duration = await PlayerService.Duration();
       volume = await PlayerService.Volume();
+      title = await PlayerService.MediaTitle();
+      artist = await PlayerService.MediaArtist();
+      album = await PlayerService.MediaAlbum();
     }, 250);
   }
 
@@ -24,9 +33,26 @@
     }
   }
 
+  // Fetch artwork less frequently (only when track changes).
+  let lastArtworkKey = '';
+  async function refreshArtwork() {
+    const key = title + '|' + artist;
+    if (key === lastArtworkKey) return;
+    lastArtworkKey = key;
+    if (playbackState === 'stopped' || !title) {
+      artworkSrc = '';
+      return;
+    }
+    artworkSrc = await PlayerService.Artwork();
+  }
+
   $effect(() => {
     startPolling();
-    return () => stopPolling();
+    const artworkTimer = setInterval(refreshArtwork, 1000);
+    return () => {
+      stopPolling();
+      clearInterval(artworkTimer);
+    };
   });
 
   function formatTime(seconds: number): string {
@@ -45,6 +71,18 @@
 
   async function stop() {
     await PlayerService.Stop();
+    artworkSrc = '';
+    lastArtworkKey = '';
+  }
+
+  async function previous() {
+    await PlayerService.Previous();
+    lastArtworkKey = '';
+  }
+
+  async function next() {
+    await PlayerService.Next();
+    lastArtworkKey = '';
   }
 
   async function handleSeek(e: Event) {
@@ -54,17 +92,39 @@
 
   async function handleVolume(e: Event) {
     const target = e.target as HTMLInputElement;
-    await PlayerService.SetVolume(parseInt(target.value));
+    const v = parseInt(target.value);
+    muted = false;
+    await PlayerService.SetVolume(v);
   }
+
+  async function toggleMute() {
+    if (muted) {
+      muted = false;
+      await PlayerService.SetVolume(volumeBeforeMute);
+    } else {
+      volumeBeforeMute = volume;
+      muted = true;
+      await PlayerService.SetVolume(0);
+    }
+  }
+
+  const isStopped = $derived(playbackState === 'stopped');
 </script>
 
 <footer class="bar">
   <div class="track-info">
-    <div class="artwork-placeholder"></div>
+    {#if artworkSrc}
+      <img class="artwork" src={artworkSrc} alt="Album art" />
+    {:else}
+      <div class="artwork-placeholder"></div>
+    {/if}
     <div class="meta">
-      {#if playbackState !== 'stopped'}
-        <span class="title">Now Playing</span>
-        <span class="artist">-</span>
+      {#if !isStopped && title}
+        <span class="title">{title}</span>
+        <span class="artist">{artist}{album ? ` - ${album}` : ''}</span>
+      {:else if !isStopped}
+        <span class="title">Playing</span>
+        <span class="artist">Unknown track</span>
       {:else}
         <span class="title idle">No track selected</span>
       {/if}
@@ -73,11 +133,31 @@
 
   <div class="controls">
     <div class="transport">
-      <button onclick={togglePlayPause} disabled={playbackState === 'stopped'}>
-        {playbackState === 'playing' ? '\u23F8' : '\u25B6'}
+      <button onclick={previous} disabled={isStopped} aria-label="Previous">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+          <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/>
+        </svg>
       </button>
-      <button onclick={stop} disabled={playbackState === 'stopped'}>
-        \u23F9
+      <button class="play-btn" onclick={togglePlayPause} disabled={isStopped} aria-label={playbackState === 'playing' ? 'Pause' : 'Play'}>
+        {#if playbackState === 'playing'}
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path d="M6 19h4V5H6zm8-14v14h4V5z"/>
+          </svg>
+        {:else}
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+        {/if}
+      </button>
+      <button onclick={next} disabled={isStopped} aria-label="Next">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+          <path d="M6 18l8.5-6L6 6zm10-12v12h2V6z"/>
+        </svg>
+      </button>
+      <button onclick={stop} disabled={isStopped} aria-label="Stop">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+          <path d="M6 6h12v12H6z"/>
+        </svg>
       </button>
     </div>
 
@@ -90,19 +170,33 @@
         value={position}
         step="0.5"
         oninput={handleSeek}
-        disabled={playbackState === 'stopped'}
+        disabled={isStopped}
       />
       <span class="time">{formatTime(duration)}</span>
     </div>
   </div>
 
   <div class="volume-section">
-    <span class="vol-icon">{volume === 0 ? '\u{1F507}' : '\u{1F50A}'}</span>
+    <button class="vol-btn" onclick={toggleMute} aria-label={muted || volume === 0 ? 'Unmute' : 'Mute'}>
+      {#if muted || volume === 0}
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+          <path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.796 8.796 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/>
+        </svg>
+      {:else if volume < 50}
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+          <path d="M18.5 12A4.5 4.5 0 0 0 16 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z"/>
+        </svg>
+      {:else}
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+        </svg>
+      {/if}
+    </button>
     <input
       type="range"
       min="0"
       max="100"
-      value={volume}
+      value={muted ? 0 : volume}
       oninput={handleVolume}
     />
   </div>
@@ -125,6 +219,14 @@
     align-items: center;
     gap: 0.75rem;
     overflow: hidden;
+  }
+
+  .artwork {
+    width: 48px;
+    height: 48px;
+    border-radius: 4px;
+    object-fit: cover;
+    flex-shrink: 0;
   }
 
   .artwork-placeholder {
@@ -175,13 +277,12 @@
   }
 
   .transport button {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     border: none;
-    background: var(--accent);
-    color: #fff;
-    font-size: 0.85rem;
+    background: transparent;
+    color: var(--text-secondary);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -190,12 +291,26 @@
   }
 
   .transport button:hover:not(:disabled) {
-    filter: brightness(1.15);
+    color: var(--text-primary);
+    background: var(--bg-hover);
   }
 
   .transport button:disabled {
-    opacity: 0.4;
+    opacity: 0.3;
     cursor: default;
+  }
+
+  .transport .play-btn {
+    width: 32px;
+    height: 32px;
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .transport .play-btn:hover:not(:disabled) {
+    background: var(--accent);
+    color: #fff;
+    filter: brightness(1.15);
   }
 
   .seek {
@@ -230,9 +345,20 @@
     justify-content: flex-end;
   }
 
-  .vol-icon {
-    font-size: 0.85rem;
+  .vol-btn {
+    background: transparent;
+    border: none;
     color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    border-radius: 4px;
+  }
+
+  .vol-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
   }
 
   .volume-section input {
