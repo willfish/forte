@@ -81,3 +81,16 @@ CREATE TABLE playlist_tracks (
 	PRIMARY KEY (playlist_id, track_id)
 );
 `
+
+const migration002 = `
+CREATE TABLE playback_state (
+	id                 INTEGER PRIMARY KEY CHECK (id = 1),
+	queue_json         TEXT NOT NULL DEFAULT '[]',
+	position           INTEGER NOT NULL DEFAULT -1,
+	track_position_ms  INTEGER NOT NULL DEFAULT 0,
+	volume             INTEGER NOT NULL DEFAULT 100,
+	shuffle            INTEGER NOT NULL DEFAULT 0,
+	repeat_mode        TEXT NOT NULL DEFAULT 'off'
+);
+INSERT INTO playback_state (id) VALUES (1);
+`
