@@ -116,6 +116,49 @@ func TestSeekWhileStopped(t *testing.T) {
 	e.Seek(30.0)
 }
 
+func TestEnqueue(t *testing.T) {
+	e := newTestEngine(t)
+
+	// Enqueue without playing first should succeed (appends to empty playlist).
+	if err := e.Enqueue("/nonexistent/a.flac"); err != nil {
+		t.Fatalf("Enqueue() error: %v", err)
+	}
+}
+
+func TestPlayAll(t *testing.T) {
+	e := newTestEngine(t)
+
+	paths := []string{"/nonexistent/a.flac", "/nonexistent/b.flac", "/nonexistent/c.flac"}
+	if err := e.PlayAll(paths); err != nil {
+		t.Fatalf("PlayAll() error: %v", err)
+	}
+
+	if s := e.State(); s != StatePlaying {
+		t.Fatalf("expected StatePlaying after PlayAll(), got %s", s)
+	}
+}
+
+func TestPlayAllEmpty(t *testing.T) {
+	e := newTestEngine(t)
+
+	if err := e.PlayAll(nil); err != nil {
+		t.Fatalf("PlayAll(nil) error: %v", err)
+	}
+
+	if s := e.State(); s != StateStopped {
+		t.Fatalf("expected StateStopped after PlayAll(nil), got %s", s)
+	}
+}
+
+func TestGaplessOptionSet(t *testing.T) {
+	e := newTestEngine(t)
+
+	v := e.handle.GetPropertyString("gapless-audio")
+	if v != "yes" {
+		t.Fatalf("expected gapless-audio=yes, got %q", v)
+	}
+}
+
 func TestPlaybackStateString(t *testing.T) {
 	tests := []struct {
 		state PlaybackState

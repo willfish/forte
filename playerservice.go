@@ -39,6 +39,22 @@ func (p *PlayerService) Play(path string) error {
 	return p.engine.Play(path)
 }
 
+// Enqueue appends a track to the playlist for gapless playback.
+func (p *PlayerService) Enqueue(path string) error {
+	if p.engine == nil {
+		return fmt.Errorf("player not initialised")
+	}
+	return p.engine.Enqueue(path)
+}
+
+// PlayAll replaces the playlist and plays the given tracks in order.
+func (p *PlayerService) PlayAll(paths []string) error {
+	if p.engine == nil {
+		return fmt.Errorf("player not initialised")
+	}
+	return p.engine.PlayAll(paths)
+}
+
 // Pause pauses the current playback.
 func (p *PlayerService) Pause() {
 	if p.engine != nil {
