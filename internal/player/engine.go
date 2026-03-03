@@ -239,6 +239,36 @@ func (e *Engine) Close() {
 	e.handle.TerminateDestroy()
 }
 
+// MediaTitle returns the title of the currently playing track.
+func (e *Engine) MediaTitle() string {
+	return e.handle.GetPropertyString("media-title")
+}
+
+// MediaArtist returns the artist of the currently playing track.
+func (e *Engine) MediaArtist() string {
+	return e.handle.GetPropertyString("metadata/by-key/artist")
+}
+
+// MediaAlbum returns the album of the currently playing track.
+func (e *Engine) MediaAlbum() string {
+	return e.handle.GetPropertyString("metadata/by-key/album")
+}
+
+// MediaPath returns the file path of the currently playing track.
+func (e *Engine) MediaPath() string {
+	return e.handle.GetPropertyString("path")
+}
+
+// Next skips to the next track in the playlist.
+func (e *Engine) Next() {
+	_ = e.handle.Command([]string{"playlist-next"})
+}
+
+// Previous skips to the previous track in the playlist.
+func (e *Engine) Previous() {
+	_ = e.handle.Command([]string{"playlist-prev"})
+}
+
 // Version returns the mpv library version string.
 func (e *Engine) Version() string {
 	return e.handle.GetPropertyString("mpv-version")
