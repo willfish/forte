@@ -148,6 +148,14 @@ func (p *PlayerService) MediaAlbum() string {
 	return p.engine.MediaAlbum()
 }
 
+// MediaPath returns the file path of the currently playing track.
+func (p *PlayerService) MediaPath() string {
+	if p.engine == nil {
+		return ""
+	}
+	return p.engine.MediaPath()
+}
+
 // Next skips to the next track in the playlist.
 func (p *PlayerService) Next() {
 	if p.engine != nil {
