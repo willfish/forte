@@ -28,6 +28,7 @@
           shellHook = ''
             export GOPATH="$PWD/.go"
             export PATH="$GOPATH/bin:$PATH"
+            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.mpv ]}:$LD_LIBRARY_PATH"
           '';
         };
       });
