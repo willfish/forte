@@ -137,3 +137,114 @@ export class AlbumTrack {
         return new AlbumTrack(/** @type {Partial<AlbumTrack>} */($$parsedSource));
     }
 }
+
+/**
+ * Playlist is the JSON-friendly playlist type exposed to the frontend.
+ */
+export class Playlist {
+    /**
+     * Creates a new Playlist instance.
+     * @param {Partial<Playlist>} [$$source = {}] - The source object to create the Playlist.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["id"] = 0;
+        }
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Playlist instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {Playlist}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Playlist(/** @type {Partial<Playlist>} */($$parsedSource));
+    }
+}
+
+/**
+ * PlaylistTrack is the JSON-friendly playlist track type exposed to the frontend.
+ */
+export class PlaylistTrack {
+    /**
+     * Creates a new PlaylistTrack instance.
+     * @param {Partial<PlaylistTrack>} [$$source = {}] - The source object to create the PlaylistTrack.
+     */
+    constructor($$source = {}) {
+        if (!("trackId" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["trackId"] = 0;
+        }
+        if (!("title" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["title"] = "";
+        }
+        if (!("artist" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["artist"] = "";
+        }
+        if (!("album" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["album"] = "";
+        }
+        if (!("durationMs" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["durationMs"] = 0;
+        }
+        if (!("filePath" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["filePath"] = "";
+        }
+        if (!("position" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["position"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PlaylistTrack instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {PlaylistTrack}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PlaylistTrack(/** @type {Partial<PlaylistTrack>} */($$parsedSource));
+    }
+}
