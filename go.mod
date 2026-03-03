@@ -5,6 +5,7 @@ go 1.25
 require (
 	github.com/gen2brain/go-mpv v0.2.3
 	github.com/wailsapp/wails/v3 v3.0.0-alpha.74
+	go.senan.xyz/taglib v0.11.1
 	modernc.org/sqlite v1.46.1
 )
 
@@ -44,6 +45,7 @@ require (
 	github.com/samber/lo v1.52.0 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/skeema/knownhosts v1.3.2 // indirect
+	github.com/tetratelabs/wazero v1.10.1 // indirect
 	github.com/wailsapp/go-webview2 v1.0.23 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	golang.org/x/crypto v0.47.0 // indirect
