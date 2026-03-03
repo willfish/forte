@@ -1,6 +1,7 @@
 # Build artifacts
 .task
 bin/
+frontend/.vite/
 frontend/dist
 frontend/node_modules
 

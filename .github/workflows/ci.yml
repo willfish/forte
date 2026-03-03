@@ -30,7 +30,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libmpv-dev
 
       - name: Build frontend
         working-directory: frontend
@@ -38,7 +38,7 @@ jobs:
           npm ci
           npm run build
 
-      - run: go test ./...
+      - run: go test -tags nocgo ./...
 
   lint:
     name: Lint
@@ -59,7 +59,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libmpv-dev
 
       - name: Build frontend
         working-directory: frontend
@@ -70,6 +70,7 @@ jobs:
       - uses: golangci/golangci-lint-action@v7
         with:
           version: "v2.10"
+          args: --build-tags nocgo
 
   frontend:
     name: Frontend
@@ -109,7 +110,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libmpv-dev
 
       - name: Install wails3
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
@@ -141,7 +142,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libmpv-dev
 
       - name: Build frontend
         working-directory: frontend
@@ -152,7 +153,7 @@ jobs:
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+          govulncheck -tags nocgo ./...
 
       - name: trufflehog
         uses: trufflesecurity/trufflehog@main

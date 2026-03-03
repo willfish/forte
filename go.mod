@@ -2,7 +2,10 @@ module github.com/willfish/forte
 
 go 1.25
 
-require github.com/wailsapp/wails/v3 v3.0.0-alpha.74
+require (
+	github.com/gen2brain/go-mpv v0.2.3
+	github.com/wailsapp/wails/v3 v3.0.0-alpha.74
+)
 
 require (
 	dario.cat/mergo v1.0.2 // indirect

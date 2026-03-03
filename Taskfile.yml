@@ -14,6 +14,8 @@ tasks:
     summary: Builds the application
     cmds:
       - task: "linux:build"
+        vars:
+          EXTRA_TAGS: nocgo
 
   package:
     summary: Packages a production build of the application

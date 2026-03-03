@@ -16,6 +16,7 @@ func main() {
 		Description: "A modern music player",
 		Services: []application.Service{
 			application.NewService(&GreetService{}),
+			application.NewService(&PlayerService{}),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
