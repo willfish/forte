@@ -91,9 +91,16 @@
   });
 
   async function playFromTrack(index: number) {
-    const paths = tracks.slice(index).map(t => t.filePath);
-    if (paths.length > 0) {
-      await PlayerService.PlayAll(paths);
+    const queueTracks = tracks.map(t => ({
+      trackId: t.trackId,
+      title: t.title,
+      artist: t.artist,
+      album: albumInfo.title,
+      durationMs: t.durationMs,
+      filePath: t.filePath,
+    }));
+    if (queueTracks.length > 0) {
+      await PlayerService.PlayQueue(queueTracks, index);
     }
   }
 

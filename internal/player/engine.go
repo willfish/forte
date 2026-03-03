@@ -37,11 +37,12 @@ var ErrMpvNotFound = errors.New(
 
 // Engine wraps an mpv instance for audio playback.
 type Engine struct {
-	mu     sync.Mutex
-	handle *mpv.Mpv
-	state  PlaybackState
-	stop   chan struct{}
-	done   chan struct{} // closed when event loop exits
+	mu            sync.Mutex
+	handle        *mpv.Mpv
+	state         PlaybackState
+	stop          chan struct{}
+	done          chan struct{} // closed when event loop exits
+	onTrackChange func()       // called when mpv loads a new file
 }
 
 // NewEngine initialises mpv for audio-only playback.
@@ -232,6 +233,13 @@ func (e *Engine) ReplayGain() string {
 	return e.handle.GetPropertyString("replaygain")
 }
 
+// SetOnTrackChange registers a callback invoked when mpv loads a new file.
+func (e *Engine) SetOnTrackChange(fn func()) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.onTrackChange = fn
+}
+
 // Close shuts down the mpv instance.
 func (e *Engine) Close() {
 	close(e.stop)
@@ -306,7 +314,11 @@ func (e *Engine) eventLoop() {
 		case mpv.EventFileLoaded:
 			e.mu.Lock()
 			e.state = StatePlaying
+			cb := e.onTrackChange
 			e.mu.Unlock()
+			if cb != nil {
+				cb()
+			}
 			slog.Debug("file loaded")
 		case mpv.EventShutdown:
 			return
