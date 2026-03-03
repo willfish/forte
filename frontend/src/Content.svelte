@@ -2,6 +2,7 @@
   import { getCurrentView, onViewChange, type View } from './lib/stores';
   import AlbumGrid from './AlbumGrid.svelte';
   import AlbumView from './AlbumView.svelte';
+  import PlaylistView from './PlaylistView.svelte';
   import Settings from './Settings.svelte';
 
   let currentView = $state<View>(getCurrentView());
@@ -27,10 +28,7 @@
       <AlbumGrid onselect={handleAlbumSelect} />
     {/if}
   {:else if currentView === 'playlists'}
-    <div class="placeholder">
-      <h2>Playlists</h2>
-      <p>Your playlists will appear here.</p>
-    </div>
+    <PlaylistView />
   {:else if currentView === 'settings'}
     <Settings />
   {/if}
@@ -43,23 +41,4 @@
     padding: 1.5rem;
   }
 
-  .placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: var(--text-secondary);
-  }
-
-  .placeholder h2 {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0 0 0.5rem;
-  }
-
-  .placeholder p {
-    margin: 0;
-  }
 </style>

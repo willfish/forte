@@ -11,5 +11,7 @@ export {
 
 export {
     Album,
-    AlbumTrack
+    AlbumTrack,
+    Playlist,
+    PlaylistTrack
 } from "./models.js";
