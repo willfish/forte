@@ -3,10 +3,16 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 	"sync/atomic"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/willfish/forte/internal/library"
 	"github.com/willfish/forte/internal/metadata"
 	"github.com/willfish/forte/internal/player"
 )
@@ -15,7 +21,9 @@ import (
 type PlayerService struct {
 	engine     *player.Engine
 	queue      *player.Queue
-	manualSkip int32 // atomic: set before explicit Next/Previous to suppress auto-advance
+	db         *library.DB
+	manualSkip int32     // atomic: set before explicit Next/Previous to suppress auto-advance
+	stopSave   chan struct{}
 }
 
 // ServiceStartup initialises the mpv engine when the application starts.
@@ -26,6 +34,21 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 	}
 	p.engine = e
 	p.queue = player.NewQueue()
+
+	// Open the database for persisting playback state.
+	dataDir, err := os.UserConfigDir()
+	if err != nil {
+		return fmt.Errorf("config dir: %w", err)
+	}
+	dbDir := filepath.Join(dataDir, "forte")
+	if err := os.MkdirAll(dbDir, 0o755); err != nil {
+		return fmt.Errorf("create data dir: %w", err)
+	}
+	db, err := library.OpenDB(filepath.Join(dbDir, "library.db"))
+	if err != nil {
+		return fmt.Errorf("player db: %w", err)
+	}
+	p.db = db
 
 	// When mpv auto-advances to the next track (gapless), advance the queue.
 	e.SetOnTrackChange(func() {
@@ -48,15 +71,156 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 		}
 	})
 
+	// Restore saved playback state.
+	p.restoreState()
+
+	// Periodic save every 10 seconds.
+	p.stopSave = make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				p.saveState()
+			case <-p.stopSave:
+				return
+			}
+		}
+	}()
+
 	return nil
 }
 
 // ServiceShutdown cleans up the mpv engine when the application exits.
 func (p *PlayerService) ServiceShutdown() error {
+	if p.stopSave != nil {
+		close(p.stopSave)
+	}
+	p.saveState()
 	if p.engine != nil {
 		p.engine.Close()
 	}
+	if p.db != nil {
+		return p.db.Close()
+	}
 	return nil
+}
+
+func (p *PlayerService) saveState() {
+	if p.db == nil || p.queue == nil {
+		return
+	}
+	tracks := p.queue.Tracks()
+	queueJSON, err := json.Marshal(tracks)
+	if err != nil {
+		log.Printf("save state: marshal queue: %v", err)
+		return
+	}
+
+	var posMs int
+	if p.engine != nil {
+		posMs = int(p.engine.Position() * 1000)
+	}
+
+	vol := 100
+	if p.engine != nil {
+		vol = p.engine.Volume()
+	}
+
+	state := library.PlaybackState{
+		QueueJSON:       string(queueJSON),
+		Position:        p.queue.Position(),
+		TrackPositionMs: posMs,
+		Volume:          vol,
+		Shuffle:         p.queue.Shuffled(),
+		RepeatMode:      p.queue.Repeat().String(),
+	}
+	if err := p.db.SavePlaybackState(state); err != nil {
+		log.Printf("save state: %v", err)
+	}
+}
+
+func (p *PlayerService) restoreState() {
+	if p.db == nil {
+		return
+	}
+	state, err := p.db.LoadPlaybackState()
+	if err != nil {
+		return // no saved state or error - start fresh
+	}
+
+	var tracks []player.QueueTrack
+	if err := json.Unmarshal([]byte(state.QueueJSON), &tracks); err != nil {
+		return
+	}
+
+	// Filter out tracks whose files no longer exist.
+	valid := make([]player.QueueTrack, 0, len(tracks))
+	for _, t := range tracks {
+		if _, err := os.Stat(t.FilePath); err == nil {
+			valid = append(valid, t)
+		}
+	}
+	if len(valid) == 0 {
+		// Nothing to restore, just set volume.
+		if p.engine != nil {
+			p.engine.SetVolume(state.Volume)
+		}
+		return
+	}
+
+	// Adjust position if tracks were removed before it.
+	pos := state.Position
+	removed := 0
+	for i, t := range tracks {
+		if i < state.Position {
+			if _, err := os.Stat(t.FilePath); err != nil {
+				removed++
+			}
+		}
+	}
+	pos -= removed
+	if pos < 0 || pos >= len(valid) {
+		pos = 0
+	}
+
+	// Restore queue and modes.
+	p.queue.Replace(valid, pos)
+
+	var rm player.RepeatMode
+	switch state.RepeatMode {
+	case "all":
+		rm = player.RepeatAll
+	case "one":
+		rm = player.RepeatOne
+	default:
+		rm = player.RepeatOff
+	}
+	p.queue.SetRepeat(rm)
+
+	if state.Shuffle {
+		p.queue.SetShuffle(true)
+	}
+
+	// Set volume and repeat-one loop on the engine.
+	if p.engine != nil {
+		p.engine.SetVolume(state.Volume)
+		p.engine.SetLoopFile(rm == player.RepeatOne)
+
+		// Load the playlist but start paused.
+		paths := p.queue.Paths(pos)
+		if len(paths) > 0 {
+			atomic.StoreInt32(&p.manualSkip, 1)
+			if err := p.engine.PlayAll(paths); err == nil {
+				// Pause immediately and seek to saved position.
+				p.engine.Pause()
+				if state.TrackPositionMs > 0 {
+					p.engine.Seek(float64(state.TrackPositionMs) / 1000.0)
+				}
+			}
+		}
+	}
 }
 
 // PlayQueue replaces the queue with the given tracks and starts playback
