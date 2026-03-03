@@ -205,6 +205,7 @@
 <style>
   .bar {
     height: 72px;
+    flex-shrink: 0;
     background: var(--bg-bar);
     border-top: 1px solid var(--border);
     display: grid;

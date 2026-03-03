@@ -180,7 +180,7 @@
   }
 
   .empty-icon {
-    opacity: 0.15;
+    opacity: 0.3;
     margin-bottom: 1rem;
   }
 
