@@ -62,6 +62,19 @@ func TestReplaceClampsBadStartAt(t *testing.T) {
 	}
 }
 
+func TestReplaceClearsShuffle(t *testing.T) {
+	q := NewQueue()
+	q.Replace([]QueueTrack{{TrackID: 1}, {TrackID: 2}, {TrackID: 3}}, 0)
+	q.SetShuffle(true)
+	if !q.Shuffled() {
+		t.Fatal("expected shuffle to be on")
+	}
+	q.Replace([]QueueTrack{{TrackID: 4}}, 0)
+	if q.Shuffled() {
+		t.Fatal("expected shuffle to be cleared after Replace")
+	}
+}
+
 func TestAppend(t *testing.T) {
 	q := NewQueue()
 	q.Append(QueueTrack{TrackID: 1, Title: "A"})
@@ -333,5 +346,204 @@ func TestTracksCopiesSlice(t *testing.T) {
 	tracks[0].Title = "modified"
 	if q.Current().Title != "A" {
 		t.Fatal("Tracks() should return a copy, not a reference")
+	}
+}
+
+// --- Repeat mode tests ---
+
+func TestRepeatOneNext(t *testing.T) {
+	q := NewQueue()
+	q.Replace([]QueueTrack{
+		{TrackID: 1, Title: "A"},
+		{TrackID: 2, Title: "B"},
+	}, 0)
+	q.SetRepeat(RepeatOne)
+
+	if !q.Next() {
+		t.Fatal("expected Next to return true with repeat-one")
+	}
+	if q.Position() != 0 {
+		t.Fatalf("expected position to stay 0 with repeat-one, got %d", q.Position())
+	}
+}
+
+func TestRepeatOnePrevious(t *testing.T) {
+	q := NewQueue()
+	q.Replace([]QueueTrack{
+		{TrackID: 1, Title: "A"},
+		{TrackID: 2, Title: "B"},
+	}, 1)
+	q.SetRepeat(RepeatOne)
+
+	if !q.Previous() {
+		t.Fatal("expected Previous to return true with repeat-one")
+	}
+	if q.Position() != 1 {
+		t.Fatalf("expected position to stay 1, got %d", q.Position())
+	}
+}
+
+func TestRepeatAllWrapsForward(t *testing.T) {
+	q := NewQueue()
+	q.Replace([]QueueTrack{
+		{TrackID: 1, Title: "A"},
+		{TrackID: 2, Title: "B"},
+	}, 1)
+	q.SetRepeat(RepeatAll)
+
+	if !q.Next() {
+		t.Fatal("expected Next to return true with repeat-all")
+	}
+	if q.Position() != 0 {
+		t.Fatalf("expected position to wrap to 0, got %d", q.Position())
+	}
+}
+
+func TestRepeatAllWrapsBackward(t *testing.T) {
+	q := NewQueue()
+	q.Replace([]QueueTrack{
+		{TrackID: 1, Title: "A"},
+		{TrackID: 2, Title: "B"},
+	}, 0)
+	q.SetRepeat(RepeatAll)
+
+	if !q.Previous() {
+		t.Fatal("expected Previous to return true with repeat-all")
+	}
+	if q.Position() != 1 {
+		t.Fatalf("expected position to wrap to 1, got %d", q.Position())
+	}
+}
+
+func TestRepeatModeString(t *testing.T) {
+	tests := []struct {
+		mode RepeatMode
+		want string
+	}{
+		{RepeatOff, "off"},
+		{RepeatAll, "all"},
+		{RepeatOne, "one"},
+	}
+	for _, tt := range tests {
+		if got := tt.mode.String(); got != tt.want {
+			t.Errorf("RepeatMode(%d).String() = %q, want %q", tt.mode, got, tt.want)
+		}
+	}
+}
+
+func TestRepeatGetterSetter(t *testing.T) {
+	q := NewQueue()
+	if q.Repeat() != RepeatOff {
+		t.Fatal("expected default repeat off")
+	}
+	q.SetRepeat(RepeatAll)
+	if q.Repeat() != RepeatAll {
+		t.Fatal("expected repeat all")
+	}
+}
+
+// --- Shuffle tests ---
+
+func TestShuffleProducesPermutation(t *testing.T) {
+	q := NewQueue()
+	tracks := make([]QueueTrack, 20)
+	for i := range tracks {
+		tracks[i] = QueueTrack{TrackID: int64(i + 1), Title: string(rune('A' + i))}
+	}
+	q.Replace(tracks, 0)
+	q.SetShuffle(true)
+
+	if !q.Shuffled() {
+		t.Fatal("expected shuffled to be true")
+	}
+
+	result := q.Tracks()
+	if len(result) != 20 {
+		t.Fatalf("expected 20 tracks, got %d", len(result))
+	}
+
+	// Current track should still be at position 0.
+	if q.Current().TrackID != 1 {
+		t.Fatalf("expected current track ID 1, got %d", q.Current().TrackID)
+	}
+
+	// All tracks should be present (permutation).
+	seen := make(map[int64]bool)
+	for _, tr := range result {
+		seen[tr.TrackID] = true
+	}
+	if len(seen) != 20 {
+		t.Fatalf("expected all 20 tracks present, got %d unique", len(seen))
+	}
+}
+
+func TestShuffleOffRestoresOrder(t *testing.T) {
+	q := NewQueue()
+	tracks := []QueueTrack{
+		{TrackID: 1, Title: "A"},
+		{TrackID: 2, Title: "B"},
+		{TrackID: 3, Title: "C"},
+		{TrackID: 4, Title: "D"},
+		{TrackID: 5, Title: "E"},
+	}
+	q.Replace(tracks, 2) // position = 2 (C)
+
+	q.SetShuffle(true)
+	// Current track should still be C.
+	if q.Current().TrackID != 3 {
+		t.Fatalf("expected current track C (ID 3), got %d", q.Current().TrackID)
+	}
+
+	q.SetShuffle(false)
+	if q.Shuffled() {
+		t.Fatal("expected shuffled to be false")
+	}
+
+	// Order should be restored.
+	result := q.Tracks()
+	for i, tr := range result {
+		if tr.TrackID != int64(i+1) {
+			t.Fatalf("expected track ID %d at position %d, got %d", i+1, i, tr.TrackID)
+		}
+	}
+
+	// Position should point to C (index 2) in original order.
+	if q.Position() != 2 {
+		t.Fatalf("expected position 2, got %d", q.Position())
+	}
+}
+
+func TestShuffleToggleIdempotent(t *testing.T) {
+	q := NewQueue()
+	q.Replace([]QueueTrack{{TrackID: 1}, {TrackID: 2}}, 0)
+
+	q.SetShuffle(true)
+	q.SetShuffle(true) // should be a no-op
+	if !q.Shuffled() {
+		t.Fatal("expected still shuffled")
+	}
+
+	q.SetShuffle(false)
+	q.SetShuffle(false) // should be a no-op
+	if q.Shuffled() {
+		t.Fatal("expected not shuffled")
+	}
+}
+
+func TestShuffleEmptyQueue(t *testing.T) {
+	q := NewQueue()
+	q.SetShuffle(true) // should not panic
+	if q.Shuffled() {
+		t.Fatal("expected shuffle to stay off for empty queue")
+	}
+}
+
+func TestClearResetsShuffle(t *testing.T) {
+	q := NewQueue()
+	q.Replace([]QueueTrack{{TrackID: 1}, {TrackID: 2}}, 0)
+	q.SetShuffle(true)
+	q.Clear()
+	if q.Shuffled() {
+		t.Fatal("expected shuffle to be cleared")
 	}
 }

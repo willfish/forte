@@ -37,12 +37,13 @@ var ErrMpvNotFound = errors.New(
 
 // Engine wraps an mpv instance for audio playback.
 type Engine struct {
-	mu            sync.Mutex
-	handle        *mpv.Mpv
-	state         PlaybackState
-	stop          chan struct{}
-	done          chan struct{} // closed when event loop exits
-	onTrackChange func()       // called when mpv loads a new file
+	mu             sync.Mutex
+	handle         *mpv.Mpv
+	state          PlaybackState
+	stop           chan struct{}
+	done           chan struct{} // closed when event loop exits
+	onTrackChange  func()       // called when mpv loads a new file
+	onPlaylistEnd  func()       // called when the entire playlist finishes
 }
 
 // NewEngine initialises mpv for audio-only playback.
@@ -240,6 +241,52 @@ func (e *Engine) SetOnTrackChange(fn func()) {
 	e.onTrackChange = fn
 }
 
+// SetOnPlaylistEnd registers a callback invoked when the mpv playlist finishes.
+func (e *Engine) SetOnPlaylistEnd(fn func()) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.onPlaylistEnd = fn
+}
+
+// SetLoopFile enables or disables single-file looping (for repeat-one).
+func (e *Engine) SetLoopFile(loop bool) {
+	if loop {
+		_ = e.handle.SetPropertyString("loop-file", "inf")
+	} else {
+		_ = e.handle.SetPropertyString("loop-file", "no")
+	}
+}
+
+// ReplaceUpcoming clears all playlist entries after the current one
+// and appends the given paths. The currently playing track is not affected.
+func (e *Engine) ReplaceUpcoming(paths []string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	// Get current playlist position and count.
+	pos, err := e.handle.GetProperty("playlist-pos", mpv.FormatInt64)
+	if err != nil {
+		return
+	}
+	currentPos := int(pos.(int64))
+
+	count, err := e.handle.GetProperty("playlist-count", mpv.FormatInt64)
+	if err != nil {
+		return
+	}
+	totalCount := int(count.(int64))
+
+	// Remove all entries after current position (backwards to keep indices stable).
+	for i := totalCount - 1; i > currentPos; i-- {
+		_ = e.handle.Command([]string{"playlist-remove", fmt.Sprintf("%d", i)})
+	}
+
+	// Append new tracks.
+	for _, p := range paths {
+		_ = e.handle.Command([]string{"loadfile", p, "append"})
+	}
+}
+
 // Close shuts down the mpv instance.
 func (e *Engine) Close() {
 	close(e.stop)
@@ -305,7 +352,11 @@ func (e *Engine) eventLoop() {
 				if pos == nil || pos.(int64) < 0 {
 					e.mu.Lock()
 					e.state = StateStopped
+					cb := e.onPlaylistEnd
 					e.mu.Unlock()
+					if cb != nil {
+						cb()
+					}
 					slog.Debug("playlist finished")
 				} else {
 					slog.Debug("track ended, next track queued")

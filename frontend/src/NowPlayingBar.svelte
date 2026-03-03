@@ -9,6 +9,8 @@
   let artist = $state('');
   let album = $state('');
   let artworkSrc = $state('');
+  let shuffleOn = $state(false);
+  let repeatMode = $state('off');
   let muted = $state(false);
   let volumeBeforeMute = $state(100);
   let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -23,6 +25,8 @@
       title = await PlayerService.MediaTitle();
       artist = await PlayerService.MediaArtist();
       album = await PlayerService.MediaAlbum();
+      shuffleOn = await PlayerService.GetShuffle();
+      repeatMode = await PlayerService.GetRepeat();
     }, 250);
   }
 
@@ -108,6 +112,17 @@
     }
   }
 
+  async function toggleShuffle() {
+    await PlayerService.SetShuffle(!shuffleOn);
+    shuffleOn = !shuffleOn;
+  }
+
+  async function cycleRepeat() {
+    const next = repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
+    await PlayerService.SetRepeat(next);
+    repeatMode = next;
+  }
+
   const isStopped = $derived(playbackState === 'stopped');
 </script>
 
@@ -133,6 +148,11 @@
 
   <div class="controls">
     <div class="transport">
+      <button class="mode-btn" class:active={shuffleOn} onclick={toggleShuffle} aria-label="Shuffle">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+          <path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/>
+        </svg>
+      </button>
       <button onclick={previous} disabled={isStopped} aria-label="Previous">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
           <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/>
@@ -158,6 +178,17 @@
         <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
           <path d="M6 6h12v12H6z"/>
         </svg>
+      </button>
+      <button class="mode-btn" class:active={repeatMode !== 'off'} onclick={cycleRepeat} aria-label="Repeat: {repeatMode}">
+        {#if repeatMode === 'one'}
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+            <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4zm-4-2V9h-1l-2 1v1h1.5v4H13z"/>
+          </svg>
+        {:else}
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+            <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+          </svg>
+        {/if}
       </button>
     </div>
 
@@ -312,6 +343,20 @@
     background: var(--accent);
     color: #fff;
     filter: brightness(1.15);
+  }
+
+  .transport .mode-btn {
+    color: var(--text-secondary);
+    opacity: 0.5;
+  }
+
+  .transport .mode-btn:hover {
+    opacity: 0.8;
+  }
+
+  .transport .mode-btn.active {
+    color: var(--accent);
+    opacity: 1;
   }
 
   .seek {
