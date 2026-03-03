@@ -15,7 +15,7 @@ tasks:
     cmds:
       - task: "linux:build"
         vars:
-          EXTRA_TAGS: nocgo
+          EXTRA_TAGS: nocgo,gtk4
 
   package:
     summary: Packages a production build of the application

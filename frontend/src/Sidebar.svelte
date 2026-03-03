@@ -24,10 +24,7 @@
   <ul>
     {#each navItems as item}
       <li>
-        <button
-          class:active={currentView === item.view}
-          onclick={() => navigate(item.view)}
-        >
+        <button class="nav-btn" class:active={currentView === item.view} onclick={() => navigate(item.view)}>
           <span class="icon">{item.icon}</span>
           {item.label}
         </button>
@@ -38,34 +35,39 @@
 
 <style>
   .sidebar {
-    width: 200px;
-    background: var(--bg-sidebar);
-    border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
+    height: 100%;
+    padding: 0;
   }
 
   .brand {
-    font-size: 1.25rem;
-    font-weight: 700;
     padding: 1.25rem 1rem;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
     color: var(--text-primary);
+    border-bottom: 1px solid var(--border);
   }
 
   ul {
     list-style: none;
     margin: 0;
-    padding: 0;
+    padding: 0.5rem 0;
   }
 
-  li button {
+  li {
+    padding: 0 0.5rem;
+  }
+
+  .nav-btn {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.75rem;
     width: 100%;
-    padding: 0.6rem 1rem;
+    padding: 0.5rem 0.75rem;
     border: none;
+    border-radius: 6px;
     background: transparent;
     color: var(--text-secondary);
     font-size: 0.9rem;
@@ -73,19 +75,19 @@
     text-align: left;
   }
 
-  li button:hover {
+  .nav-btn:hover {
     background: var(--bg-hover);
     color: var(--text-primary);
   }
 
-  li button.active {
+  .nav-btn.active {
     background: var(--bg-active);
     color: var(--accent);
   }
 
   .icon {
     font-size: 1.1rem;
-    width: 1.5rem;
+    width: 1.25rem;
     text-align: center;
   }
 </style>
