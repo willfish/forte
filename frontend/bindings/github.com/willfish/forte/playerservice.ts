@@ -11,6 +11,20 @@
 import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
 
 /**
+ * Duration returns the duration of the current track in seconds.
+ */
+export function Duration(): $CancellablePromise<number> {
+    return $Call.ByID(1985222848);
+}
+
+/**
+ * Pause pauses the current playback.
+ */
+export function Pause(): $CancellablePromise<void> {
+    return $Call.ByID(191671602);
+}
+
+/**
  * Play starts playback of the audio file at the given path.
  */
 export function Play(path: string): $CancellablePromise<void> {
@@ -18,10 +32,38 @@ export function Play(path: string): $CancellablePromise<void> {
 }
 
 /**
- * Playing reports whether audio is currently playing.
+ * Position returns the current playback position in seconds.
  */
-export function Playing(): $CancellablePromise<boolean> {
-    return $Call.ByID(2882669630);
+export function Position(): $CancellablePromise<number> {
+    return $Call.ByID(3379668963);
+}
+
+/**
+ * Resume resumes paused playback.
+ */
+export function Resume(): $CancellablePromise<void> {
+    return $Call.ByID(4192344979);
+}
+
+/**
+ * Seek seeks to the given position in seconds.
+ */
+export function Seek(seconds: number): $CancellablePromise<void> {
+    return $Call.ByID(1479346536, seconds);
+}
+
+/**
+ * SetVolume sets the volume (0-100).
+ */
+export function SetVolume(percent: number): $CancellablePromise<void> {
+    return $Call.ByID(671101282, percent);
+}
+
+/**
+ * State returns the current playback state as a string.
+ */
+export function State(): $CancellablePromise<string> {
+    return $Call.ByID(2570357237);
 }
 
 /**
@@ -36,4 +78,11 @@ export function Stop(): $CancellablePromise<void> {
  */
 export function Version(): $CancellablePromise<string> {
     return $Call.ByID(1040332204);
+}
+
+/**
+ * Volume returns the current volume (0-100).
+ */
+export function Volume(): $CancellablePromise<number> {
+    return $Call.ByID(2798880050);
 }
