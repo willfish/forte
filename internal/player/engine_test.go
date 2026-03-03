@@ -4,12 +4,18 @@ import (
 	"testing"
 )
 
-func TestNewEngine(t *testing.T) {
+func newTestEngine(t *testing.T) *Engine {
+	t.Helper()
 	e, err := NewEngine()
 	if err != nil {
 		t.Fatalf("NewEngine() error: %v", err)
 	}
-	defer e.Close()
+	t.Cleanup(func() { e.Close() })
+	return e
+}
+
+func TestNewEngine(t *testing.T) {
+	e := newTestEngine(t)
 
 	v := e.Version()
 	if v == "" {
@@ -18,16 +24,110 @@ func TestNewEngine(t *testing.T) {
 	t.Logf("mpv version: %s", v)
 }
 
-func TestPlayNonExistentFile(t *testing.T) {
-	e, err := NewEngine()
-	if err != nil {
-		t.Fatalf("NewEngine() error: %v", err)
+func TestInitialState(t *testing.T) {
+	e := newTestEngine(t)
+
+	if s := e.State(); s != StateStopped {
+		t.Fatalf("expected StateStopped, got %s", s)
 	}
-	defer e.Close()
+}
+
+func TestPlayNonExistentFile(t *testing.T) {
+	e := newTestEngine(t)
 
 	// loadfile queues the file asynchronously, so the command itself succeeds
 	// even for non-existent files. mpv will emit an end-file event with an error.
 	if err := e.Play("/nonexistent/file.flac"); err != nil {
 		t.Fatalf("Play() error: %v", err)
+	}
+
+	if s := e.State(); s != StatePlaying {
+		t.Fatalf("expected StatePlaying after Play(), got %s", s)
+	}
+}
+
+func TestPauseResume(t *testing.T) {
+	e := newTestEngine(t)
+
+	// Pause in stopped state should be a no-op.
+	e.Pause()
+	if s := e.State(); s != StateStopped {
+		t.Fatalf("expected StateStopped after Pause() in stopped state, got %s", s)
+	}
+
+	// Play, then pause.
+	if err := e.Play("/nonexistent/file.flac"); err != nil {
+		t.Fatalf("Play() error: %v", err)
+	}
+	e.Pause()
+	if s := e.State(); s != StatePaused {
+		t.Fatalf("expected StatePaused, got %s", s)
+	}
+
+	// Resume.
+	e.Resume()
+	if s := e.State(); s != StatePlaying {
+		t.Fatalf("expected StatePlaying after Resume(), got %s", s)
+	}
+
+	// Resume when already playing should be a no-op.
+	e.Resume()
+	if s := e.State(); s != StatePlaying {
+		t.Fatalf("expected StatePlaying after redundant Resume(), got %s", s)
+	}
+}
+
+func TestStopResetsState(t *testing.T) {
+	e := newTestEngine(t)
+
+	if err := e.Play("/nonexistent/file.flac"); err != nil {
+		t.Fatalf("Play() error: %v", err)
+	}
+	e.Stop()
+	if s := e.State(); s != StateStopped {
+		t.Fatalf("expected StateStopped after Stop(), got %s", s)
+	}
+}
+
+func TestVolume(t *testing.T) {
+	e := newTestEngine(t)
+
+	e.SetVolume(50)
+	if v := e.Volume(); v != 50 {
+		t.Fatalf("expected volume 50, got %d", v)
+	}
+
+	// Clamp to bounds.
+	e.SetVolume(-10)
+	if v := e.Volume(); v != 0 {
+		t.Fatalf("expected volume 0 after setting -10, got %d", v)
+	}
+
+	e.SetVolume(200)
+	if v := e.Volume(); v != 100 {
+		t.Fatalf("expected volume 100 after setting 200, got %d", v)
+	}
+}
+
+func TestSeekWhileStopped(t *testing.T) {
+	e := newTestEngine(t)
+
+	// Seek in stopped state should be a no-op (no panic).
+	e.Seek(30.0)
+}
+
+func TestPlaybackStateString(t *testing.T) {
+	tests := []struct {
+		state PlaybackState
+		want  string
+	}{
+		{StateStopped, "stopped"},
+		{StatePlaying, "playing"},
+		{StatePaused, "paused"},
+	}
+	for _, tt := range tests {
+		if got := tt.state.String(); got != tt.want {
+			t.Errorf("PlaybackState(%d).String() = %q, want %q", tt.state, got, tt.want)
+		}
 	}
 }
