@@ -3,6 +3,7 @@ module github.com/willfish/forte
 go 1.25
 
 require (
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gen2brain/go-mpv v0.2.3
 	github.com/wailsapp/wails/v3 v3.0.0-alpha.74
 	go.senan.xyz/taglib v0.11.1
