@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=forte
+Exec=forte
+Icon=forte
+Categories=Audio;Music;Player;
+Terminal=false
+Keywords=wails
+Version=1.0
+StartupNotify=false
