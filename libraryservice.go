@@ -128,3 +128,108 @@ func (s *LibraryService) Search(query string, limit int) ([]library.SearchResult
 	}
 	return s.db.Search(query, limit)
 }
+
+// Playlist is the JSON-friendly playlist type exposed to the frontend.
+type Playlist struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+// GetPlaylists returns all playlists.
+func (s *LibraryService) GetPlaylists() ([]Playlist, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("library not initialised")
+	}
+	playlists, err := s.db.GetPlaylists()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]Playlist, len(playlists))
+	for i, p := range playlists {
+		result[i] = Playlist{ID: p.ID, Name: p.Name}
+	}
+	return result, nil
+}
+
+// CreatePlaylist creates a new playlist and returns its ID.
+func (s *LibraryService) CreatePlaylist(name string) (int64, error) {
+	if s.db == nil {
+		return 0, fmt.Errorf("library not initialised")
+	}
+	return s.db.CreatePlaylist(name)
+}
+
+// RenamePlaylist renames a playlist.
+func (s *LibraryService) RenamePlaylist(id int64, name string) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	return s.db.RenamePlaylist(id, name)
+}
+
+// DeletePlaylist deletes a playlist.
+func (s *LibraryService) DeletePlaylist(id int64) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	return s.db.DeletePlaylist(id)
+}
+
+// PlaylistTrack is the JSON-friendly playlist track type exposed to the frontend.
+type PlaylistTrack struct {
+	TrackID    int64  `json:"trackId"`
+	Title      string `json:"title"`
+	Artist     string `json:"artist"`
+	Album      string `json:"album"`
+	DurationMs int    `json:"durationMs"`
+	FilePath   string `json:"filePath"`
+	Position   int    `json:"position"`
+}
+
+// GetPlaylistTracks returns the tracks in a playlist.
+func (s *LibraryService) GetPlaylistTracks(playlistID int64) ([]PlaylistTrack, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("library not initialised")
+	}
+	tracks, err := s.db.GetPlaylistTracks(playlistID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]PlaylistTrack, len(tracks))
+	for i, t := range tracks {
+		result[i] = PlaylistTrack{
+			TrackID:    t.TrackID,
+			Title:      t.Title,
+			Artist:     t.Artist,
+			Album:      t.Album,
+			DurationMs: t.DurationMs,
+			FilePath:   t.FilePath,
+			Position:   t.Position,
+		}
+	}
+	return result, nil
+}
+
+// AddTrackToPlaylist adds a track to a playlist.
+func (s *LibraryService) AddTrackToPlaylist(playlistID, trackID int64) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	return s.db.AddTrackToPlaylist(playlistID, trackID)
+}
+
+// RemoveTrackFromPlaylist removes a track from a playlist.
+func (s *LibraryService) RemoveTrackFromPlaylist(playlistID, trackID int64) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	return s.db.RemoveTrackFromPlaylist(playlistID, trackID)
+}
+
+// MoveTrackInPlaylist moves a track from one position to another.
+func (s *LibraryService) MoveTrackInPlaylist(playlistID int64, fromPos, toPos int) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	return s.db.MoveTrackInPlaylist(playlistID, fromPos, toPos)
+}

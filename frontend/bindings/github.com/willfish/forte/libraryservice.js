@@ -20,12 +20,40 @@ import * as library$0 from "./internal/library/models.js";
 import * as $models from "./models.js";
 
 /**
+ * AddTrackToPlaylist adds a track to a playlist.
+ * @param {number} playlistID
+ * @param {number} trackID
+ * @returns {$CancellablePromise<void>}
+ */
+export function AddTrackToPlaylist(playlistID, trackID) {
+    return $Call.ByID(2287316659, playlistID, trackID);
+}
+
+/**
  * AlbumArtwork returns the artwork for an album as a base64 data URI.
  * @param {number} albumID
  * @returns {$CancellablePromise<string>}
  */
 export function AlbumArtwork(albumID) {
     return $Call.ByID(866920135, albumID);
+}
+
+/**
+ * CreatePlaylist creates a new playlist and returns its ID.
+ * @param {string} name
+ * @returns {$CancellablePromise<number>}
+ */
+export function CreatePlaylist(name) {
+    return $Call.ByID(4167498172, name);
+}
+
+/**
+ * DeletePlaylist deletes a playlist.
+ * @param {number} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function DeletePlaylist(id) {
+    return $Call.ByID(2018893399, id);
 }
 
 /**
@@ -52,6 +80,58 @@ export function GetAlbums(sort, order) {
 }
 
 /**
+ * GetPlaylistTracks returns the tracks in a playlist.
+ * @param {number} playlistID
+ * @returns {$CancellablePromise<$models.PlaylistTrack[]>}
+ */
+export function GetPlaylistTracks(playlistID) {
+    return $Call.ByID(4244880336, playlistID).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType5($result);
+    }));
+}
+
+/**
+ * GetPlaylists returns all playlists.
+ * @returns {$CancellablePromise<$models.Playlist[]>}
+ */
+export function GetPlaylists() {
+    return $Call.ByID(1524576557).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType7($result);
+    }));
+}
+
+/**
+ * MoveTrackInPlaylist moves a track from one position to another.
+ * @param {number} playlistID
+ * @param {number} fromPos
+ * @param {number} toPos
+ * @returns {$CancellablePromise<void>}
+ */
+export function MoveTrackInPlaylist(playlistID, fromPos, toPos) {
+    return $Call.ByID(465154155, playlistID, fromPos, toPos);
+}
+
+/**
+ * RemoveTrackFromPlaylist removes a track from a playlist.
+ * @param {number} playlistID
+ * @param {number} trackID
+ * @returns {$CancellablePromise<void>}
+ */
+export function RemoveTrackFromPlaylist(playlistID, trackID) {
+    return $Call.ByID(970681807, playlistID, trackID);
+}
+
+/**
+ * RenamePlaylist renames a playlist.
+ * @param {number} id
+ * @param {string} name
+ * @returns {$CancellablePromise<void>}
+ */
+export function RenamePlaylist(id, name) {
+    return $Call.ByID(3081673158, id, name);
+}
+
+/**
  * Search searches the library for tracks matching the query.
  * @param {string} query
  * @param {number} limit
@@ -59,7 +139,7 @@ export function GetAlbums(sort, order) {
  */
 export function Search(query, limit) {
     return $Call.ByID(2206755262, query, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType5($result);
+        return $$createType9($result);
     }));
 }
 
@@ -68,5 +148,9 @@ const $$createType0 = $models.AlbumTrack.createFrom;
 const $$createType1 = $Create.Array($$createType0);
 const $$createType2 = $models.Album.createFrom;
 const $$createType3 = $Create.Array($$createType2);
-const $$createType4 = library$0.SearchResult.createFrom;
+const $$createType4 = $models.PlaylistTrack.createFrom;
 const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = $models.Playlist.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = library$0.SearchResult.createFrom;
+const $$createType9 = $Create.Array($$createType8);
