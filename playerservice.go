@@ -122,6 +122,22 @@ func (p *PlayerService) State() string {
 	return p.engine.State().String()
 }
 
+// SetReplayGain sets the ReplayGain mode: "track", "album", or "no" (off).
+func (p *PlayerService) SetReplayGain(mode string) error {
+	if p.engine == nil {
+		return fmt.Errorf("player not initialised")
+	}
+	return p.engine.SetReplayGain(mode)
+}
+
+// ReplayGain returns the current ReplayGain mode.
+func (p *PlayerService) ReplayGain() string {
+	if p.engine == nil {
+		return ""
+	}
+	return p.engine.ReplayGain()
+}
+
 // Version returns the mpv library version string.
 func (p *PlayerService) Version() string {
 	if p.engine == nil {

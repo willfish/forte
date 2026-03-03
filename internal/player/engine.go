@@ -56,6 +56,7 @@ func NewEngine() (*Engine, error) {
 		{"vo", "null"},
 		{"terminal", "no"},
 		{"gapless-audio", "yes"},
+		{"replaygain", "track"},
 	} {
 		if err := m.SetOptionString(opt[0], opt[1]); err != nil {
 			m.TerminateDestroy()
@@ -212,6 +213,21 @@ func (e *Engine) State() PlaybackState {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.state
+}
+
+// SetReplayGain sets the ReplayGain mode: "track", "album", or "no" (off).
+func (e *Engine) SetReplayGain(mode string) error {
+	switch mode {
+	case "track", "album", "no":
+		return e.handle.SetPropertyString("replaygain", mode)
+	default:
+		return fmt.Errorf("invalid replaygain mode: %q (expected track, album, or no)", mode)
+	}
+}
+
+// ReplayGain returns the current ReplayGain mode.
+func (e *Engine) ReplayGain() string {
+	return e.handle.GetPropertyString("replaygain")
 }
 
 // Close shuts down the mpv instance.
