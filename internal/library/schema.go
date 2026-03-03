@@ -1,0 +1,83 @@
+package library
+
+const migration001 = `
+CREATE TABLE artists (
+	id         INTEGER PRIMARY KEY,
+	name       TEXT NOT NULL,
+	sort_name  TEXT NOT NULL DEFAULT '',
+	image_url  TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX idx_artists_name ON artists (name);
+
+CREATE TABLE albums (
+	id            INTEGER PRIMARY KEY,
+	artist_id     INTEGER NOT NULL REFERENCES artists(id),
+	title         TEXT NOT NULL,
+	year          INTEGER NOT NULL DEFAULT 0,
+	track_count   INTEGER NOT NULL DEFAULT 0,
+	artwork_blob  BLOB,
+	created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+	updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_albums_artist ON albums (artist_id);
+CREATE INDEX idx_albums_title  ON albums (title);
+
+CREATE TABLE tracks (
+	id             INTEGER PRIMARY KEY,
+	album_id       INTEGER REFERENCES albums(id),
+	artist_id      INTEGER NOT NULL REFERENCES artists(id),
+	title          TEXT NOT NULL,
+	track_number   INTEGER NOT NULL DEFAULT 0,
+	disc_number    INTEGER NOT NULL DEFAULT 1,
+	duration_ms    INTEGER NOT NULL DEFAULT 0,
+	file_path      TEXT NOT NULL UNIQUE,
+	file_size      INTEGER NOT NULL DEFAULT 0,
+	file_mod_time  TEXT NOT NULL DEFAULT '',
+	format         TEXT NOT NULL DEFAULT '',
+	bitrate        INTEGER NOT NULL DEFAULT 0,
+	cue_file_path  TEXT NOT NULL DEFAULT '',
+	start_ms       INTEGER NOT NULL DEFAULT 0,
+	end_ms         INTEGER NOT NULL DEFAULT 0,
+	server_id      TEXT NOT NULL DEFAULT '',
+	remote_id      TEXT NOT NULL DEFAULT '',
+	created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+	updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_tracks_album    ON tracks (album_id);
+CREATE INDEX idx_tracks_artist   ON tracks (artist_id);
+CREATE INDEX idx_tracks_path     ON tracks (file_path);
+
+CREATE TABLE genres (
+	id   INTEGER PRIMARY KEY,
+	name TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE track_genres (
+	track_id INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+	genre_id INTEGER NOT NULL REFERENCES genres(id) ON DELETE CASCADE,
+	PRIMARY KEY (track_id, genre_id)
+);
+
+CREATE VIRTUAL TABLE fts_tracks USING fts5 (
+	title,
+	artist,
+	album,
+	genre,
+	content='',
+	content_rowid='rowid'
+);
+
+CREATE TABLE playlists (
+	id         INTEGER PRIMARY KEY,
+	name       TEXT NOT NULL,
+	created_at TEXT NOT NULL DEFAULT (datetime('now')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE playlist_tracks (
+	playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+	track_id    INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+	position    INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY (playlist_id, track_id)
+);
+`
