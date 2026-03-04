@@ -7,12 +7,14 @@
     artist: string;
     year: number;
     trackCount: number;
+    source: string;
     artworkSrc?: string;
   };
 
   let albums = $state<AlbumItem[]>([]);
   let sortField = $state('artist');
   let sortOrder = $state('asc');
+  let sourceFilter = $state('');
   let loading = $state(false);
 
   const { onselect }: { onselect?: (albumId: number) => void } = $props();
@@ -20,13 +22,14 @@
   async function loadAlbums() {
     loading = true;
     try {
-      const result = await LibraryService.GetAlbums(sortField, sortOrder);
+      const result = await LibraryService.GetAlbums(sortField, sortOrder, sourceFilter);
       albums = (result || []).map((a: any) => ({
         id: a.id,
         title: a.title,
         artist: a.artist,
         year: a.year,
         trackCount: a.trackCount,
+        source: a.source || 'local',
       }));
       // Load artwork lazily after albums are rendered.
       for (const album of albums) {
@@ -53,6 +56,11 @@
     loadAlbums();
   }
 
+  function handleSourceChange(src: string) {
+    sourceFilter = src;
+    loadAlbums();
+  }
+
   function handleAlbumClick(albumId: number) {
     if (onselect) onselect(albumId);
   }
@@ -65,19 +73,31 @@
 <div class="album-grid-container">
   <div class="toolbar">
     <span class="count">{albums.length} album{albums.length !== 1 ? 's' : ''}</span>
-    <div class="sort-buttons">
-      <span class="sort-label">Sort:</span>
-      {#each [['title', 'Title'], ['artist', 'Artist'], ['year', 'Year'], ['created_at', 'Added']] as [field, label]}
-        <button
-          class:active={sortField === field}
-          onclick={() => handleSort(field)}
-        >
-          {label}
-          {#if sortField === field}
-            <span class="arrow">{sortOrder === 'asc' ? '\u2191' : '\u2193'}</span>
-          {/if}
-        </button>
-      {/each}
+    <div class="toolbar-right">
+      <div class="source-filter">
+        {#each [['', 'All'], ['local', 'Local'], ['server', 'Server']] as [value, label]}
+          <button
+            class:active={sourceFilter === value}
+            onclick={() => handleSourceChange(value)}
+          >
+            {label}
+          </button>
+        {/each}
+      </div>
+      <div class="sort-buttons">
+        <span class="sort-label">Sort:</span>
+        {#each [['title', 'Title'], ['artist', 'Artist'], ['year', 'Year'], ['created_at', 'Added']] as [field, label]}
+          <button
+            class:active={sortField === field}
+            onclick={() => handleSort(field)}
+          >
+            {label}
+            {#if sortField === field}
+              <span class="arrow">{sortOrder === 'asc' ? '\u2191' : '\u2193'}</span>
+            {/if}
+          </button>
+        {/each}
+      </div>
     </div>
   </div>
 
@@ -95,15 +115,24 @@
     <div class="grid">
       {#each albums as album (album.id)}
         <button class="album-card" onclick={() => handleAlbumClick(album.id)}>
-          {#if album.artworkSrc}
-            <img class="artwork" src={album.artworkSrc} alt="{album.title} cover" loading="lazy" />
-          {:else}
-            <div class="artwork-placeholder">
-              <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor" opacity="0.3">
-                <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-              </svg>
-            </div>
-          {/if}
+          <div class="artwork-wrapper">
+            {#if album.artworkSrc}
+              <img class="artwork" src={album.artworkSrc} alt="{album.title} cover" loading="lazy" />
+            {:else}
+              <div class="artwork-placeholder">
+                <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor" opacity="0.3">
+                  <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                </svg>
+              </div>
+            {/if}
+            {#if album.source === 'server'}
+              <span class="source-badge" title="Server">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                  <path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+                </svg>
+              </span>
+            {/if}
+          </div>
           <div class="album-info">
             <span class="album-title">{album.title}</span>
             <span class="album-artist">{album.artist}{formatYear(album.year) ? ` (${formatYear(album.year)})` : ''}</span>
@@ -132,6 +161,40 @@
   .count {
     font-size: 0.85rem;
     color: var(--text-secondary);
+  }
+
+  .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .source-filter {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .source-filter button {
+    padding: 0.25rem 0.5rem;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+
+  .source-filter button:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  .source-filter button.active {
+    background: var(--bg-active);
+    color: var(--accent);
   }
 
   .sort-buttons {
@@ -223,6 +286,11 @@
     background: var(--bg-hover);
   }
 
+  .artwork-wrapper {
+    position: relative;
+    width: 100%;
+  }
+
   .artwork {
     width: 100%;
     aspect-ratio: 1;
@@ -239,6 +307,19 @@
     align-items: center;
     justify-content: center;
     color: var(--text-secondary);
+  }
+
+  .source-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    border-radius: 3px;
+    padding: 2px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .album-info {

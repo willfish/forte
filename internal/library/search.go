@@ -16,6 +16,7 @@ type SearchResult struct {
 	DiscNumber  int
 	DurationMs  int
 	FilePath    string
+	ServerID    string
 }
 
 // Search queries the FTS5 index and returns matching tracks.
@@ -39,7 +40,7 @@ func (db *DB) ftsSearch(query string, limit int) ([]SearchResult, error) {
 	rows, err := db.Query(`
 		SELECT t.id, t.title, a.name, COALESCE(al.title, ''),
 		       COALESCE(GROUP_CONCAT(DISTINCT g.name), ''),
-		       t.track_number, t.disc_number, t.duration_ms, t.file_path
+		       t.track_number, t.disc_number, t.duration_ms, t.file_path, t.server_id
 		FROM fts_tracks f
 		JOIN tracks t ON t.id = f.rowid
 		JOIN artists a ON a.id = t.artist_id
@@ -63,7 +64,7 @@ func (db *DB) allTracks(limit int) ([]SearchResult, error) {
 	rows, err := db.Query(`
 		SELECT t.id, t.title, a.name, COALESCE(al.title, ''),
 		       COALESCE(GROUP_CONCAT(DISTINCT g.name), ''),
-		       t.track_number, t.disc_number, t.duration_ms, t.file_path
+		       t.track_number, t.disc_number, t.duration_ms, t.file_path, t.server_id
 		FROM tracks t
 		JOIN artists a ON a.id = t.artist_id
 		LEFT JOIN albums al ON al.id = t.album_id
@@ -91,7 +92,7 @@ func scanResults(rows interface {
 		var r SearchResult
 		if err := rows.Scan(
 			&r.TrackID, &r.Title, &r.Artist, &r.Album, &r.Genre,
-			&r.TrackNumber, &r.DiscNumber, &r.DurationMs, &r.FilePath,
+			&r.TrackNumber, &r.DiscNumber, &r.DurationMs, &r.FilePath, &r.ServerID,
 		); err != nil {
 			return nil, fmt.Errorf("scan result: %w", err)
 		}

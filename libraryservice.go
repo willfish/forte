@@ -2,17 +2,23 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/willfish/forte/internal/library"
+	"github.com/willfish/forte/internal/streaming/jellyfin"
+	"github.com/willfish/forte/internal/streaming/subsonic"
 )
 
 // LibraryService exposes the music library to the frontend.
 type LibraryService struct {
-	db *library.DB
+	db       *library.DB
+	stopSync chan struct{}
 }
 
 // ServiceStartup opens the library database when the application starts.
@@ -32,15 +38,49 @@ func (s *LibraryService) ServiceStartup(_ context.Context, _ application.Service
 		return fmt.Errorf("library startup: %w", err)
 	}
 	s.db = db
+
+	// Start background server sync: immediate + every 15 minutes.
+	s.stopSync = make(chan struct{})
+	go func() {
+		// Initial sync on startup.
+		if err := library.SyncAllServers(context.Background(), s.db); err != nil {
+			log.Printf("server sync: %v", err)
+		}
+
+		ticker := time.NewTicker(15 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if err := library.SyncAllServers(context.Background(), s.db); err != nil {
+					log.Printf("server sync: %v", err)
+				}
+			case <-s.stopSync:
+				return
+			}
+		}
+	}()
+
 	return nil
 }
 
 // ServiceShutdown closes the library database when the application exits.
 func (s *LibraryService) ServiceShutdown() error {
+	if s.stopSync != nil {
+		close(s.stopSync)
+	}
 	if s.db != nil {
 		return s.db.Close()
 	}
 	return nil
+}
+
+// sourceFromServerID returns "local" or "server" based on the server_id value.
+func sourceFromServerID(serverID string) string {
+	if serverID == "" {
+		return "local"
+	}
+	return "server"
 }
 
 // Album is the JSON-friendly album type exposed to the frontend.
@@ -50,15 +90,17 @@ type Album struct {
 	Artist     string `json:"artist"`
 	Year       int    `json:"year"`
 	TrackCount int    `json:"trackCount"`
+	Source     string `json:"source"`
 }
 
 // GetAlbums returns all albums sorted by the given field and direction.
-func (s *LibraryService) GetAlbums(sort string, order string) ([]Album, error) {
+// Source: "" (all, deduped), "local", "server".
+func (s *LibraryService) GetAlbums(sort string, order string, source string) ([]Album, error) {
 	if s.db == nil {
 		return nil, fmt.Errorf("library not initialised")
 	}
 
-	albums, err := s.db.GetAlbums(sort, order)
+	albums, err := s.db.GetAlbums(sort, order, source)
 	if err != nil {
 		return nil, err
 	}
@@ -71,6 +113,7 @@ func (s *LibraryService) GetAlbums(sort string, order string) ([]Album, error) {
 			Artist:     a.Artist,
 			Year:       a.Year,
 			TrackCount: a.TrackCount,
+			Source:     sourceFromServerID(a.ServerID),
 		}
 	}
 	return result, nil
@@ -93,6 +136,7 @@ type AlbumTrack struct {
 	DiscNumber  int    `json:"discNumber"`
 	DurationMs  int    `json:"durationMs"`
 	FilePath    string `json:"filePath"`
+	Source      string `json:"source"`
 }
 
 // GetAlbumTracks returns the tracks for a given album.
@@ -116,6 +160,7 @@ func (s *LibraryService) GetAlbumTracks(albumID int64) ([]AlbumTrack, error) {
 			DiscNumber:  t.DiscNumber,
 			DurationMs:  t.DurationMs,
 			FilePath:    t.FilePath,
+			Source:      sourceFromServerID(t.ServerID),
 		}
 	}
 	return result, nil
@@ -127,6 +172,14 @@ func (s *LibraryService) Search(query string, limit int) ([]library.SearchResult
 		return nil, fmt.Errorf("library not initialised")
 	}
 	return s.db.Search(query, limit)
+}
+
+// SyncServers triggers an immediate sync of all server catalogs.
+func (s *LibraryService) SyncServers() error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	return library.SyncAllServers(context.Background(), s.db)
 }
 
 // Playlist is the JSON-friendly playlist type exposed to the frontend.
@@ -232,4 +285,102 @@ func (s *LibraryService) MoveTrackInPlaylist(playlistID int64, fromPos, toPos in
 		return fmt.Errorf("library not initialised")
 	}
 	return s.db.MoveTrackInPlaylist(playlistID, fromPos, toPos)
+}
+
+// ServerConfig is the JSON-friendly server configuration type exposed to the frontend.
+type ServerConfig struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	URL      string `json:"url"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// GetServers returns all configured streaming servers.
+func (s *LibraryService) GetServers() ([]ServerConfig, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("library not initialised")
+	}
+	servers, err := s.db.GetServers()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]ServerConfig, len(servers))
+	for i, srv := range servers {
+		result[i] = ServerConfig{
+			ID:       srv.ID,
+			Name:     srv.Name,
+			Type:     srv.Type,
+			URL:      srv.URL,
+			Username: srv.Username,
+			Password: srv.Password,
+		}
+	}
+	return result, nil
+}
+
+// AddServer adds a new streaming server configuration.
+func (s *LibraryService) AddServer(cfg ServerConfig) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	id, err := newUUID()
+	if err != nil {
+		return fmt.Errorf("generate id: %w", err)
+	}
+	return s.db.AddServer(library.Server{
+		ID:       id,
+		Name:     cfg.Name,
+		Type:     cfg.Type,
+		URL:      cfg.URL,
+		Username: cfg.Username,
+		Password: cfg.Password,
+	})
+}
+
+// UpdateServer updates an existing streaming server configuration.
+func (s *LibraryService) UpdateServer(cfg ServerConfig) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	return s.db.UpdateServer(library.Server{
+		ID:       cfg.ID,
+		Name:     cfg.Name,
+		Type:     cfg.Type,
+		URL:      cfg.URL,
+		Username: cfg.Username,
+		Password: cfg.Password,
+	})
+}
+
+// DeleteServer removes a streaming server configuration.
+func (s *LibraryService) DeleteServer(id string) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	return s.db.DeleteServer(id)
+}
+
+// TestConnection tests connectivity to a streaming server without persisting it.
+func (s *LibraryService) TestConnection(cfg ServerConfig) error {
+	switch cfg.Type {
+	case "subsonic":
+		return subsonic.New(cfg.URL, cfg.Username, cfg.Password).Ping()
+	case "jellyfin":
+		return jellyfin.New(cfg.URL, cfg.Username, cfg.Password).Ping()
+	default:
+		return fmt.Errorf("unknown server type: %s", cfg.Type)
+	}
+}
+
+// newUUID generates a random UUID v4 string.
+func newUUID() (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
 }

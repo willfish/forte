@@ -9,6 +9,7 @@
     discNumber: number;
     durationMs: number;
     filePath: string;
+    source: string;
   };
 
   type AlbumInfo = {
@@ -41,6 +42,7 @@
       discNumber: t.discNumber,
       durationMs: t.durationMs,
       filePath: t.filePath,
+      source: t.source || 'local',
     }));
 
     const totalMs = tracks.reduce((sum, t) => sum + t.durationMs, 0);
@@ -55,7 +57,7 @@
     };
 
     // Get album metadata from the album list
-    const albums = await LibraryService.GetAlbums('title', 'asc');
+    const albums = await LibraryService.GetAlbums('title', 'asc', '');
     const match = (albums || []).find((a: any) => a.id === albumId);
     if (match) {
       albumInfo.title = match.title;
@@ -183,7 +185,14 @@
               {track.trackNumber || i + 1}
             {/if}
           </span>
-          <span class="track-title">{track.title}</span>
+          <span class="track-title">
+            {track.title}
+            {#if track.source === 'server'}
+              <svg class="server-icon" viewBox="0 0 24 24" width="10" height="10" fill="currentColor">
+                <path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+              </svg>
+            {/if}
+          </span>
           {#if track.artist !== albumInfo.artist}
             <span class="track-artist">{track.artist}</span>
           {:else}
@@ -332,6 +341,14 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .server-icon {
+    opacity: 0.4;
+    flex-shrink: 0;
   }
 
   .track-artist {
