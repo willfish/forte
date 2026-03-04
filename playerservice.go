@@ -15,6 +15,7 @@ import (
 	"github.com/willfish/forte/internal/library"
 	"github.com/willfish/forte/internal/metadata"
 	"github.com/willfish/forte/internal/player"
+	"github.com/willfish/forte/internal/system"
 )
 
 // PlayerService exposes audio playback controls to the frontend.
@@ -22,6 +23,7 @@ type PlayerService struct {
 	engine     *player.Engine
 	queue      *player.Queue
 	db         *library.DB
+	mpris      *system.MPRIS
 	manualSkip int32     // atomic: set before explicit Next/Previous to suppress auto-advance
 	stopSave   chan struct{}
 }
@@ -56,11 +58,16 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 			return // explicit Next/Previous already updated the queue
 		}
 		p.queue.Next()
+		p.pushMPRISMetadata()
 	})
 
 	// When the mpv playlist ends, loop back if repeat-all is on.
 	e.SetOnPlaylistEnd(func() {
 		if p.queue.Repeat() != player.RepeatAll {
+			if p.mpris != nil {
+				p.mpris.UpdatePlaybackStatus("stopped")
+				p.mpris.ClearMetadata()
+			}
 			return
 		}
 		p.queue.SetPosition(0)
@@ -71,17 +78,32 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 		}
 	})
 
+	// Start MPRIS2 D-Bus provider.
+	system.SetReadArtworkFn(metadata.ReadArtwork)
+	mpris, err := system.NewMPRIS(p)
+	if err != nil {
+		log.Printf("mpris: %v (media keys will not work)", err)
+	} else {
+		p.mpris = mpris
+	}
+
 	// Restore saved playback state.
 	p.restoreState()
 
-	// Periodic save every 10 seconds.
+	// Periodic save (10s) and MPRIS position update (1s).
 	p.stopSave = make(chan struct{})
 	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
+		posTicker := time.NewTicker(1 * time.Second)
+		saveTicker := time.NewTicker(10 * time.Second)
+		defer posTicker.Stop()
+		defer saveTicker.Stop()
 		for {
 			select {
-			case <-ticker.C:
+			case <-posTicker.C:
+				if p.mpris != nil && p.engine != nil {
+					p.mpris.UpdatePosition(p.engine.Position())
+				}
+			case <-saveTicker.C:
 				p.saveState()
 			case <-p.stopSave:
 				return
@@ -98,6 +120,9 @@ func (p *PlayerService) ServiceShutdown() error {
 		close(p.stopSave)
 	}
 	p.saveState()
+	if p.mpris != nil {
+		p.mpris.Close()
+	}
 	if p.engine != nil {
 		p.engine.Close()
 	}
@@ -105,6 +130,19 @@ func (p *PlayerService) ServiceShutdown() error {
 		return p.db.Close()
 	}
 	return nil
+}
+
+func (p *PlayerService) pushMPRISMetadata() {
+	if p.mpris == nil {
+		return
+	}
+	cur := p.queue.Current()
+	if cur == nil {
+		p.mpris.ClearMetadata()
+		return
+	}
+	p.mpris.UpdateMetadata(cur.Title, cur.Artist, cur.Album, cur.FilePath, cur.DurationMs, cur.TrackID)
+	p.mpris.UpdatePlaybackStatus(p.State())
 }
 
 func (p *PlayerService) saveState() {
@@ -235,7 +273,9 @@ func (p *PlayerService) PlayQueue(tracks []player.QueueTrack, startAt int) error
 		return nil
 	}
 	atomic.StoreInt32(&p.manualSkip, 1) // suppress callback for initial load
-	return p.engine.PlayAll(paths)
+	err := p.engine.PlayAll(paths)
+	p.pushMPRISMetadata()
+	return err
 }
 
 // QueueAppend adds a track to the end of the queue.
@@ -280,6 +320,10 @@ func (p *PlayerService) QueueClear() {
 	if p.engine != nil {
 		p.engine.Stop()
 	}
+	if p.mpris != nil {
+		p.mpris.UpdatePlaybackStatus("stopped")
+		p.mpris.ClearMetadata()
+	}
 }
 
 // GetQueue returns all tracks in the queue.
@@ -306,6 +350,9 @@ func (p *PlayerService) SetShuffle(enabled bool) {
 	}
 	upcoming := p.queue.Paths(pos + 1)
 	p.engine.ReplaceUpcoming(upcoming)
+	if p.mpris != nil {
+		p.mpris.UpdateShuffle(enabled)
+	}
 }
 
 // GetShuffle returns whether shuffle mode is active.
@@ -328,6 +375,9 @@ func (p *PlayerService) SetRepeat(mode string) {
 
 	if p.engine != nil {
 		p.engine.SetLoopFile(rm == player.RepeatOne)
+	}
+	if p.mpris != nil {
+		p.mpris.UpdateLoopStatus(mode)
 	}
 }
 
@@ -365,6 +415,9 @@ func (p *PlayerService) Pause() {
 	if p.engine != nil {
 		p.engine.Pause()
 	}
+	if p.mpris != nil {
+		p.mpris.UpdatePlaybackStatus("paused")
+	}
 }
 
 // Resume resumes paused playback.
@@ -372,12 +425,19 @@ func (p *PlayerService) Resume() {
 	if p.engine != nil {
 		p.engine.Resume()
 	}
+	if p.mpris != nil {
+		p.mpris.UpdatePlaybackStatus("playing")
+	}
 }
 
 // Stop halts the current playback.
 func (p *PlayerService) Stop() {
 	if p.engine != nil {
 		p.engine.Stop()
+	}
+	if p.mpris != nil {
+		p.mpris.UpdatePlaybackStatus("stopped")
+		p.mpris.ClearMetadata()
 	}
 }
 
@@ -392,6 +452,9 @@ func (p *PlayerService) Seek(seconds float64) {
 func (p *PlayerService) SetVolume(percent int) {
 	if p.engine != nil {
 		p.engine.SetVolume(percent)
+	}
+	if p.mpris != nil {
+		p.mpris.UpdateVolume(percent)
 	}
 }
 
