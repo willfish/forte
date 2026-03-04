@@ -167,6 +167,45 @@ export class AlbumTrack {
 }
 
 /**
+ * ListenBrainzConfigJSON is the JSON-friendly ListenBrainz config exposed to the frontend.
+ * UserToken is intentionally omitted.
+ */
+export class ListenBrainzConfigJSON {
+    /**
+     * Creates a new ListenBrainzConfigJSON instance.
+     * @param {Partial<ListenBrainzConfigJSON>} [$$source = {}] - The source object to create the ListenBrainzConfigJSON.
+     */
+    constructor($$source = {}) {
+        if (!("username" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["username"] = "";
+        }
+        if (!("enabled" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["enabled"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ListenBrainzConfigJSON instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ListenBrainzConfigJSON}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ListenBrainzConfigJSON(/** @type {Partial<ListenBrainzConfigJSON>} */($$parsedSource));
+    }
+}
+
+/**
  * Playlist is the JSON-friendly playlist type exposed to the frontend.
  */
 export class Playlist {

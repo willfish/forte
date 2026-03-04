@@ -12,6 +12,7 @@ export {
 export {
     Album,
     AlbumTrack,
+    ListenBrainzConfigJSON,
     Playlist,
     PlaylistTrack,
     ScrobbleConfigJSON,

@@ -215,6 +215,66 @@
       lfmResult = { ok: false, message: err?.message || String(err) };
     }
   }
+
+  // ListenBrainz state
+  type LBConfig = {
+    username: string;
+    enabled: boolean;
+  };
+
+  let lbConfig = $state<LBConfig | null>(null);
+  let lbToken = $state('');
+  let lbConnecting = $state(false);
+  let lbResult = $state<{ ok: boolean; message: string } | null>(null);
+
+  async function loadLBConfig() {
+    try {
+      const cfg = await LibraryService.GetListenBrainzConfig();
+      lbConfig = cfg;
+    } catch {
+      lbConfig = null;
+    }
+  }
+
+  $effect(() => {
+    loadLBConfig();
+  });
+
+  async function connectListenBrainz() {
+    if (!lbToken.trim()) return;
+    lbConnecting = true;
+    lbResult = null;
+    try {
+      await LibraryService.ConnectListenBrainz(lbToken);
+      lbToken = '';
+      lbResult = { ok: true, message: 'Connected to ListenBrainz' };
+      await loadLBConfig();
+    } catch (err: any) {
+      lbResult = { ok: false, message: err?.message || String(err) };
+    } finally {
+      lbConnecting = false;
+    }
+  }
+
+  async function disconnectListenBrainz() {
+    lbResult = null;
+    try {
+      await LibraryService.DisconnectListenBrainz();
+      await loadLBConfig();
+    } catch (err: any) {
+      lbResult = { ok: false, message: err?.message || String(err) };
+    }
+  }
+
+  async function toggleLBEnabled() {
+    if (!lbConfig) return;
+    try {
+      await LibraryService.SetListenBrainzEnabled(!lbConfig.enabled);
+      await loadLBConfig();
+    } catch (err: any) {
+      lbResult = { ok: false, message: err?.message || String(err) };
+    }
+  }
 </script>
 
 <div class="settings">
@@ -399,6 +459,43 @@
     {#if lfmResult}
       <div class="test-result" class:ok={lfmResult.ok} class:err={!lfmResult.ok}>
         {lfmResult.message}
+      </div>
+    {/if}
+  </section>
+
+  <section class="section">
+    <h3>ListenBrainz</h3>
+
+    {#if lbConfig?.username}
+      <div class="lfm-connected">
+        <p class="lfm-status">Connected as <strong>{lbConfig.username}</strong></p>
+        <label class="lfm-toggle">
+          <input type="checkbox" checked={lbConfig.enabled} onchange={toggleLBEnabled} />
+          Scrobbling {lbConfig.enabled ? 'enabled' : 'disabled'}
+        </label>
+        <button class="btn-cancel" onclick={disconnectListenBrainz}>Disconnect</button>
+      </div>
+    {:else}
+      <div class="server-form">
+        <p class="lfm-status">
+          Paste your user token from
+          <a href="https://listenbrainz.org/settings/" target="_blank" rel="noopener">listenbrainz.org/settings</a>.
+        </p>
+        <div class="form-field">
+          <label for="lb-token">User Token</label>
+          <input id="lb-token" type="password" bind:value={lbToken} placeholder="Your ListenBrainz user token" />
+        </div>
+        <div class="form-actions">
+          <button class="btn-save" onclick={connectListenBrainz} disabled={!lbToken.trim() || lbConnecting}>
+            {lbConnecting ? 'Connecting...' : 'Connect'}
+          </button>
+        </div>
+      </div>
+    {/if}
+
+    {#if lbResult}
+      <div class="test-result" class:ok={lbResult.ok} class:err={!lbResult.ok}>
+        {lbResult.message}
       </div>
     {/if}
   </section>

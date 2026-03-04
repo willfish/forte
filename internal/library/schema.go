@@ -124,3 +124,13 @@ CREATE TABLE scrobble_config (
 );
 INSERT INTO scrobble_config (id) VALUES (1);
 `
+
+const migration006 = `
+CREATE TABLE listenbrainz_config (
+	id         INTEGER PRIMARY KEY CHECK (id = 1),
+	user_token TEXT NOT NULL DEFAULT '',
+	username   TEXT NOT NULL DEFAULT '',
+	enabled    INTEGER NOT NULL DEFAULT 0
+);
+INSERT INTO listenbrainz_config (id) VALUES (1);
+`
