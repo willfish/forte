@@ -67,8 +67,17 @@ func (db *DB) UpdateServer(s Server) error {
 	return nil
 }
 
-// DeleteServer deletes a server by ID.
+// DeleteServer deletes a server by ID, including all its synced content.
 func (db *DB) DeleteServer(id string) error {
+	// Remove FTS entries for this server's tracks.
+	_, _ = db.Exec("DELETE FROM fts_tracks WHERE rowid IN (SELECT id FROM tracks WHERE server_id = ?)", id)
+	// Remove genre links.
+	_, _ = db.Exec("DELETE FROM track_genres WHERE track_id IN (SELECT id FROM tracks WHERE server_id = ?)", id)
+	// Remove tracks.
+	_, _ = db.Exec("DELETE FROM tracks WHERE server_id = ?", id)
+	// Remove albums.
+	_, _ = db.Exec("DELETE FROM albums WHERE server_id = ?", id)
+
 	_, err := db.Exec("DELETE FROM servers WHERE id = ?", id)
 	if err != nil {
 		return fmt.Errorf("delete server: %w", err)
