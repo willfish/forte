@@ -89,6 +89,9 @@ jobs:
 
       - run: npm ci
       - run: npm run check
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
 
   build:
     name: Build
