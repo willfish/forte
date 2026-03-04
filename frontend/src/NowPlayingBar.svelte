@@ -1,7 +1,7 @@
 <script lang="ts">
   import { PlayerService } from "../bindings/github.com/willfish/forte";
 
-  const { onqueuetoggle }: { onqueuetoggle: () => void } = $props();
+  const { onqueuetoggle, onexpand }: { onqueuetoggle: () => void; onexpand: () => void } = $props();
 
   let playbackState = $state('stopped');
   let position = $state(0);
@@ -145,13 +145,16 @@
 
 <footer class="bar">
   <div class="track-info">
-    {#if radioMode && radioArtwork}
-      <img class="artwork" src={radioArtwork} alt="Station art" />
-    {:else if artworkSrc}
-      <img class="artwork" src={artworkSrc} alt="Album art" />
-    {:else}
-      <div class="artwork-placeholder"></div>
-    {/if}
+    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+    <div class="artwork-btn" onclick={onexpand}>
+      {#if radioMode && radioArtwork}
+        <img class="artwork" src={radioArtwork} alt="Station art" />
+      {:else if artworkSrc}
+        <img class="artwork" src={artworkSrc} alt="Album art" />
+      {:else}
+        <div class="artwork-placeholder"></div>
+      {/if}
+    </div>
     <div class="meta">
       {#if radioMode && radioStation}
         <span class="title">{title || radioStation}</span>
@@ -292,12 +295,23 @@
     overflow: hidden;
   }
 
+  .artwork-btn {
+    cursor: pointer;
+    flex-shrink: 0;
+    border-radius: 4px;
+    transition: opacity 0.15s ease;
+  }
+
+  .artwork-btn:hover {
+    opacity: 0.8;
+  }
+
   .artwork {
     width: 48px;
     height: 48px;
     border-radius: 4px;
     object-fit: cover;
-    flex-shrink: 0;
+    display: block;
   }
 
   .artwork-placeholder {
@@ -375,12 +389,12 @@
     width: 32px;
     height: 32px;
     background: var(--accent);
-    color: #fff;
+    color: var(--text-on-accent);
   }
 
   .transport .play-btn:hover:not(:disabled) {
     background: var(--accent);
-    color: #fff;
+    color: var(--text-on-accent);
     filter: brightness(1.15);
   }
 
@@ -431,9 +445,9 @@
     font-size: 0.7rem;
     font-weight: 600;
     letter-spacing: 0.08em;
-    color: #e74c3c;
+    color: var(--error);
     padding: 0.15rem 0.5rem;
-    border: 1px solid #e74c3c;
+    border: 1px solid var(--error);
     border-radius: 3px;
   }
 
