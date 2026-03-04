@@ -3,10 +3,15 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/browser"
@@ -923,6 +928,15 @@ func (s *LibraryService) SearchRadioStations(query string, limit int) ([]RadioSt
 	return stationsToJSON(stations), nil
 }
 
+// SearchRadioStationsFiltered searches with optional country and codec filters.
+func (s *LibraryService) SearchRadioStationsFiltered(country, codec string, limit int) ([]RadioStationJSON, error) {
+	stations, err := radioClient.SearchFiltered(country, codec, limit)
+	if err != nil {
+		return nil, err
+	}
+	return stationsToJSON(stations), nil
+}
+
 // GetRadioStationsByTag returns radio stations matching a tag.
 func (s *LibraryService) GetRadioStationsByTag(tag string, limit int) ([]RadioStationJSON, error) {
 	stations, err := radioClient.ByTag(tag, limit)
@@ -1029,6 +1043,60 @@ func (s *LibraryService) IsRadioFavourite(stationUUID string) (bool, error) {
 		return false, fmt.Errorf("library not initialised")
 	}
 	return s.db.IsRadioFavourite(stationUUID)
+}
+
+// imageProxyCache caches proxied image data URIs keyed by URL.
+var imageProxyCache struct {
+	sync.Mutex
+	m map[string]string
+}
+
+var imageProxyClient = &http.Client{Timeout: 5 * time.Second}
+
+// ProxyImageURL fetches a remote image and returns it as a base64 data URI.
+// Results are cached in memory. Returns empty string on failure.
+func (s *LibraryService) ProxyImageURL(url string) string {
+	if url == "" || (!strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://")) {
+		return ""
+	}
+
+	imageProxyCache.Lock()
+	if imageProxyCache.m == nil {
+		imageProxyCache.m = make(map[string]string)
+	}
+	if cached, ok := imageProxyCache.m[url]; ok {
+		imageProxyCache.Unlock()
+		return cached
+	}
+	imageProxyCache.Unlock()
+
+	resp, err := imageProxyClient.Get(url)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024)) // 2MB max
+	if err != nil || len(data) == 0 {
+		return ""
+	}
+
+	mime := resp.Header.Get("Content-Type")
+	if mime == "" {
+		mime = http.DetectContentType(data)
+	}
+
+	dataURI := "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)
+
+	imageProxyCache.Lock()
+	imageProxyCache.m[url] = dataURI
+	imageProxyCache.Unlock()
+
+	return dataURI
 }
 
 // newUUID generates a random UUID v4 string.

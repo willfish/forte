@@ -163,6 +163,23 @@ func (c *Client) ByCountry(country string, limit int) ([]Station, error) {
 	return c.fetchStations("/json/stations/search", params)
 }
 
+// SearchFiltered searches for stations with optional country and codec filters.
+func (c *Client) SearchFiltered(country, codec string, limit int) ([]Station, error) {
+	params := url.Values{
+		"limit":      {fmt.Sprintf("%d", limit)},
+		"order":      {"votes"},
+		"reverse":    {"true"},
+		"hidebroken": {"true"},
+	}
+	if country != "" {
+		params.Set("country", country)
+	}
+	if codec != "" {
+		params.Set("codec", codec)
+	}
+	return c.fetchStations("/json/stations/search", params)
+}
+
 // TopVoted returns the top voted stations.
 func (c *Client) TopVoted(limit int) ([]Station, error) {
 	params := url.Values{
