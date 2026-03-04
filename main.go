@@ -14,6 +14,12 @@ var assets embed.FS
 //go:embed build/appicon.png
 var appIcon []byte
 
+//go:embed build/tray-idle-32.png
+var trayIconIdle []byte
+
+//go:embed build/tray-playing-32.png
+var trayIconPlaying []byte
+
 func main() {
 	ps := &PlayerService{}
 	ls := &LibraryService{}
@@ -68,7 +74,7 @@ func main() {
 		Title:            "Forte",
 		Width:            1200,
 		Height:           800,
-		MinWidth:         800,
+		MinWidth:         700,
 		MinHeight:        600,
 		BackgroundColour: application.NewRGB(27, 38, 54),
 		URL:              "/",
@@ -80,7 +86,7 @@ func main() {
 		e.Cancel()
 	})
 
-	tray.SetIcon(appIcon).SetMenu(menu).AttachWindow(window)
+	tray.SetIcon(trayIconIdle).SetMenu(menu).AttachWindow(window)
 	tray.SetTooltip("Forte")
 
 	// Left-click toggles window, right-click opens menu.
@@ -88,14 +94,17 @@ func main() {
 		tray.ToggleWindow()
 	})
 
-	// Update tooltip when track changes.
+	// Update tooltip and icon when track changes.
 	ps.onTrayUpdate = func(title, artist string) {
 		if title == "" {
 			tray.SetTooltip("Forte")
+			tray.SetIcon(trayIconIdle)
 		} else if artist != "" {
 			tray.SetTooltip(title + " - " + artist)
+			tray.SetIcon(trayIconPlaying)
 		} else {
 			tray.SetTooltip(title)
+			tray.SetIcon(trayIconPlaying)
 		}
 	}
 
