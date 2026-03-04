@@ -174,3 +174,14 @@ CREATE TABLE artist_metadata (
 	fetched_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 `
+
+const migration010 = `
+CREATE TABLE radio_favourites (
+	station_uuid TEXT PRIMARY KEY,
+	name         TEXT NOT NULL,
+	stream_url   TEXT NOT NULL,
+	favicon_url  TEXT NOT NULL DEFAULT '',
+	tags         TEXT NOT NULL DEFAULT '',
+	added_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`
