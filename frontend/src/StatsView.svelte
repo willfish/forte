@@ -206,6 +206,7 @@
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    animation: view-enter 0.2s ease-out;
   }
 
   .toolbar {

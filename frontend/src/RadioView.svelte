@@ -308,6 +308,7 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    animation: view-enter 0.2s ease-out;
   }
 
   h2 {

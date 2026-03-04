@@ -164,6 +164,7 @@
     flex-direction: column;
     height: 100%;
     gap: 1.5rem;
+    animation: view-enter 0.2s ease-out;
   }
 
   .back-btn {
