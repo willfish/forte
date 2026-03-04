@@ -105,3 +105,10 @@ CREATE TABLE servers (
 	password TEXT NOT NULL DEFAULT ''
 );
 `
+
+const migration004 = `
+ALTER TABLE albums ADD COLUMN server_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE albums ADD COLUMN remote_id TEXT NOT NULL DEFAULT '';
+CREATE INDEX idx_albums_server ON albums (server_id);
+CREATE INDEX idx_tracks_server ON tracks (server_id);
+`

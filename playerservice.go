@@ -23,6 +23,7 @@ type PlayerService struct {
 	engine       *player.Engine
 	queue        *player.Queue
 	db           *library.DB
+	resolver     *library.PathResolver
 	mpris        *system.MPRIS
 	notifier     *system.Notifier
 	onTrayUpdate func(title, artist string) // set by main.go for tooltip updates
@@ -53,6 +54,7 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 		return fmt.Errorf("player db: %w", err)
 	}
 	p.db = db
+	p.resolver = library.NewPathResolver(db)
 
 	// When mpv auto-advances to the next track (gapless), advance the queue.
 	e.SetOnTrackChange(func() {
@@ -76,7 +78,7 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 		paths := p.queue.Paths(0)
 		if len(paths) > 0 {
 			atomic.StoreInt32(&p.manualSkip, 1)
-			_ = p.engine.PlayAll(paths)
+			_ = p.engine.PlayAll(p.resolvePaths(paths))
 		}
 	})
 
@@ -168,7 +170,7 @@ func (p *PlayerService) pushMPRISMetadata() {
 	// Send desktop notification for the new track.
 	if p.notifier != nil && cur != nil {
 		var artwork []byte
-		if cur.FilePath != "" {
+		if cur.FilePath != "" && !library.IsServerPath(cur.FilePath) {
 			artwork, _, _ = metadata.ReadArtwork(cur.FilePath)
 		}
 		body := cur.Artist
@@ -227,10 +229,12 @@ func (p *PlayerService) restoreState() {
 		return
 	}
 
-	// Filter out tracks whose files no longer exist.
+	// Filter out tracks whose files no longer exist (server tracks are always valid).
 	valid := make([]player.QueueTrack, 0, len(tracks))
 	for _, t := range tracks {
-		if _, err := os.Stat(t.FilePath); err == nil {
+		if library.IsServerPath(t.FilePath) {
+			valid = append(valid, t)
+		} else if _, err := os.Stat(t.FilePath); err == nil {
 			valid = append(valid, t)
 		}
 	}
@@ -247,6 +251,9 @@ func (p *PlayerService) restoreState() {
 	removed := 0
 	for i, t := range tracks {
 		if i < state.Position {
+			if library.IsServerPath(t.FilePath) {
+				continue
+			}
 			if _, err := os.Stat(t.FilePath); err != nil {
 				removed++
 			}
@@ -284,7 +291,7 @@ func (p *PlayerService) restoreState() {
 		paths := p.queue.Paths(pos)
 		if len(paths) > 0 {
 			atomic.StoreInt32(&p.manualSkip, 1)
-			if err := p.engine.PlayAll(paths); err == nil {
+			if err := p.engine.PlayAll(p.resolvePaths(paths)); err == nil {
 				// Pause immediately and seek to saved position.
 				p.engine.Pause()
 				if state.TrackPositionMs > 0 {
@@ -306,8 +313,9 @@ func (p *PlayerService) PlayQueue(tracks []player.QueueTrack, startAt int) error
 	if len(paths) == 0 {
 		return nil
 	}
+	resolved := p.resolvePaths(paths)
 	atomic.StoreInt32(&p.manualSkip, 1) // suppress callback for initial load
-	err := p.engine.PlayAll(paths)
+	err := p.engine.PlayAll(resolved)
 	p.pushMPRISMetadata()
 	return err
 }
@@ -337,7 +345,7 @@ func (p *PlayerService) QueueRemove(index int) error {
 		paths := p.queue.Paths(p.queue.Position())
 		if len(paths) > 0 {
 			atomic.StoreInt32(&p.manualSkip, 1)
-			return p.engine.PlayAll(paths)
+			return p.engine.PlayAll(p.resolvePaths(paths))
 		}
 	}
 	return nil
@@ -386,7 +394,7 @@ func (p *PlayerService) SetShuffle(enabled bool) {
 		return
 	}
 	upcoming := p.queue.Paths(pos + 1)
-	p.engine.ReplaceUpcoming(upcoming)
+	p.engine.ReplaceUpcoming(p.resolvePaths(upcoming))
 	if p.mpris != nil {
 		p.mpris.UpdateShuffle(enabled)
 	}
@@ -428,7 +436,8 @@ func (p *PlayerService) Play(path string) error {
 	if p.engine == nil {
 		return fmt.Errorf("player not initialised")
 	}
-	return p.engine.Play(path)
+	resolved := p.resolvePaths([]string{path})
+	return p.engine.Play(resolved[0])
 }
 
 // Enqueue appends a track to the playlist for gapless playback.
@@ -436,7 +445,8 @@ func (p *PlayerService) Enqueue(path string) error {
 	if p.engine == nil {
 		return fmt.Errorf("player not initialised")
 	}
-	return p.engine.Enqueue(path)
+	resolved := p.resolvePaths([]string{path})
+	return p.engine.Enqueue(resolved[0])
 }
 
 // PlayAll replaces the playlist and plays the given tracks in order.
@@ -444,7 +454,7 @@ func (p *PlayerService) PlayAll(paths []string) error {
 	if p.engine == nil {
 		return fmt.Errorf("player not initialised")
 	}
-	return p.engine.PlayAll(paths)
+	return p.engine.PlayAll(p.resolvePaths(paths))
 }
 
 // Pause pauses the current playback.
@@ -579,7 +589,7 @@ func (p *PlayerService) Next() {
 			// Wrapped around: reload playlist from the start.
 			paths := p.queue.Paths(0)
 			if len(paths) > 0 {
-				_ = p.engine.PlayAll(paths)
+				_ = p.engine.PlayAll(p.resolvePaths(paths))
 			}
 		} else {
 			p.engine.Next()
@@ -603,7 +613,7 @@ func (p *PlayerService) Previous() {
 			// Wrapped backward: reload playlist from the end.
 			paths := p.queue.Paths(p.queue.Position())
 			if len(paths) > 0 {
-				_ = p.engine.PlayAll(paths)
+				_ = p.engine.PlayAll(p.resolvePaths(paths))
 			}
 		} else {
 			p.engine.Previous()
@@ -617,6 +627,15 @@ func (p *PlayerService) Artwork() string {
 	if p.engine == nil {
 		return ""
 	}
+	// Use the queue's file_path (which may be server://) rather than engine's media path.
+	cur := p.queue.Current()
+	if cur == nil {
+		return ""
+	}
+	if library.IsServerPath(cur.FilePath) {
+		// For server tracks, look up artwork from the album in the DB.
+		return p.serverTrackArtwork(cur.TrackID)
+	}
 	path := p.engine.MediaPath()
 	if path == "" {
 		return ""
@@ -626,6 +645,39 @@ func (p *PlayerService) Artwork() string {
 		return ""
 	}
 	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)
+}
+
+// serverTrackArtwork returns album artwork for a server track by looking up
+// its album_id and fetching the stored artwork blob.
+func (p *PlayerService) serverTrackArtwork(trackID int64) string {
+	if p.db == nil {
+		return ""
+	}
+	var albumID int64
+	err := p.db.QueryRow("SELECT COALESCE(album_id, 0) FROM tracks WHERE id = ?", trackID).Scan(&albumID)
+	if err != nil || albumID == 0 {
+		return ""
+	}
+	art, _ := p.db.AlbumArtwork(albumID)
+	return art
+}
+
+// resolvePaths translates any server:// paths to streaming URLs.
+func (p *PlayerService) resolvePaths(paths []string) []string {
+	if p.resolver == nil {
+		return paths
+	}
+	resolved := make([]string, len(paths))
+	for i, path := range paths {
+		r, err := p.resolver.Resolve(path)
+		if err != nil {
+			log.Printf("resolve path: %v", err)
+			resolved[i] = path // pass through on error
+		} else {
+			resolved[i] = r
+		}
+	}
+	return resolved
 }
 
 // SetReplayGain sets the ReplayGain mode: "track", "album", or "no" (off).

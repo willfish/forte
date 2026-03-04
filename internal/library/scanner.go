@@ -178,6 +178,15 @@ func (s *Scanner) processFile(ctx context.Context, tx *sql.Tx, path string) erro
 }
 
 func (s *Scanner) upsertArtist(ctx context.Context, tx *sql.Tx, name string) (int64, error) {
+	return upsertArtist(ctx, tx, name)
+}
+
+func (s *Scanner) upsertAlbum(ctx context.Context, tx *sql.Tx, artistID int64, title string, year int) (int64, error) {
+	return upsertAlbum(ctx, tx, artistID, title, year, "", "")
+}
+
+// upsertArtist finds or creates an artist by name.
+func upsertArtist(ctx context.Context, tx *sql.Tx, name string) (int64, error) {
 	if name == "" {
 		name = "Unknown Artist"
 	}
@@ -193,10 +202,34 @@ func (s *Scanner) upsertArtist(ctx context.Context, tx *sql.Tx, name string) (in
 	return res.LastInsertId()
 }
 
-func (s *Scanner) upsertAlbum(ctx context.Context, tx *sql.Tx, artistID int64, title string, year int) (int64, error) {
+// upsertAlbum finds or creates an album. When serverID is non-empty, matches on
+// (server_id, remote_id) instead of (artist_id, title) to avoid cross-server collisions.
+func upsertAlbum(ctx context.Context, tx *sql.Tx, artistID int64, title string, year int, serverID, remoteID string) (int64, error) {
 	var id int64
+	if serverID != "" {
+		err := tx.QueryRowContext(ctx,
+			"SELECT id FROM albums WHERE server_id = ? AND remote_id = ?", serverID, remoteID,
+		).Scan(&id)
+		if err == nil {
+			// Update metadata in case it changed on the server.
+			_, _ = tx.ExecContext(ctx,
+				"UPDATE albums SET artist_id = ?, title = ?, year = ?, updated_at = datetime('now') WHERE id = ?",
+				artistID, title, year, id,
+			)
+			return id, nil
+		}
+		res, err := tx.ExecContext(ctx,
+			"INSERT INTO albums (artist_id, title, year, server_id, remote_id) VALUES (?, ?, ?, ?, ?)",
+			artistID, title, year, serverID, remoteID,
+		)
+		if err != nil {
+			return 0, err
+		}
+		return res.LastInsertId()
+	}
+
 	err := tx.QueryRowContext(ctx,
-		"SELECT id FROM albums WHERE artist_id = ? AND title = ?", artistID, title,
+		"SELECT id FROM albums WHERE artist_id = ? AND title = ? AND server_id = ''", artistID, title,
 	).Scan(&id)
 	if err == nil {
 		return id, nil
