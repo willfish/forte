@@ -127,6 +127,7 @@ export function MediaPath() {
 
 /**
  * MediaTitle returns the title of the currently playing track.
+ * In radio mode, filters out the raw stream URL (shown when no ICY metadata is available).
  * @returns {$CancellablePromise<string>}
  */
 export function MediaTitle() {
