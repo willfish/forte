@@ -506,7 +506,7 @@
   }
 
   .fav-btn.active {
-    color: #e74c3c;
+    color: var(--error);
   }
 
   .empty {
