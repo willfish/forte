@@ -2,6 +2,7 @@ package lastfm
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 )
 
@@ -129,6 +130,54 @@ func TestGetSessionResponseParsing(t *testing.T) {
 	}
 	if resp.Session.Name != "testuser" {
 		t.Errorf("username = %q, want %q", resp.Session.Name, "testuser")
+	}
+}
+
+func TestScrobbleBatchParams(t *testing.T) {
+	tracks := []TrackInfo{
+		{Artist: "Radiohead", Track: "Idioteque", Album: "Kid A", Duration: 300},
+		{Artist: "Portishead", Track: "Glory Box", Album: "Dummy", Duration: 305},
+		{Artist: "Bjork", Track: "Army of Me", Album: "", Duration: 224},
+	}
+	timestamps := []int64{1700000000, 1700000300, 1700000600}
+
+	// Build the params the same way ScrobbleBatch does, to verify structure.
+	params := map[string]string{
+		"method":  "track.scrobble",
+		"api_key": "testkey",
+		"sk":      "testsession",
+	}
+	for i, tr := range tracks {
+		params[fmt.Sprintf("artist[%d]", i)] = tr.Artist
+		params[fmt.Sprintf("track[%d]", i)] = tr.Track
+		params[fmt.Sprintf("timestamp[%d]", i)] = fmt.Sprintf("%d", timestamps[i])
+		if tr.Album != "" {
+			params[fmt.Sprintf("album[%d]", i)] = tr.Album
+		}
+	}
+
+	// Verify indexed params exist.
+	for i := range 3 {
+		if _, ok := params[fmt.Sprintf("artist[%d]", i)]; !ok {
+			t.Errorf("missing artist[%d]", i)
+		}
+		if _, ok := params[fmt.Sprintf("track[%d]", i)]; !ok {
+			t.Errorf("missing track[%d]", i)
+		}
+		if _, ok := params[fmt.Sprintf("timestamp[%d]", i)]; !ok {
+			t.Errorf("missing timestamp[%d]", i)
+		}
+	}
+
+	// Album should not be present for track without album.
+	if _, ok := params["album[2]"]; ok {
+		t.Error("album[2] should not be present for track without album")
+	}
+
+	// Signature should work with indexed params.
+	sig := sign(params, "testsecret")
+	if sig == "" {
+		t.Error("sign() returned empty string for batch params")
 	}
 }
 

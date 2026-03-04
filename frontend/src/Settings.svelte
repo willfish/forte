@@ -275,6 +275,21 @@
       lbResult = { ok: false, message: err?.message || String(err) };
     }
   }
+
+  // Scrobble queue state
+  let queueSize = $state(0);
+
+  async function loadQueueSize() {
+    try {
+      queueSize = await LibraryService.GetScrobbleQueueSize();
+    } catch {
+      queueSize = 0;
+    }
+  }
+
+  $effect(() => {
+    loadQueueSize();
+  });
 </script>
 
 <div class="settings">
@@ -499,6 +514,13 @@
       </div>
     {/if}
   </section>
+
+  {#if queueSize > 0}
+    <section class="section">
+      <h3>Scrobble Queue</h3>
+      <p class="queue-info">{queueSize} scrobble{queueSize === 1 ? '' : 's'} pending retry. These will be submitted automatically.</p>
+    </section>
+  {/if}
 </div>
 
 <style>
@@ -949,5 +971,11 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+  }
+
+  .queue-info {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin: 0;
   }
 </style>

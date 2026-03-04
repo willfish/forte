@@ -73,6 +73,26 @@ func Scrobble(token string, t TrackInfo, listenedAt int64) error {
 	return submit(token, payload)
 }
 
+// ScrobbleBatch submits multiple completed track listens in a single API call.
+// ListenBrainz uses listen_type "import" for batch submissions.
+func ScrobbleBatch(token string, tracks []TrackInfo, timestamps []int64) error {
+	if len(tracks) == 0 {
+		return nil
+	}
+	if len(tracks) != len(timestamps) {
+		return fmt.Errorf("listenbrainz: tracks and timestamps length mismatch")
+	}
+	listens := make([]listen, len(tracks))
+	for i, t := range tracks {
+		listens[i] = listen{ListenedAt: timestamps[i], TrackMetadata: trackMeta(t)}
+	}
+	payload := submitPayload{
+		ListenType: "import",
+		Payload:    listens,
+	}
+	return submit(token, payload)
+}
+
 type submitPayload struct {
 	ListenType string   `json:"listen_type"`
 	Payload    []listen `json:"payload"`

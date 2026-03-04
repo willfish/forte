@@ -118,13 +118,15 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 	// Restore saved playback state.
 	p.restoreState()
 
-	// Periodic save (10s) and MPRIS position update (1s).
+	// Periodic save (10s), MPRIS position update (1s), and scrobble queue flush (5m).
 	p.stopSave = make(chan struct{})
 	go func() {
 		posTicker := time.NewTicker(1 * time.Second)
 		saveTicker := time.NewTicker(10 * time.Second)
+		flushTicker := time.NewTicker(5 * time.Minute)
 		defer posTicker.Stop()
 		defer saveTicker.Stop()
+		defer flushTicker.Stop()
 		for {
 			select {
 			case <-posTicker.C:
@@ -134,6 +136,8 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 				p.checkScrobble()
 			case <-saveTicker.C:
 				p.saveState()
+			case <-flushTicker.C:
+				p.flushScrobbleQueue()
 			case <-p.stopSave:
 				return
 			}
@@ -832,7 +836,8 @@ func (p *PlayerService) checkScrobble() {
 		}
 		go func() {
 			if err := lastfm.Scrobble(cfg.APIKey, cfg.APISecret, cfg.SessionKey, track, ts); err != nil {
-				log.Printf("lastfm scrobble: %v", err)
+				log.Printf("lastfm scrobble: %v (queued for retry)", err)
+				p.enqueueFailedScrobble("lastfm", track.Artist, track.Track, track.Album, cur.DurationMs, ts)
 			}
 		}()
 	}
@@ -848,7 +853,8 @@ func (p *PlayerService) checkScrobble() {
 		}
 		go func() {
 			if err := listenbrainz.Scrobble(lbCfg.UserToken, lbTrack, ts); err != nil {
-				log.Printf("listenbrainz scrobble: %v", err)
+				log.Printf("listenbrainz scrobble: %v (queued for retry)", err)
+				p.enqueueFailedScrobble("listenbrainz", lbTrack.Artist, lbTrack.Track, lbTrack.Album, cur.DurationMs, ts)
 			}
 		}()
 	}
@@ -870,6 +876,136 @@ func (p *PlayerService) resolvePaths(paths []string) []string {
 		}
 	}
 	return resolved
+}
+
+// scrobbleTrackJSON is the JSON format stored in the queue for retry.
+type scrobbleTrackJSON struct {
+	Artist     string `json:"artist"`
+	Track      string `json:"track"`
+	Album      string `json:"album"`
+	DurationMs int    `json:"duration_ms"`
+}
+
+// enqueueFailedScrobble saves a failed scrobble to the retry queue.
+func (p *PlayerService) enqueueFailedScrobble(service, artist, track, album string, durationMs int, ts int64) {
+	if p.db == nil {
+		return
+	}
+	data, err := json.Marshal(scrobbleTrackJSON{
+		Artist:     artist,
+		Track:      track,
+		Album:      album,
+		DurationMs: durationMs,
+	})
+	if err != nil {
+		log.Printf("scrobble queue: marshal: %v", err)
+		return
+	}
+	if err := p.db.EnqueueScrobble(service, string(data), ts); err != nil {
+		log.Printf("scrobble queue: enqueue: %v", err)
+	}
+}
+
+// flushScrobbleQueue retries pending scrobbles for all services.
+func (p *PlayerService) flushScrobbleQueue() {
+	if p.db == nil {
+		return
+	}
+
+	if err := p.db.PruneScrobbleQueue(); err != nil {
+		log.Printf("scrobble queue: prune: %v", err)
+	}
+
+	p.flushLastFmQueue()
+	p.flushListenBrainzQueue()
+}
+
+// flushLastFmQueue retries pending Last.fm scrobbles in batches of up to 50.
+func (p *PlayerService) flushLastFmQueue() {
+	cfg, err := p.db.LoadScrobbleConfig()
+	if err != nil || !cfg.Enabled || cfg.SessionKey == "" {
+		return
+	}
+
+	entries, err := p.db.PendingScrobbles("lastfm", 50)
+	if err != nil || len(entries) == 0 {
+		return
+	}
+
+	tracks := make([]lastfm.TrackInfo, len(entries))
+	timestamps := make([]int64, len(entries))
+	for i, e := range entries {
+		var t scrobbleTrackJSON
+		if err := json.Unmarshal([]byte(e.TrackJSON), &t); err != nil {
+			log.Printf("scrobble queue: unmarshal lastfm entry %d: %v", e.ID, err)
+			_ = p.db.RemoveScrobble(e.ID) // corrupted entry
+			return
+		}
+		tracks[i] = lastfm.TrackInfo{
+			Artist:   t.Artist,
+			Track:    t.Track,
+			Album:    t.Album,
+			Duration: t.DurationMs / 1000,
+		}
+		timestamps[i] = e.Timestamp
+	}
+
+	if err := lastfm.ScrobbleBatch(cfg.APIKey, cfg.APISecret, cfg.SessionKey, tracks, timestamps); err != nil {
+		log.Printf("scrobble queue: lastfm batch: %v", err)
+		for _, e := range entries {
+			_ = p.db.MarkScrobbleAttempt(e.ID)
+		}
+		return
+	}
+
+	for _, e := range entries {
+		_ = p.db.RemoveScrobble(e.ID)
+	}
+	log.Printf("scrobble queue: flushed %d lastfm scrobbles", len(entries))
+}
+
+// flushListenBrainzQueue retries pending ListenBrainz scrobbles in batches of up to 100.
+func (p *PlayerService) flushListenBrainzQueue() {
+	lbCfg, err := p.db.LoadListenBrainzConfig()
+	if err != nil || !lbCfg.Enabled || lbCfg.UserToken == "" {
+		return
+	}
+
+	entries, err := p.db.PendingScrobbles("listenbrainz", 100)
+	if err != nil || len(entries) == 0 {
+		return
+	}
+
+	tracks := make([]listenbrainz.TrackInfo, len(entries))
+	timestamps := make([]int64, len(entries))
+	for i, e := range entries {
+		var t scrobbleTrackJSON
+		if err := json.Unmarshal([]byte(e.TrackJSON), &t); err != nil {
+			log.Printf("scrobble queue: unmarshal listenbrainz entry %d: %v", e.ID, err)
+			_ = p.db.RemoveScrobble(e.ID) // corrupted entry
+			return
+		}
+		tracks[i] = listenbrainz.TrackInfo{
+			Artist:     t.Artist,
+			Track:      t.Track,
+			Album:      t.Album,
+			DurationMs: t.DurationMs,
+		}
+		timestamps[i] = e.Timestamp
+	}
+
+	if err := listenbrainz.ScrobbleBatch(lbCfg.UserToken, tracks, timestamps); err != nil {
+		log.Printf("scrobble queue: listenbrainz batch: %v", err)
+		for _, e := range entries {
+			_ = p.db.MarkScrobbleAttempt(e.ID)
+		}
+		return
+	}
+
+	for _, e := range entries {
+		_ = p.db.RemoveScrobble(e.ID)
+	}
+	log.Printf("scrobble queue: flushed %d listenbrainz scrobbles", len(entries))
 }
 
 // SetReplayGain sets the ReplayGain mode: "track", "album", or "no" (off).

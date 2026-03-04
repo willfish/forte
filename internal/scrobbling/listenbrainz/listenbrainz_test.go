@@ -114,6 +114,62 @@ func TestScrobblePayload(t *testing.T) {
 	}
 }
 
+func TestBatchPayload(t *testing.T) {
+	tracks := []TrackInfo{
+		{Artist: "Radiohead", Track: "Idioteque", Album: "Kid A", DurationMs: 310000},
+		{Artist: "Portishead", Track: "Glory Box", Album: "Dummy", DurationMs: 305000},
+	}
+	timestamps := []int64{1700000000, 1700000300}
+
+	listens := make([]listen, len(tracks))
+	for i, tr := range tracks {
+		listens[i] = listen{ListenedAt: timestamps[i], TrackMetadata: trackMeta(tr)}
+	}
+	payload := submitPayload{
+		ListenType: "import",
+		Payload:    listens,
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var parsed map[string]any
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if parsed["listen_type"] != "import" {
+		t.Errorf("listen_type = %v, want %q", parsed["listen_type"], "import")
+	}
+
+	payloadArr := parsed["payload"].([]any)
+	if len(payloadArr) != 2 {
+		t.Fatalf("payload length = %d, want 2", len(payloadArr))
+	}
+
+	first := payloadArr[0].(map[string]any)
+	listenedAt, ok := first["listened_at"].(float64)
+	if !ok {
+		t.Fatal("listened_at missing or wrong type in first entry")
+	}
+	if int64(listenedAt) != 1700000000 {
+		t.Errorf("first listened_at = %v, want 1700000000", listenedAt)
+	}
+
+	meta := first["track_metadata"].(map[string]any)
+	if meta["artist_name"] != "Radiohead" {
+		t.Errorf("first artist = %v, want Radiohead", meta["artist_name"])
+	}
+
+	second := payloadArr[1].(map[string]any)
+	secondMeta := second["track_metadata"].(map[string]any)
+	if secondMeta["artist_name"] != "Portishead" {
+		t.Errorf("second artist = %v, want Portishead", secondMeta["artist_name"])
+	}
+}
+
 func TestValidateTokenParsing(t *testing.T) {
 	// Valid response
 	validBody := []byte(`{"code":200,"message":"Token valid.","valid":true,"user_name":"testuser"}`)
