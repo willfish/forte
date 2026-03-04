@@ -70,7 +70,7 @@ func NewMPRIS(player PlayerControl) (*MPRIS, error) {
 
 	artDir, err := os.MkdirTemp("", "forte-art-*")
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("mpris: create art dir: %w", err)
 	}
 
@@ -110,20 +110,24 @@ func NewMPRIS(player PlayerControl) (*MPRIS, error) {
 		},
 	}
 
+	cleanup := func() {
+		_ = os.RemoveAll(artDir)
+		_ = conn.Close()
+	}
+
 	m.props, err = prop.Export(conn, dbus.ObjectPath(objectPath), propsSpec)
 	if err != nil {
-		os.RemoveAll(artDir)
-		conn.Close()
+		cleanup()
 		return nil, fmt.Errorf("mpris: export properties: %w", err)
 	}
 
 	// Export method handlers.
-	conn.Export(&mprisRoot{m: m}, dbus.ObjectPath(objectPath), ifaceRoot)
+	_ = conn.Export(&mprisRoot{m: m}, dbus.ObjectPath(objectPath), ifaceRoot)
 
 	// Use ExportMethodTable for the Player interface to avoid a go vet
 	// false positive on the Seek method name (conflicts with io.Seeker).
 	pl := &mprisPlayer{m: m}
-	conn.ExportMethodTable(map[string]interface{}{
+	_ = conn.ExportMethodTable(map[string]interface{}{
 		"Play":        pl.Play,
 		"Pause":       pl.Pause,
 		"PlayPause":   pl.PlayPause,
@@ -136,7 +140,7 @@ func NewMPRIS(player PlayerControl) (*MPRIS, error) {
 	}, dbus.ObjectPath(objectPath), ifacePlayer)
 
 	// Export introspection.
-	conn.Export(
+	_ = conn.Export(
 		introspect.NewIntrospectable(mprisIntrospectNode()),
 		dbus.ObjectPath(objectPath),
 		"org.freedesktop.DBus.Introspectable",
@@ -145,13 +149,11 @@ func NewMPRIS(player PlayerControl) (*MPRIS, error) {
 	// Claim the bus name.
 	reply, err := conn.RequestName(busName, dbus.NameFlagReplaceExisting)
 	if err != nil {
-		os.RemoveAll(artDir)
-		conn.Close()
+		cleanup()
 		return nil, fmt.Errorf("mpris: request name: %w", err)
 	}
 	if reply != dbus.RequestNameReplyPrimaryOwner {
-		os.RemoveAll(artDir)
-		conn.Close()
+		cleanup()
 		return nil, fmt.Errorf("mpris: name %s already taken", busName)
 	}
 
@@ -161,11 +163,11 @@ func NewMPRIS(player PlayerControl) (*MPRIS, error) {
 // Close releases the D-Bus connection and cleans up temp files.
 func (m *MPRIS) Close() {
 	if m.conn != nil {
-		m.conn.ReleaseName(busName)
-		m.conn.Close()
+		_, _ = m.conn.ReleaseName(busName)
+		_ = m.conn.Close()
 	}
 	if m.artDir != "" {
-		os.RemoveAll(m.artDir)
+		_ = os.RemoveAll(m.artDir)
 	}
 }
 
@@ -230,7 +232,7 @@ func (p *mprisPlayer) SeekOffset(offsetUs int64) *dbus.Error {
 	}
 	p.m.player.Seek(newPos)
 
-	p.m.conn.Emit(
+	_ = p.m.conn.Emit(
 		dbus.ObjectPath(objectPath),
 		ifacePlayer+".Seeked",
 		int64(newPos*1e6),
@@ -246,7 +248,7 @@ func (p *mprisPlayer) SetPosition(trackID dbus.ObjectPath, positionUs int64) *db
 	}
 	p.m.player.Seek(newPos)
 
-	p.m.conn.Emit(
+	_ = p.m.conn.Emit(
 		dbus.ObjectPath(objectPath),
 		ifacePlayer+".Seeked",
 		positionUs,

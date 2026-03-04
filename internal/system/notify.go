@@ -102,9 +102,9 @@ func (n *Notifier) Enabled() bool {
 // Close releases the D-Bus connection and cleans up temp files.
 func (n *Notifier) Close() {
 	if n.conn != nil {
-		n.conn.Close()
+		_ = n.conn.Close()
 	}
 	if n.iconDir != "" {
-		os.RemoveAll(n.iconDir)
+		_ = os.RemoveAll(n.iconDir)
 	}
 }
