@@ -15,6 +15,7 @@
   const navItems: { view: View; label: string; icon: string }[] = [
     { view: 'library', label: 'Library', icon: '\u266B' },
     { view: 'playlists', label: 'Playlists', icon: '\u2630' },
+    { view: 'radio', label: 'Radio', icon: '\u25CE' },
     { view: 'stats', label: 'Stats', icon: '\u2584' },
     { view: 'settings', label: 'Settings', icon: '\u2699' },
   ];
