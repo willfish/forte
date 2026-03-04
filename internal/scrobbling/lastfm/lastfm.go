@@ -112,6 +112,36 @@ func Scrobble(apiKey, apiSecret, sessionKey string, t TrackInfo, timestamp int64
 	return err
 }
 
+// ScrobbleBatch submits up to 50 completed track listens in a single API call.
+// Each entry pairs a TrackInfo with its Unix timestamp.
+func ScrobbleBatch(apiKey, apiSecret, sessionKey string, tracks []TrackInfo, timestamps []int64) error {
+	if len(tracks) == 0 {
+		return nil
+	}
+	if len(tracks) != len(timestamps) {
+		return fmt.Errorf("lastfm: tracks and timestamps length mismatch")
+	}
+	if len(tracks) > 50 {
+		return fmt.Errorf("lastfm: batch size %d exceeds maximum of 50", len(tracks))
+	}
+
+	params := map[string]string{
+		"method":  "track.scrobble",
+		"api_key": apiKey,
+		"sk":      sessionKey,
+	}
+	for i, t := range tracks {
+		params[fmt.Sprintf("artist[%d]", i)] = t.Artist
+		params[fmt.Sprintf("track[%d]", i)] = t.Track
+		params[fmt.Sprintf("timestamp[%d]", i)] = fmt.Sprintf("%d", timestamps[i])
+		if t.Album != "" {
+			params[fmt.Sprintf("album[%d]", i)] = t.Album
+		}
+	}
+	_, err := apiCall(params, apiSecret)
+	return err
+}
+
 // ScrobbleThreshold returns the duration in milliseconds after which a track
 // should be scrobbled: 50% of duration or 4 minutes, whichever is smaller.
 func ScrobbleThreshold(durationMs int) int {

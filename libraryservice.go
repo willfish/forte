@@ -646,6 +646,14 @@ func (s *LibraryService) SetListenBrainzEnabled(enabled bool) error {
 	return s.db.SaveListenBrainzConfig(cfg)
 }
 
+// GetScrobbleQueueSize returns the number of scrobbles waiting for retry.
+func (s *LibraryService) GetScrobbleQueueSize() (int, error) {
+	if s.db == nil {
+		return 0, fmt.Errorf("library not initialised")
+	}
+	return s.db.ScrobbleQueueSize()
+}
+
 // newUUID generates a random UUID v4 string.
 func newUUID() (string, error) {
 	var b [16]byte

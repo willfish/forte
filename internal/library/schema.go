@@ -134,3 +134,16 @@ CREATE TABLE listenbrainz_config (
 );
 INSERT INTO listenbrainz_config (id) VALUES (1);
 `
+
+const migration007 = `
+CREATE TABLE scrobble_queue (
+	id              INTEGER PRIMARY KEY,
+	service         TEXT NOT NULL,
+	track_json      TEXT NOT NULL,
+	timestamp       INTEGER NOT NULL,
+	attempts        INTEGER NOT NULL DEFAULT 0,
+	last_attempt_at TEXT NOT NULL DEFAULT '',
+	created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_scrobble_queue_service ON scrobble_queue (service);
+`
