@@ -20,13 +20,14 @@ import (
 
 // PlayerService exposes audio playback controls to the frontend.
 type PlayerService struct {
-	engine     *player.Engine
-	queue      *player.Queue
-	db         *library.DB
-	mpris      *system.MPRIS
-	notifier   *system.Notifier
-	manualSkip int32     // atomic: set before explicit Next/Previous to suppress auto-advance
-	stopSave   chan struct{}
+	engine       *player.Engine
+	queue        *player.Queue
+	db           *library.DB
+	mpris        *system.MPRIS
+	notifier     *system.Notifier
+	onTrayUpdate func(title, artist string) // set by main.go for tooltip updates
+	manualSkip   int32                      // atomic: set before explicit Next/Previous to suppress auto-advance
+	stopSave     chan struct{}
 }
 
 // ServiceStartup initialises the mpv engine when the application starts.
@@ -152,6 +153,15 @@ func (p *PlayerService) pushMPRISMetadata() {
 		} else {
 			p.mpris.UpdateMetadata(cur.Title, cur.Artist, cur.Album, cur.FilePath, cur.DurationMs, cur.TrackID)
 			p.mpris.UpdatePlaybackStatus(p.State())
+		}
+	}
+
+	// Update tray tooltip.
+	if p.onTrayUpdate != nil {
+		if cur != nil {
+			p.onTrayUpdate(cur.Title, cur.Artist)
+		} else {
+			p.onTrayUpdate("", "")
 		}
 	}
 
@@ -348,6 +358,9 @@ func (p *PlayerService) QueueClear() {
 		p.mpris.UpdatePlaybackStatus("stopped")
 		p.mpris.ClearMetadata()
 	}
+	if p.onTrayUpdate != nil {
+		p.onTrayUpdate("", "")
+	}
 }
 
 // GetQueue returns all tracks in the queue.
@@ -462,6 +475,9 @@ func (p *PlayerService) Stop() {
 	if p.mpris != nil {
 		p.mpris.UpdatePlaybackStatus("stopped")
 		p.mpris.ClearMetadata()
+	}
+	if p.onTrayUpdate != nil {
+		p.onTrayUpdate("", "")
 	}
 }
 
