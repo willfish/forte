@@ -34,7 +34,7 @@ func NewNotifier() (*Notifier, error) {
 
 	iconDir, err := os.MkdirTemp("", "forte-notify-*")
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("notify: create icon dir: %w", err)
 	}
 
