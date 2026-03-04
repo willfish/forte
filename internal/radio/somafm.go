@@ -10,35 +10,43 @@ import (
 	"time"
 )
 
+type somafmPlaylist struct {
+	URL    string `json:"url"`
+	Format string `json:"format"`
+}
+
 type somafmChannel struct {
-	ID      string `json:"id"`
-	Title   string `json:"title"`
-	Image   string `json:"xlimage"`
+	ID        string           `json:"id"`
+	Title     string           `json:"title"`
+	Genre     string           `json:"genre"`
+	Image     string           `json:"xlimage"`
+	Playlists []somafmPlaylist `json:"playlists"`
 }
 
 type somafmResponse struct {
 	Channels []somafmChannel `json:"channels"`
 }
 
-// SomaFMArtwork fetches and caches SomaFM channel artwork.
-// It provides a fallback for stations whose favicon is missing
-// in the RadioBrowser API.
-type SomaFMArtwork struct {
+// SomaFMClient fetches and caches SomaFM channel data.
+// It provides artwork fallback for RadioBrowser stations and
+// a curated channel listing for source filtering.
+type SomaFMClient struct {
 	mu        sync.Mutex
-	channels  map[string]string // channel id -> xlimage URL
+	channels  []somafmChannel
+	artIndex  map[string]string // channel id -> xlimage URL
 	fetchedAt time.Time
 }
 
-// NewSomaFMArtwork creates a new SomaFM artwork cache.
-func NewSomaFMArtwork() *SomaFMArtwork {
-	return &SomaFMArtwork{}
+// NewSomaFMClient creates a new SomaFM client.
+func NewSomaFMClient() *SomaFMClient {
+	return &SomaFMClient{}
 }
 
 const somafmCacheTTL = 24 * time.Hour
 
-// Lookup returns the artwork URL for a station if it's a SomaFM station
-// with a missing favicon. Returns empty string if not applicable.
-func (s *SomaFMArtwork) Lookup(homepage string) string {
+// LookupArtwork returns the artwork URL for a SomaFM station identified
+// by its homepage URL. Returns empty string if not applicable.
+func (s *SomaFMClient) LookupArtwork(homepage string) string {
 	if homepage == "" {
 		return ""
 	}
@@ -50,16 +58,54 @@ func (s *SomaFMArtwork) Lookup(homepage string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.channels == nil || time.Since(s.fetchedAt) > somafmCacheTTL {
-		if err := s.fetch(); err != nil {
-			return ""
-		}
+	if err := s.ensureFetched(); err != nil {
+		return ""
 	}
 
-	return s.channels[id]
+	return s.artIndex[id]
 }
 
-func (s *SomaFMArtwork) fetch() error {
+// Stations returns all SomaFM channels as Station values.
+func (s *SomaFMClient) Stations() ([]Station, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.ensureFetched(); err != nil {
+		return nil, err
+	}
+
+	stations := make([]Station, 0, len(s.channels))
+	for _, ch := range s.channels {
+		streamURL := ""
+		for _, pl := range ch.Playlists {
+			if pl.Format == "mp3" {
+				streamURL = pl.URL
+				break
+			}
+		}
+		if streamURL == "" {
+			continue
+		}
+		stations = append(stations, Station{
+			UUID:      "somafm-" + ch.ID,
+			Name:      ch.Title,
+			Homepage:  "https://somafm.com/" + ch.ID + "/",
+			StreamURL: streamURL,
+			Favicon:   ch.Image,
+			Tags:      ch.Genre,
+		})
+	}
+	return stations, nil
+}
+
+func (s *SomaFMClient) ensureFetched() error {
+	if s.channels != nil && time.Since(s.fetchedAt) <= somafmCacheTTL {
+		return nil
+	}
+	return s.fetch()
+}
+
+func (s *SomaFMClient) fetch() error {
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get("https://somafm.com/channels.json")
 	if err != nil {
@@ -81,14 +127,15 @@ func (s *SomaFMArtwork) fetch() error {
 		return fmt.Errorf("somafm parse: %w", err)
 	}
 
-	channels := make(map[string]string, len(data.Channels))
+	artIndex := make(map[string]string, len(data.Channels))
 	for _, ch := range data.Channels {
 		if ch.Image != "" {
-			channels[ch.ID] = ch.Image
+			artIndex[ch.ID] = ch.Image
 		}
 	}
 
-	s.channels = channels
+	s.channels = data.Channels
+	s.artIndex = artIndex
 	s.fetchedAt = time.Now()
 	return nil
 }
