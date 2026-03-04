@@ -128,6 +128,7 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   // SearchRadioStationsFiltered
   2804279923: () => [
     { uuid: "st-1", name: "Jazz FM", streamUrl: "https://stream.example.com/jazz", favicon: "https://img.example.com/jazz.png", country: "United Kingdom", tags: "jazz,smooth", bitrate: 128, codec: "MP3", votes: 42, clicks: 100 },
+    { uuid: "st-3", name: "Classical 24", streamUrl: "https://stream.example.com/classical", favicon: "https://img.example.com/classical.png", country: "France", tags: "classical", bitrate: 320, codec: "MP3", votes: 200, clicks: 500 },
   ],
   // GetRadioStationsByTag
   3897998615: () => [],
