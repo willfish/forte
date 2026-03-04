@@ -53,6 +53,16 @@ export function CompleteLastFmAuth(token) {
 }
 
 /**
+ * ConnectListenBrainz validates the user token, retrieves the username, and saves
+ * the configuration with scrobbling enabled.
+ * @param {string} userToken
+ * @returns {$CancellablePromise<void>}
+ */
+export function ConnectListenBrainz(userToken) {
+    return $Call.ByID(1138196949, userToken);
+}
+
+/**
  * CreatePlaylist creates a new playlist and returns its ID.
  * @param {string} name
  * @returns {$CancellablePromise<number>}
@@ -88,6 +98,14 @@ export function DisconnectLastFm() {
 }
 
 /**
+ * DisconnectListenBrainz clears the ListenBrainz token and username.
+ * @returns {$CancellablePromise<void>}
+ */
+export function DisconnectListenBrainz() {
+    return $Call.ByID(902147985);
+}
+
+/**
  * GetAlbumTracks returns the tracks for a given album.
  * @param {number} albumID
  * @returns {$CancellablePromise<$models.AlbumTrack[]>}
@@ -113,13 +131,23 @@ export function GetAlbums(sort, order, source) {
 }
 
 /**
+ * GetListenBrainzConfig returns the current ListenBrainz configuration.
+ * @returns {$CancellablePromise<$models.ListenBrainzConfigJSON>}
+ */
+export function GetListenBrainzConfig() {
+    return $Call.ByID(1867711289).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType4($result);
+    }));
+}
+
+/**
  * GetPlaylistTracks returns the tracks in a playlist.
  * @param {number} playlistID
  * @returns {$CancellablePromise<$models.PlaylistTrack[]>}
  */
 export function GetPlaylistTracks(playlistID) {
     return $Call.ByID(4244880336, playlistID).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType5($result);
+        return $$createType6($result);
     }));
 }
 
@@ -129,7 +157,7 @@ export function GetPlaylistTracks(playlistID) {
  */
 export function GetPlaylists() {
     return $Call.ByID(1524576557).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType7($result);
+        return $$createType8($result);
     }));
 }
 
@@ -139,7 +167,7 @@ export function GetPlaylists() {
  */
 export function GetScrobbleConfig() {
     return $Call.ByID(3948527462).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType8($result);
+        return $$createType9($result);
     }));
 }
 
@@ -149,7 +177,7 @@ export function GetScrobbleConfig() {
  */
 export function GetServerStatuses() {
     return $Call.ByID(1839345631).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType10($result);
+        return $$createType11($result);
     }));
 }
 
@@ -159,7 +187,7 @@ export function GetServerStatuses() {
  */
 export function GetServers() {
     return $Call.ByID(3711954650).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType12($result);
+        return $$createType13($result);
     }));
 }
 
@@ -212,8 +240,17 @@ export function SaveScrobbleAPIKeys(apiKey, apiSecret) {
  */
 export function Search(query, limit) {
     return $Call.ByID(2206755262, query, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType14($result);
+        return $$createType15($result);
     }));
+}
+
+/**
+ * SetListenBrainzEnabled toggles ListenBrainz scrobbling on or off.
+ * @param {boolean} enabled
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetListenBrainzEnabled(enabled) {
+    return $Call.ByID(333272068, enabled);
 }
 
 /**
@@ -265,14 +302,15 @@ const $$createType0 = $models.AlbumTrack.createFrom;
 const $$createType1 = $Create.Array($$createType0);
 const $$createType2 = $models.Album.createFrom;
 const $$createType3 = $Create.Array($$createType2);
-const $$createType4 = $models.PlaylistTrack.createFrom;
-const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = $models.Playlist.createFrom;
-const $$createType7 = $Create.Array($$createType6);
-const $$createType8 = $models.ScrobbleConfigJSON.createFrom;
-const $$createType9 = $models.ServerStatusJSON.createFrom;
-const $$createType10 = $Create.Array($$createType9);
-const $$createType11 = $models.ServerConfig.createFrom;
-const $$createType12 = $Create.Array($$createType11);
-const $$createType13 = $models.SearchResult.createFrom;
-const $$createType14 = $Create.Array($$createType13);
+const $$createType4 = $models.ListenBrainzConfigJSON.createFrom;
+const $$createType5 = $models.PlaylistTrack.createFrom;
+const $$createType6 = $Create.Array($$createType5);
+const $$createType7 = $models.Playlist.createFrom;
+const $$createType8 = $Create.Array($$createType7);
+const $$createType9 = $models.ScrobbleConfigJSON.createFrom;
+const $$createType10 = $models.ServerStatusJSON.createFrom;
+const $$createType11 = $Create.Array($$createType10);
+const $$createType12 = $models.ServerConfig.createFrom;
+const $$createType13 = $Create.Array($$createType12);
+const $$createType14 = $models.SearchResult.createFrom;
+const $$createType15 = $Create.Array($$createType14);
