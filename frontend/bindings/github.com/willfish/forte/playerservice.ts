@@ -37,6 +37,13 @@ export function Enqueue(path: string): $CancellablePromise<void> {
 }
 
 /**
+ * GetNotifications returns whether desktop notifications are enabled.
+ */
+export function GetNotifications(): $CancellablePromise<boolean> {
+    return $Call.ByID(3578942832);
+}
+
+/**
  * GetQueue returns all tracks in the queue.
  */
 export function GetQueue(): $CancellablePromise<player$0.QueueTrack[]> {
@@ -201,6 +208,13 @@ export function Resume(): $CancellablePromise<void> {
  */
 export function Seek(seconds: number): $CancellablePromise<void> {
     return $Call.ByID(1479346536, seconds);
+}
+
+/**
+ * SetNotifications enables or disables desktop notifications.
+ */
+export function SetNotifications(enabled: boolean): $CancellablePromise<void> {
+    return $Call.ByID(2522355060, enabled);
 }
 
 /**
