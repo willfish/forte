@@ -31,3 +31,8 @@ tasks:
     summary: Runs the application in development mode
     cmds:
       - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+
+  demo:
+    summary: Seeds the database with fixture data for screenshots
+    cmds:
+      - go run -tags nocgo ./cmd/demo
