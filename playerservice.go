@@ -24,6 +24,7 @@ type PlayerService struct {
 	queue      *player.Queue
 	db         *library.DB
 	mpris      *system.MPRIS
+	notifier   *system.Notifier
 	manualSkip int32     // atomic: set before explicit Next/Previous to suppress auto-advance
 	stopSave   chan struct{}
 }
@@ -87,6 +88,14 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 		p.mpris = mpris
 	}
 
+	// Start desktop notifications.
+	notifier, err := system.NewNotifier()
+	if err != nil {
+		log.Printf("notifications: %v (desktop notifications will not work)", err)
+	} else {
+		p.notifier = notifier
+	}
+
 	// Restore saved playback state.
 	p.restoreState()
 
@@ -120,6 +129,9 @@ func (p *PlayerService) ServiceShutdown() error {
 		close(p.stopSave)
 	}
 	p.saveState()
+	if p.notifier != nil {
+		p.notifier.Close()
+	}
 	if p.mpris != nil {
 		p.mpris.Close()
 	}
@@ -133,16 +145,28 @@ func (p *PlayerService) ServiceShutdown() error {
 }
 
 func (p *PlayerService) pushMPRISMetadata() {
-	if p.mpris == nil {
-		return
-	}
 	cur := p.queue.Current()
-	if cur == nil {
-		p.mpris.ClearMetadata()
-		return
+	if p.mpris != nil {
+		if cur == nil {
+			p.mpris.ClearMetadata()
+		} else {
+			p.mpris.UpdateMetadata(cur.Title, cur.Artist, cur.Album, cur.FilePath, cur.DurationMs, cur.TrackID)
+			p.mpris.UpdatePlaybackStatus(p.State())
+		}
 	}
-	p.mpris.UpdateMetadata(cur.Title, cur.Artist, cur.Album, cur.FilePath, cur.DurationMs, cur.TrackID)
-	p.mpris.UpdatePlaybackStatus(p.State())
+
+	// Send desktop notification for the new track.
+	if p.notifier != nil && cur != nil {
+		var artwork []byte
+		if cur.FilePath != "" {
+			artwork, _, _ = metadata.ReadArtwork(cur.FilePath)
+		}
+		body := cur.Artist
+		if cur.Album != "" {
+			body += " - " + cur.Album
+		}
+		p.notifier.Notify(cur.Title, body, artwork)
+	}
 }
 
 func (p *PlayerService) saveState() {
@@ -602,6 +626,21 @@ func (p *PlayerService) ReplayGain() string {
 		return ""
 	}
 	return p.engine.ReplayGain()
+}
+
+// SetNotifications enables or disables desktop notifications.
+func (p *PlayerService) SetNotifications(enabled bool) {
+	if p.notifier != nil {
+		p.notifier.SetEnabled(enabled)
+	}
+}
+
+// GetNotifications returns whether desktop notifications are enabled.
+func (p *PlayerService) GetNotifications() bool {
+	if p.notifier == nil {
+		return false
+	}
+	return p.notifier.Enabled()
 }
 
 // Version returns the mpv library version string.
