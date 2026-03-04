@@ -354,7 +354,8 @@ func (e *Engine) eventLoop() {
 		switch event.EventID {
 		case mpv.EventEnd:
 			ef := event.EndFile()
-			if ef.Reason == mpv.EndFileError {
+			switch ef.Reason {
+			case mpv.EndFileError:
 				// Stream error: call onStreamError if set, else fall back to playlist-end logic.
 				e.mu.Lock()
 				errCb := e.onStreamError
@@ -363,7 +364,6 @@ func (e *Engine) eventLoop() {
 					slog.Debug("stream error, invoking onStreamError")
 					errCb()
 				} else {
-					// Fall back: treat like normal end.
 					pos, _ := e.handle.GetProperty("playlist-pos", mpv.FormatInt64)
 					if pos == nil || pos.(int64) < 0 {
 						e.mu.Lock()
@@ -376,7 +376,7 @@ func (e *Engine) eventLoop() {
 						slog.Debug("playlist finished (after error)")
 					}
 				}
-			} else if ef.Reason == mpv.EndFileEOF || ef.Reason == mpv.EndFileStop {
+			case mpv.EndFileEOF, mpv.EndFileStop:
 				// Check if mpv has more playlist entries queued.
 				pos, _ := e.handle.GetProperty("playlist-pos", mpv.FormatInt64)
 				if pos == nil || pos.(int64) < 0 {
