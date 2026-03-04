@@ -90,4 +90,5 @@ type migration struct {
 var migrations = []migration{
 	{version: 1, sql: migration001},
 	{version: 2, sql: migration002},
+	{version: 3, sql: migration003},
 }
