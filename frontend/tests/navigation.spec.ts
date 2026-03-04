@@ -41,4 +41,20 @@ test.describe("Sidebar navigation", () => {
     await expect(page.getByRole("button", { name: "Library" })).toHaveClass(/active/);
     await expect(page.locator(".album-title").first()).toBeVisible();
   });
+
+  test("sidebar collapses labels at narrow width", async ({ page }) => {
+    await page.setViewportSize({ width: 800, height: 600 });
+    await page.goto("/");
+    const label = page.locator(".sidebar .label").first();
+    await expect(label).toBeHidden();
+    const icon = page.locator(".sidebar .icon").first();
+    await expect(icon).toBeVisible();
+  });
+
+  test("sidebar shows labels at normal width", async ({ page }) => {
+    await page.setViewportSize({ width: 1200, height: 800 });
+    await page.goto("/");
+    const label = page.locator(".sidebar .label").first();
+    await expect(label).toBeVisible();
+  });
 });
