@@ -1,5 +1,6 @@
 <script lang="ts">
   import { LibraryService } from "../bindings/github.com/willfish/forte";
+  import { isServerOnline, onServerStatusChange } from './lib/stores';
 
   type AlbumItem = {
     id: number;
@@ -8,6 +9,7 @@
     year: number;
     trackCount: number;
     source: string;
+    serverId: string;
     artworkSrc?: string;
   };
 
@@ -16,6 +18,11 @@
   let sortOrder = $state('asc');
   let sourceFilter = $state('');
   let loading = $state(false);
+  let statusVersion = $state(0);
+
+  $effect(() => {
+    return onServerStatusChange(() => { statusVersion++; });
+  });
 
   const { onselect }: { onselect?: (albumId: number) => void } = $props();
 
@@ -30,6 +37,7 @@
         year: a.year,
         trackCount: a.trackCount,
         source: a.source || 'local',
+        serverId: a.serverId || '',
       }));
       // Load artwork lazily after albums are rendered.
       for (const album of albums) {
@@ -114,7 +122,8 @@
   {:else}
     <div class="grid">
       {#each albums as album (album.id)}
-        <button class="album-card" onclick={() => handleAlbumClick(album.id)}>
+        {@const unavailable = statusVersion >= 0 && album.serverId && !isServerOnline(album.serverId)}
+        <button class="album-card" class:unavailable={unavailable} onclick={() => handleAlbumClick(album.id)}>
           <div class="artwork-wrapper">
             {#if album.artworkSrc}
               <img class="artwork" src={album.artworkSrc} alt="{album.title} cover" loading="lazy" />
@@ -126,7 +135,7 @@
               </div>
             {/if}
             {#if album.source === 'server'}
-              <span class="source-badge" title="Server">
+              <span class="source-badge" class:source-badge-offline={unavailable} title={unavailable ? 'Server offline' : 'Server'}>
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
                   <path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
                 </svg>
@@ -320,6 +329,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  .source-badge-offline {
+    background: rgba(239, 68, 68, 0.7);
+  }
+
+  .album-card.unavailable {
+    opacity: 0.45;
   }
 
   .album-info {

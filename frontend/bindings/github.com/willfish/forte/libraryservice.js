@@ -117,12 +117,22 @@ export function GetPlaylists() {
 }
 
 /**
+ * GetServerStatuses returns the online/offline status of all configured servers.
+ * @returns {$CancellablePromise<$models.ServerStatusJSON[]>}
+ */
+export function GetServerStatuses() {
+    return $Call.ByID(1839345631).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType9($result);
+    }));
+}
+
+/**
  * GetServers returns all configured streaming servers.
  * @returns {$CancellablePromise<$models.ServerConfig[]>}
  */
 export function GetServers() {
     return $Call.ByID(3711954650).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType9($result);
+        return $$createType11($result);
     }));
 }
 
@@ -165,7 +175,7 @@ export function RenamePlaylist(id, name) {
  */
 export function Search(query, limit) {
     return $Call.ByID(2206755262, query, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType11($result);
+        return $$createType13($result);
     }));
 }
 
@@ -204,7 +214,9 @@ const $$createType4 = $models.PlaylistTrack.createFrom;
 const $$createType5 = $Create.Array($$createType4);
 const $$createType6 = $models.Playlist.createFrom;
 const $$createType7 = $Create.Array($$createType6);
-const $$createType8 = $models.ServerConfig.createFrom;
+const $$createType8 = $models.ServerStatusJSON.createFrom;
 const $$createType9 = $Create.Array($$createType8);
-const $$createType10 = $models.SearchResult.createFrom;
+const $$createType10 = $models.ServerConfig.createFrom;
 const $$createType11 = $Create.Array($$createType10);
+const $$createType12 = $models.SearchResult.createFrom;
+const $$createType13 = $Create.Array($$createType12);

@@ -57,6 +57,13 @@ export class Album {
              */
             this["source"] = "";
         }
+        if (!("serverId" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["serverId"] = "";
+        }
 
         Object.assign(this, $$source);
     }
@@ -136,6 +143,13 @@ export class AlbumTrack {
              * @type {string}
              */
             this["source"] = "";
+        }
+        if (!("serverId" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["serverId"] = "";
         }
 
         Object.assign(this, $$source);
@@ -342,6 +356,13 @@ export class SearchResult {
              */
             this["source"] = "";
         }
+        if (!("serverId" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["serverId"] = "";
+        }
 
         Object.assign(this, $$source);
     }
@@ -420,5 +441,50 @@ export class ServerConfig {
     static createFrom($$source = {}) {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new ServerConfig(/** @type {Partial<ServerConfig>} */($$parsedSource));
+    }
+}
+
+/**
+ * ServerStatusJSON is the JSON-friendly server status type exposed to the frontend.
+ */
+export class ServerStatusJSON {
+    /**
+     * Creates a new ServerStatusJSON instance.
+     * @param {Partial<ServerStatusJSON>} [$$source = {}] - The source object to create the ServerStatusJSON.
+     */
+    constructor($$source = {}) {
+        if (!("serverId" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["serverId"] = "";
+        }
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("online" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["online"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ServerStatusJSON instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ServerStatusJSON}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ServerStatusJSON(/** @type {Partial<ServerStatusJSON>} */($$parsedSource));
     }
 }
