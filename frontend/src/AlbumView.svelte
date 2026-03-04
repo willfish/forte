@@ -1,5 +1,6 @@
 <script lang="ts">
   import { LibraryService, PlayerService } from "../bindings/github.com/willfish/forte";
+  import { isServerOnline, onServerStatusChange } from './lib/stores';
 
   type Track = {
     trackId: number;
@@ -10,6 +11,7 @@
     durationMs: number;
     filePath: string;
     source: string;
+    serverId: string;
   };
 
   type AlbumInfo = {
@@ -27,6 +29,11 @@
   let tracks = $state<Track[]>([]);
   let currentFilePath = $state('');
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let statusVersion = $state(0);
+
+  $effect(() => {
+    return onServerStatusChange(() => { statusVersion++; });
+  });
 
   async function loadAlbum() {
     const [trackList, artworkSrc] = await Promise.all([
@@ -43,6 +50,7 @@
       durationMs: t.durationMs,
       filePath: t.filePath,
       source: t.source || 'local',
+      serverId: t.serverId || '',
     }));
 
     const totalMs = tracks.reduce((sum, t) => sum + t.durationMs, 0);
@@ -171,9 +179,11 @@
       {/if}
       {#each discTracks as track, i (track.trackId)}
         {@const globalIndex = tracks.indexOf(track)}
+        {@const trackUnavailable = statusVersion >= 0 && track.serverId && !isServerOnline(track.serverId)}
         <button
           class="track-row"
           class:playing={track.filePath === currentFilePath}
+          class:unavailable={trackUnavailable}
           ondblclick={() => playFromTrack(globalIndex)}
         >
           <span class="track-num">
@@ -324,6 +334,10 @@
 
   .track-row.playing .track-title {
     color: var(--accent);
+  }
+
+  .track-row.unavailable {
+    opacity: 0.45;
   }
 
   .track-num {

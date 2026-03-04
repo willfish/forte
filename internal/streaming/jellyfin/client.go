@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/willfish/forte/internal/streaming"
 )
@@ -32,7 +33,7 @@ func New(baseURL, username, password string) *Client {
 		baseURL:  baseURL,
 		username: username,
 		password: password,
-		http:     http.DefaultClient,
+		http:     &http.Client{Timeout: 5 * time.Second},
 	}
 }
 

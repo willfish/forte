@@ -71,3 +71,42 @@ export class QueueTrack {
         return new QueueTrack(/** @type {Partial<QueueTrack>} */($$parsedSource));
     }
 }
+
+/**
+ * Toast represents a notification message for the frontend.
+ */
+export class Toast {
+    /**
+     * Creates a new Toast instance.
+     * @param {Partial<Toast>} [$$source = {}] - The source object to create the Toast.
+     */
+    constructor($$source = {}) {
+        if (!("message" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["message"] = "";
+        }
+        if (!("type" in $$source)) {
+            /**
+             * "info", "warn", "error"
+             * @member
+             * @type {string}
+             */
+            this["type"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Toast instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {Toast}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Toast(/** @type {Partial<Toast>} */($$parsedSource));
+    }
+}

@@ -20,15 +20,17 @@ import (
 
 // PlayerService exposes audio playback controls to the frontend.
 type PlayerService struct {
-	engine       *player.Engine
-	queue        *player.Queue
-	db           *library.DB
-	resolver     *library.PathResolver
-	mpris        *system.MPRIS
-	notifier     *system.Notifier
-	onTrayUpdate func(title, artist string) // set by main.go for tooltip updates
-	manualSkip   int32                      // atomic: set before explicit Next/Previous to suppress auto-advance
-	stopSave     chan struct{}
+	engine         *player.Engine
+	queue          *player.Queue
+	db             *library.DB
+	resolver       *library.PathResolver
+	mpris          *system.MPRIS
+	notifier       *system.Notifier
+	toasts         *player.Notifications
+	isServerOnline func(string) bool         // set by main.go to check server health
+	onTrayUpdate   func(title, artist string) // set by main.go for tooltip updates
+	manualSkip     int32                      // atomic: set before explicit Next/Previous to suppress auto-advance
+	stopSave       chan struct{}
 }
 
 // ServiceStartup initialises the mpv engine when the application starts.
@@ -39,6 +41,7 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 	}
 	p.engine = e
 	p.queue = player.NewQueue()
+	p.toasts = player.NewNotifications()
 
 	// Open the database for persisting playback state.
 	dataDir, err := os.UserConfigDir()
@@ -80,6 +83,11 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 			atomic.StoreInt32(&p.manualSkip, 1)
 			_ = p.engine.PlayAll(p.resolvePaths(paths))
 		}
+	})
+
+	// When mpv fails to play a stream, skip past offline server tracks.
+	e.SetOnStreamError(func() {
+		p.skipToNextPlayable()
 	})
 
 	// Start MPRIS2 D-Bus provider.
@@ -660,6 +668,70 @@ func (p *PlayerService) serverTrackArtwork(trackID int64) string {
 	}
 	art, _ := p.db.AlbumArtwork(albumID)
 	return art
+}
+
+// GetToasts returns and clears all pending toast notifications.
+func (p *PlayerService) GetToasts() []player.Toast {
+	if p.toasts == nil {
+		return nil
+	}
+	return p.toasts.Drain()
+}
+
+// skipToNextPlayable advances the queue past any tracks on offline servers,
+// playing the first reachable track. Pushes toast notifications for skipped tracks.
+func (p *PlayerService) skipToNextPlayable() {
+	cur := p.queue.Current()
+	if cur != nil && library.IsServerPath(cur.FilePath) {
+		serverID, _, _ := library.ParseServerPath(cur.FilePath)
+		if p.isServerOnline != nil && !p.isServerOnline(serverID) {
+			p.toasts.Push(fmt.Sprintf("Skipped \"%s\" - server offline", cur.Title), "warn")
+		} else {
+			p.toasts.Push(fmt.Sprintf("Failed to play \"%s\"", cur.Title), "error")
+		}
+	}
+
+	// Try advancing through the queue to find a playable track.
+	maxAttempts := p.queue.Len()
+	for range maxAttempts {
+		if !p.queue.Next() {
+			break
+		}
+		next := p.queue.Current()
+		if next == nil {
+			break
+		}
+		if !library.IsServerPath(next.FilePath) {
+			// Local track, play it.
+			atomic.StoreInt32(&p.manualSkip, 1)
+			paths := p.queue.Paths(p.queue.Position())
+			if len(paths) > 0 {
+				_ = p.engine.PlayAll(p.resolvePaths(paths))
+				p.pushMPRISMetadata()
+			}
+			return
+		}
+		serverID, _, _ := library.ParseServerPath(next.FilePath)
+		if p.isServerOnline == nil || p.isServerOnline(serverID) {
+			// Server track on an online server, try it.
+			atomic.StoreInt32(&p.manualSkip, 1)
+			paths := p.queue.Paths(p.queue.Position())
+			if len(paths) > 0 {
+				_ = p.engine.PlayAll(p.resolvePaths(paths))
+				p.pushMPRISMetadata()
+			}
+			return
+		}
+		p.toasts.Push(fmt.Sprintf("Skipped \"%s\" - server offline", next.Title), "warn")
+	}
+
+	// All remaining tracks are on offline servers.
+	p.engine.Stop()
+	p.toasts.Push("Playback stopped - remaining tracks are on offline servers", "warn")
+	if p.mpris != nil {
+		p.mpris.UpdatePlaybackStatus("stopped")
+		p.mpris.ClearMetadata()
+	}
 }
 
 // resolvePaths translates any server:// paths to streaming URLs.

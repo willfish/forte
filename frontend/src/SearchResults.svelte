@@ -1,5 +1,6 @@
 <script lang="ts">
   import { PlayerService } from "../bindings/github.com/willfish/forte";
+  import { isServerOnline, onServerStatusChange } from './lib/stores';
 
   type Result = {
     trackId: number;
@@ -10,12 +11,18 @@
     durationMs: number;
     filePath: string;
     source: string;
+    serverId: string;
   };
 
   const { results, query }: { results: Result[]; query: string } = $props();
 
   let currentFilePath = $state('');
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let statusVersion = $state(0);
+
+  $effect(() => {
+    return onServerStatusChange(() => { statusVersion++; });
+  });
 
   function startPolling() {
     if (pollTimer) return;
@@ -81,9 +88,11 @@
       <span class="col-duration">Duration</span>
     </div>
     {#each results as result, i (result.trackId)}
+      {@const resultUnavailable = statusVersion >= 0 && result.serverId && !isServerOnline(result.serverId)}
       <button
         class="result-row"
         class:playing={result.filePath === currentFilePath}
+        class:unavailable={resultUnavailable}
         ondblclick={() => playFromResult(i)}
       >
         <span class="col-num">
@@ -177,6 +186,10 @@
 
   .result-row.playing .col-title {
     color: var(--accent);
+  }
+
+  .result-row.unavailable {
+    opacity: 0.45;
   }
 
   .col-num {

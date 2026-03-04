@@ -4,6 +4,7 @@
   import NowPlayingBar from './NowPlayingBar.svelte';
   import ShortcutHelp from './ShortcutHelp.svelte';
   import QueuePanel from './QueuePanel.svelte';
+  import Toast from './Toast.svelte';
   import { handleKeydown } from './lib/shortcuts';
   import { initTheme } from './lib/theme';
 
@@ -43,3 +44,5 @@
 {#if showHelp}
   <ShortcutHelp onclose={() => showHelp = false} />
 {/if}
+
+<Toast />

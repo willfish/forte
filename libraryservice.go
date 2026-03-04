@@ -18,6 +18,7 @@ import (
 // LibraryService exposes the music library to the frontend.
 type LibraryService struct {
 	db       *library.DB
+	health   *library.HealthMonitor
 	stopSync chan struct{}
 }
 
@@ -38,6 +39,10 @@ func (s *LibraryService) ServiceStartup(_ context.Context, _ application.Service
 		return fmt.Errorf("library startup: %w", err)
 	}
 	s.db = db
+
+	// Start health monitor to track server connectivity.
+	s.health = library.NewHealthMonitor(db)
+	s.health.Start()
 
 	// Start background server sync: immediate + every 15 minutes.
 	s.stopSync = make(chan struct{})
@@ -69,6 +74,9 @@ func (s *LibraryService) ServiceShutdown() error {
 	if s.stopSync != nil {
 		close(s.stopSync)
 	}
+	if s.health != nil {
+		s.health.Stop()
+	}
 	if s.db != nil {
 		return s.db.Close()
 	}
@@ -91,6 +99,7 @@ type Album struct {
 	Year       int    `json:"year"`
 	TrackCount int    `json:"trackCount"`
 	Source     string `json:"source"`
+	ServerID   string `json:"serverId"`
 }
 
 // GetAlbums returns all albums sorted by the given field and direction.
@@ -114,6 +123,7 @@ func (s *LibraryService) GetAlbums(sort string, order string, source string) ([]
 			Year:       a.Year,
 			TrackCount: a.TrackCount,
 			Source:     sourceFromServerID(a.ServerID),
+			ServerID:   a.ServerID,
 		}
 	}
 	return result, nil
@@ -137,6 +147,7 @@ type AlbumTrack struct {
 	DurationMs  int    `json:"durationMs"`
 	FilePath    string `json:"filePath"`
 	Source      string `json:"source"`
+	ServerID    string `json:"serverId"`
 }
 
 // GetAlbumTracks returns the tracks for a given album.
@@ -161,6 +172,7 @@ func (s *LibraryService) GetAlbumTracks(albumID int64) ([]AlbumTrack, error) {
 			DurationMs:  t.DurationMs,
 			FilePath:    t.FilePath,
 			Source:      sourceFromServerID(t.ServerID),
+			ServerID:    t.ServerID,
 		}
 	}
 	return result, nil
@@ -178,6 +190,7 @@ type SearchResult struct {
 	DurationMs  int    `json:"durationMs"`
 	FilePath    string `json:"filePath"`
 	Source      string `json:"source"`
+	ServerID    string `json:"serverId"`
 }
 
 // Search searches the library for tracks matching the query.
@@ -202,6 +215,7 @@ func (s *LibraryService) Search(query string, limit int) ([]SearchResult, error)
 			DurationMs:  r.DurationMs,
 			FilePath:    r.FilePath,
 			Source:      sourceFromServerID(r.ServerID),
+			ServerID:    r.ServerID,
 		}
 	}
 	return results, nil
@@ -393,6 +407,57 @@ func (s *LibraryService) DeleteServer(id string) error {
 		return fmt.Errorf("library not initialised")
 	}
 	return s.db.DeleteServer(id)
+}
+
+// ServerStatusJSON is the JSON-friendly server status type exposed to the frontend.
+type ServerStatusJSON struct {
+	ServerID string `json:"serverId"`
+	Name     string `json:"name"`
+	Online   bool   `json:"online"`
+}
+
+// GetServerStatuses returns the online/offline status of all configured servers.
+func (s *LibraryService) GetServerStatuses() ([]ServerStatusJSON, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("library not initialised")
+	}
+	servers, err := s.db.GetServers()
+	if err != nil {
+		return nil, err
+	}
+
+	// Build a name lookup.
+	nameMap := make(map[string]string, len(servers))
+	for _, srv := range servers {
+		nameMap[srv.ID] = srv.Name
+	}
+
+	var result []ServerStatusJSON
+	if s.health != nil {
+		for _, st := range s.health.Statuses() {
+			result = append(result, ServerStatusJSON{
+				ServerID: st.ServerID,
+				Name:     nameMap[st.ServerID],
+				Online:   st.Online,
+			})
+		}
+	}
+
+	// Include servers not yet pinged (assumed online).
+	seen := make(map[string]bool, len(result))
+	for _, r := range result {
+		seen[r.ServerID] = true
+	}
+	for _, srv := range servers {
+		if !seen[srv.ID] {
+			result = append(result, ServerStatusJSON{
+				ServerID: srv.ID,
+				Name:     srv.Name,
+				Online:   true,
+			})
+		}
+	}
+	return result, nil
 }
 
 // TestConnection tests connectivity to a streaming server without persisting it.

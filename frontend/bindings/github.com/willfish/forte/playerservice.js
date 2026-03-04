@@ -84,6 +84,16 @@ export function GetShuffle() {
 }
 
 /**
+ * GetToasts returns and clears all pending toast notifications.
+ * @returns {$CancellablePromise<player$0.Toast[]>}
+ */
+export function GetToasts() {
+    return $Call.ByID(327853480).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
  * MediaAlbum returns the album of the currently playing track.
  * @returns {$CancellablePromise<string>}
  */
@@ -330,3 +340,5 @@ export function Volume() {
 // Private type creation functions
 const $$createType0 = player$0.QueueTrack.createFrom;
 const $$createType1 = $Create.Array($$createType0);
+const $$createType2 = player$0.Toast.createFrom;
+const $$createType3 = $Create.Array($$createType2);

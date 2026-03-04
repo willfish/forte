@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getCurrentView, onViewChange, type View } from './lib/stores';
+  import { getCurrentView, onViewChange, setServerStatuses, type View } from './lib/stores';
   import { LibraryService } from "../bindings/github.com/willfish/forte";
   import AlbumGrid from './AlbumGrid.svelte';
   import AlbumView from './AlbumView.svelte';
@@ -25,6 +25,27 @@
       selectedAlbumId = null;
       clearSearch();
     });
+  });
+
+  // Poll server statuses every 5 seconds.
+  $effect(() => {
+    async function poll() {
+      try {
+        const statuses = await LibraryService.GetServerStatuses();
+        if (statuses) {
+          const map: Record<string, boolean> = {};
+          for (const s of statuses) {
+            map[s.serverId] = s.online;
+          }
+          setServerStatuses(map);
+        }
+      } catch {
+        // ignore polling errors
+      }
+    }
+    poll();
+    const timer = setInterval(poll, 5000);
+    return () => clearInterval(timer);
   });
 
   function handleAlbumSelect(albumId: number) {
@@ -56,6 +77,7 @@
           durationMs: r.durationMs,
           filePath: r.filePath,
           source: r.source || 'local',
+          serverId: r.serverId || '',
         }));
       } catch {
         searchResults = [];

@@ -16,13 +16,22 @@ var appIcon []byte
 
 func main() {
 	ps := &PlayerService{}
+	ls := &LibraryService{}
+
+	// Wire server health check into the player service.
+	ps.isServerOnline = func(serverID string) bool {
+		if ls.health == nil {
+			return true
+		}
+		return ls.health.IsOnline(serverID)
+	}
 
 	app := application.New(application.Options{
 		Name:        "Forte",
 		Description: "A modern music player",
 		Services: []application.Service{
 			application.NewService(ps),
-			application.NewService(&LibraryService{}),
+			application.NewService(ls),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
