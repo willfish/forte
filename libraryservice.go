@@ -654,6 +654,96 @@ func (s *LibraryService) GetScrobbleQueueSize() (int, error) {
 	return s.db.ScrobbleQueueSize()
 }
 
+// StatEntryJSON is the JSON-friendly stat entry type exposed to the frontend.
+type StatEntryJSON struct {
+	Name       string `json:"name"`
+	SecondLine string `json:"secondLine"`
+	PlayCount  int    `json:"playCount"`
+	TotalMs    int64  `json:"totalMs"`
+}
+
+// RecentPlayJSON is the JSON-friendly recent play type exposed to the frontend.
+type RecentPlayJSON struct {
+	TrackID    int64  `json:"trackId"`
+	Title      string `json:"title"`
+	Artist     string `json:"artist"`
+	Album      string `json:"album"`
+	DurationMs int    `json:"durationMs"`
+	PlayedAt   string `json:"playedAt"`
+}
+
+// GetTopArtists returns the most-played artists for the given period.
+func (s *LibraryService) GetTopArtists(period string, limit int) ([]StatEntryJSON, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("library not initialised")
+	}
+	entries, err := s.db.TopArtists(period, limit)
+	if err != nil {
+		return nil, err
+	}
+	return toStatJSON(entries), nil
+}
+
+// GetTopAlbums returns the most-played albums for the given period.
+func (s *LibraryService) GetTopAlbums(period string, limit int) ([]StatEntryJSON, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("library not initialised")
+	}
+	entries, err := s.db.TopAlbums(period, limit)
+	if err != nil {
+		return nil, err
+	}
+	return toStatJSON(entries), nil
+}
+
+// GetTopTracks returns the most-played tracks for the given period.
+func (s *LibraryService) GetTopTracks(period string, limit int) ([]StatEntryJSON, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("library not initialised")
+	}
+	entries, err := s.db.TopTracks(period, limit)
+	if err != nil {
+		return nil, err
+	}
+	return toStatJSON(entries), nil
+}
+
+// GetRecentlyPlayed returns the most recently played tracks.
+func (s *LibraryService) GetRecentlyPlayed(limit int) ([]RecentPlayJSON, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("library not initialised")
+	}
+	plays, err := s.db.RecentlyPlayed(limit)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]RecentPlayJSON, len(plays))
+	for i, p := range plays {
+		result[i] = RecentPlayJSON{
+			TrackID:    p.TrackID,
+			Title:      p.Title,
+			Artist:     p.Artist,
+			Album:      p.Album,
+			DurationMs: p.DurationMs,
+			PlayedAt:   p.PlayedAt,
+		}
+	}
+	return result, nil
+}
+
+func toStatJSON(entries []library.StatEntry) []StatEntryJSON {
+	result := make([]StatEntryJSON, len(entries))
+	for i, e := range entries {
+		result[i] = StatEntryJSON{
+			Name:       e.Name,
+			SecondLine: e.SecondLine,
+			PlayCount:  e.PlayCount,
+			TotalMs:    e.TotalMs,
+		}
+	}
+	return result
+}
+
 // newUUID generates a random UUID v4 string.
 func newUUID() (string, error) {
 	var b [16]byte

@@ -95,4 +95,5 @@ var migrations = []migration{
 	{version: 5, sql: migration005},
 	{version: 6, sql: migration006},
 	{version: 7, sql: migration007},
+	{version: 8, sql: migration008},
 }
