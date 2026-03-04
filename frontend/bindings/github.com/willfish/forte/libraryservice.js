@@ -13,10 +13,6 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import * as library$0 from "./internal/library/models.js";
-
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
 /**
@@ -165,7 +161,7 @@ export function RenamePlaylist(id, name) {
  * Search searches the library for tracks matching the query.
  * @param {string} query
  * @param {number} limit
- * @returns {$CancellablePromise<library$0.SearchResult[]>}
+ * @returns {$CancellablePromise<$models.SearchResult[]>}
  */
 export function Search(query, limit) {
     return $Call.ByID(2206755262, query, limit).then(/** @type {($result: any) => any} */(($result) => {
@@ -210,5 +206,5 @@ const $$createType6 = $models.Playlist.createFrom;
 const $$createType7 = $Create.Array($$createType6);
 const $$createType8 = $models.ServerConfig.createFrom;
 const $$createType9 = $Create.Array($$createType8);
-const $$createType10 = library$0.SearchResult.createFrom;
+const $$createType10 = $models.SearchResult.createFrom;
 const $$createType11 = $Create.Array($$createType10);

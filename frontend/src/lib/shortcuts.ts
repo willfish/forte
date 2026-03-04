@@ -12,6 +12,12 @@ const SEEK_STEP = 5;
 
 export const shortcuts: Shortcut[] = [
   {
+    key: "f",
+    ctrl: true,
+    description: "Search library",
+    action: () => {}, // handled by Content.svelte
+  },
+  {
     key: " ",
     description: "Play / Pause",
     action: async () => {

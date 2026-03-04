@@ -264,6 +264,100 @@ export class PlaylistTrack {
 }
 
 /**
+ * SearchResult is the JSON-friendly search result type exposed to the frontend.
+ */
+export class SearchResult {
+    /**
+     * Creates a new SearchResult instance.
+     * @param {Partial<SearchResult>} [$$source = {}] - The source object to create the SearchResult.
+     */
+    constructor($$source = {}) {
+        if (!("trackId" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["trackId"] = 0;
+        }
+        if (!("title" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["title"] = "";
+        }
+        if (!("artist" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["artist"] = "";
+        }
+        if (!("album" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["album"] = "";
+        }
+        if (!("genre" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["genre"] = "";
+        }
+        if (!("trackNumber" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["trackNumber"] = 0;
+        }
+        if (!("discNumber" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["discNumber"] = 0;
+        }
+        if (!("durationMs" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["durationMs"] = 0;
+        }
+        if (!("filePath" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["filePath"] = "";
+        }
+        if (!("source" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["source"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SearchResult instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {SearchResult}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new SearchResult(/** @type {Partial<SearchResult>} */($$parsedSource));
+    }
+}
+
+/**
  * ServerConfig is the JSON-friendly server configuration type exposed to the frontend.
  */
 export class ServerConfig {

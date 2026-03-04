@@ -166,12 +166,45 @@ func (s *LibraryService) GetAlbumTracks(albumID int64) ([]AlbumTrack, error) {
 	return result, nil
 }
 
+// SearchResult is the JSON-friendly search result type exposed to the frontend.
+type SearchResult struct {
+	TrackID     int64  `json:"trackId"`
+	Title       string `json:"title"`
+	Artist      string `json:"artist"`
+	Album       string `json:"album"`
+	Genre       string `json:"genre"`
+	TrackNumber int    `json:"trackNumber"`
+	DiscNumber  int    `json:"discNumber"`
+	DurationMs  int    `json:"durationMs"`
+	FilePath    string `json:"filePath"`
+	Source      string `json:"source"`
+}
+
 // Search searches the library for tracks matching the query.
-func (s *LibraryService) Search(query string, limit int) ([]library.SearchResult, error) {
+func (s *LibraryService) Search(query string, limit int) ([]SearchResult, error) {
 	if s.db == nil {
 		return nil, fmt.Errorf("library not initialised")
 	}
-	return s.db.Search(query, limit)
+	rows, err := s.db.Search(query, limit)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]SearchResult, len(rows))
+	for i, r := range rows {
+		results[i] = SearchResult{
+			TrackID:     r.TrackID,
+			Title:       r.Title,
+			Artist:      r.Artist,
+			Album:       r.Album,
+			Genre:       r.Genre,
+			TrackNumber: r.TrackNumber,
+			DiscNumber:  r.DiscNumber,
+			DurationMs:  r.DurationMs,
+			FilePath:    r.FilePath,
+			Source:      sourceFromServerID(r.ServerID),
+		}
+	}
+	return results, nil
 }
 
 // SyncServers triggers an immediate sync of all server catalogs.
