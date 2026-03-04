@@ -9,8 +9,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/pkg/browser"
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/willfish/forte/internal/library"
+	"github.com/willfish/forte/internal/scrobbling/lastfm"
 	"github.com/willfish/forte/internal/streaming/jellyfin"
 	"github.com/willfish/forte/internal/streaming/subsonic"
 )
@@ -470,6 +472,117 @@ func (s *LibraryService) TestConnection(cfg ServerConfig) error {
 	default:
 		return fmt.Errorf("unknown server type: %s", cfg.Type)
 	}
+}
+
+// ScrobbleConfigJSON is the JSON-friendly scrobble config exposed to the frontend.
+// APISecret is intentionally omitted.
+type ScrobbleConfigJSON struct {
+	APIKey     string `json:"apiKey"`
+	SessionKey string `json:"sessionKey"`
+	Username   string `json:"username"`
+	Enabled    bool   `json:"enabled"`
+}
+
+// GetScrobbleConfig returns the current Last.fm scrobble configuration.
+func (s *LibraryService) GetScrobbleConfig() (ScrobbleConfigJSON, error) {
+	if s.db == nil {
+		return ScrobbleConfigJSON{}, fmt.Errorf("library not initialised")
+	}
+	cfg, err := s.db.LoadScrobbleConfig()
+	if err != nil {
+		return ScrobbleConfigJSON{}, err
+	}
+	return ScrobbleConfigJSON{
+		APIKey:     cfg.APIKey,
+		SessionKey: cfg.SessionKey,
+		Username:   cfg.Username,
+		Enabled:    cfg.Enabled,
+	}, nil
+}
+
+// SaveScrobbleAPIKeys saves the Last.fm API key and secret.
+func (s *LibraryService) SaveScrobbleAPIKeys(apiKey, apiSecret string) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	cfg, err := s.db.LoadScrobbleConfig()
+	if err != nil {
+		return err
+	}
+	cfg.APIKey = apiKey
+	cfg.APISecret = apiSecret
+	return s.db.SaveScrobbleConfig(cfg)
+}
+
+// StartLastFmAuth begins the Last.fm auth flow: requests a token and opens
+// the browser for user approval. Returns the token for use with CompleteLastFmAuth.
+func (s *LibraryService) StartLastFmAuth() (string, error) {
+	if s.db == nil {
+		return "", fmt.Errorf("library not initialised")
+	}
+	cfg, err := s.db.LoadScrobbleConfig()
+	if err != nil {
+		return "", err
+	}
+	if cfg.APIKey == "" || cfg.APISecret == "" {
+		return "", fmt.Errorf("API key and secret must be configured first")
+	}
+	token, err := lastfm.GetToken(cfg.APIKey, cfg.APISecret)
+	if err != nil {
+		return "", err
+	}
+	authURL := lastfm.AuthURL(cfg.APIKey, token)
+	if err := browser.OpenURL(authURL); err != nil {
+		log.Printf("lastfm: failed to open browser: %v", err)
+	}
+	return token, nil
+}
+
+// CompleteLastFmAuth exchanges the authorized token for a session key.
+func (s *LibraryService) CompleteLastFmAuth(token string) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	cfg, err := s.db.LoadScrobbleConfig()
+	if err != nil {
+		return err
+	}
+	sessionKey, username, err := lastfm.GetSession(cfg.APIKey, cfg.APISecret, token)
+	if err != nil {
+		return err
+	}
+	cfg.SessionKey = sessionKey
+	cfg.Username = username
+	cfg.Enabled = true
+	return s.db.SaveScrobbleConfig(cfg)
+}
+
+// DisconnectLastFm clears the Last.fm session key and username.
+func (s *LibraryService) DisconnectLastFm() error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	cfg, err := s.db.LoadScrobbleConfig()
+	if err != nil {
+		return err
+	}
+	cfg.SessionKey = ""
+	cfg.Username = ""
+	cfg.Enabled = false
+	return s.db.SaveScrobbleConfig(cfg)
+}
+
+// SetScrobbleEnabled toggles scrobbling on or off.
+func (s *LibraryService) SetScrobbleEnabled(enabled bool) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	cfg, err := s.db.LoadScrobbleConfig()
+	if err != nil {
+		return err
+	}
+	cfg.Enabled = enabled
+	return s.db.SaveScrobbleConfig(cfg)
 }
 
 // newUUID generates a random UUID v4 string.
