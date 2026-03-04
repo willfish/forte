@@ -6,11 +6,15 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/willfish/forte/internal/streaming"
 	"github.com/willfish/forte/internal/streaming/jellyfin"
 	"github.com/willfish/forte/internal/streaming/subsonic"
 )
+
+// artworkClient is used for fetching album artwork with a generous timeout.
+var artworkClient = &http.Client{Timeout: 30 * time.Second}
 
 // SyncAllServers syncs all configured servers into the local database.
 func SyncAllServers(ctx context.Context, db *DB) error {
@@ -254,7 +258,7 @@ func newProvider(srv Server) (streaming.Provider, error) {
 }
 
 func fetchArtwork(url string) ([]byte, error) {
-	resp, err := http.Get(url)
+	resp, err := artworkClient.Get(url)
 	if err != nil {
 		return nil, err
 	}

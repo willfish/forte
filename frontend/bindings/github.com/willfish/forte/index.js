@@ -15,5 +15,6 @@ export {
     Playlist,
     PlaylistTrack,
     SearchResult,
-    ServerConfig
+    ServerConfig,
+    ServerStatusJSON
 } from "./models.js";

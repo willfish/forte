@@ -44,6 +44,7 @@ type Engine struct {
 	done           chan struct{} // closed when event loop exits
 	onTrackChange  func()       // called when mpv loads a new file
 	onPlaylistEnd  func()       // called when the entire playlist finishes
+	onStreamError  func()       // called when mpv fails to play a stream
 }
 
 // NewEngine initialises mpv for audio-only playback.
@@ -248,6 +249,13 @@ func (e *Engine) SetOnPlaylistEnd(fn func()) {
 	e.onPlaylistEnd = fn
 }
 
+// SetOnStreamError registers a callback invoked when mpv fails to play a file.
+func (e *Engine) SetOnStreamError(fn func()) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.onStreamError = fn
+}
+
 // SetLoopFile enables or disables single-file looping (for repeat-one).
 func (e *Engine) SetLoopFile(loop bool) {
 	if loop {
@@ -346,7 +354,29 @@ func (e *Engine) eventLoop() {
 		switch event.EventID {
 		case mpv.EventEnd:
 			ef := event.EndFile()
-			if ef.Reason == mpv.EndFileEOF || ef.Reason == mpv.EndFileStop || ef.Reason == mpv.EndFileError {
+			if ef.Reason == mpv.EndFileError {
+				// Stream error: call onStreamError if set, else fall back to playlist-end logic.
+				e.mu.Lock()
+				errCb := e.onStreamError
+				e.mu.Unlock()
+				if errCb != nil {
+					slog.Debug("stream error, invoking onStreamError")
+					errCb()
+				} else {
+					// Fall back: treat like normal end.
+					pos, _ := e.handle.GetProperty("playlist-pos", mpv.FormatInt64)
+					if pos == nil || pos.(int64) < 0 {
+						e.mu.Lock()
+						e.state = StateStopped
+						cb := e.onPlaylistEnd
+						e.mu.Unlock()
+						if cb != nil {
+							cb()
+						}
+						slog.Debug("playlist finished (after error)")
+					}
+				}
+			} else if ef.Reason == mpv.EndFileEOF || ef.Reason == mpv.EndFileStop {
 				// Check if mpv has more playlist entries queued.
 				pos, _ := e.handle.GetProperty("playlist-pos", mpv.FormatInt64)
 				if pos == nil || pos.(int64) < 0 {
