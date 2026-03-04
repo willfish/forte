@@ -154,8 +154,8 @@
     {/if}
     <div class="meta">
       {#if radioMode && radioStation}
-        <span class="title">{radioStation}</span>
-        <span class="artist">Radio{#if title} - {title}{/if}</span>
+        <span class="title">{title || radioStation}</span>
+        <span class="artist">{title ? radioStation : 'Radio'}</span>
       {:else if !isStopped && title}
         <span class="title">{title}</span>
         <span class="artist">{artist}{album ? ` - ${album}` : ''}</span>
