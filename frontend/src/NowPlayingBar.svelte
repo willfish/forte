@@ -15,6 +15,9 @@
   let repeatMode = $state('off');
   let muted = $state(false);
   let volumeBeforeMute = $state(100);
+  let radioMode = $state(false);
+  let radioStation = $state('');
+  let radioArtwork = $state('');
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
   function startPolling() {
@@ -29,6 +32,11 @@
       album = await PlayerService.MediaAlbum();
       shuffleOn = await PlayerService.GetShuffle();
       repeatMode = await PlayerService.GetRepeat();
+      radioMode = await PlayerService.IsRadioMode();
+      if (radioMode) {
+        radioStation = await PlayerService.RadioStationName();
+        radioArtwork = await PlayerService.RadioArtworkURL();
+      }
     }, 250);
   }
 
@@ -76,7 +84,14 @@
   }
 
   async function stop() {
-    await PlayerService.Stop();
+    if (radioMode) {
+      await PlayerService.StopRadio();
+      radioMode = false;
+      radioStation = '';
+      radioArtwork = '';
+    } else {
+      await PlayerService.Stop();
+    }
     artworkSrc = '';
     lastArtworkKey = '';
   }
@@ -130,13 +145,18 @@
 
 <footer class="bar">
   <div class="track-info">
-    {#if artworkSrc}
+    {#if radioMode && radioArtwork}
+      <img class="artwork" src={radioArtwork} alt="Station art" />
+    {:else if artworkSrc}
       <img class="artwork" src={artworkSrc} alt="Album art" />
     {:else}
       <div class="artwork-placeholder"></div>
     {/if}
     <div class="meta">
-      {#if !isStopped && title}
+      {#if radioMode && radioStation}
+        <span class="title">{radioStation}</span>
+        <span class="artist">Radio{#if title} - {title}{/if}</span>
+      {:else if !isStopped && title}
         <span class="title">{title}</span>
         <span class="artist">{artist}{album ? ` - ${album}` : ''}</span>
       {:else if !isStopped}
@@ -150,16 +170,18 @@
 
   <div class="controls">
     <div class="transport">
-      <button class="mode-btn" class:active={shuffleOn} onclick={toggleShuffle} aria-label="Shuffle">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-          <path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/>
-        </svg>
-      </button>
-      <button onclick={previous} disabled={isStopped} aria-label="Previous">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-          <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/>
-        </svg>
-      </button>
+      {#if !radioMode}
+        <button class="mode-btn" class:active={shuffleOn} onclick={toggleShuffle} aria-label="Shuffle">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+            <path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/>
+          </svg>
+        </button>
+        <button onclick={previous} disabled={isStopped} aria-label="Previous">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+            <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/>
+          </svg>
+        </button>
+      {/if}
       <button class="play-btn" onclick={togglePlayPause} disabled={isStopped} aria-label={playbackState === 'playing' ? 'Pause' : 'Play'}>
         {#if playbackState === 'playing'}
           <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
@@ -171,42 +193,52 @@
           </svg>
         {/if}
       </button>
-      <button onclick={next} disabled={isStopped} aria-label="Next">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-          <path d="M6 18l8.5-6L6 6zm10-12v12h2V6z"/>
-        </svg>
-      </button>
+      {#if !radioMode}
+        <button onclick={next} disabled={isStopped} aria-label="Next">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+            <path d="M6 18l8.5-6L6 6zm10-12v12h2V6z"/>
+          </svg>
+        </button>
+      {/if}
       <button onclick={stop} disabled={isStopped} aria-label="Stop">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
           <path d="M6 6h12v12H6z"/>
         </svg>
       </button>
-      <button class="mode-btn" class:active={repeatMode !== 'off'} onclick={cycleRepeat} aria-label="Repeat: {repeatMode}">
-        {#if repeatMode === 'one'}
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-            <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4zm-4-2V9h-1l-2 1v1h1.5v4H13z"/>
-          </svg>
-        {:else}
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-            <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
-          </svg>
-        {/if}
-      </button>
+      {#if !radioMode}
+        <button class="mode-btn" class:active={repeatMode !== 'off'} onclick={cycleRepeat} aria-label="Repeat: {repeatMode}">
+          {#if repeatMode === 'one'}
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+              <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4zm-4-2V9h-1l-2 1v1h1.5v4H13z"/>
+            </svg>
+          {:else}
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+              <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+            </svg>
+          {/if}
+        </button>
+      {/if}
     </div>
 
-    <div class="seek">
-      <span class="time">{formatTime(position)}</span>
-      <input
-        type="range"
-        min="0"
-        max={duration || 1}
-        value={position}
-        step="0.5"
-        oninput={handleSeek}
-        disabled={isStopped}
-      />
-      <span class="time">{formatTime(duration)}</span>
-    </div>
+    {#if !radioMode}
+      <div class="seek">
+        <span class="time">{formatTime(position)}</span>
+        <input
+          type="range"
+          min="0"
+          max={duration || 1}
+          value={position}
+          step="0.5"
+          oninput={handleSeek}
+          disabled={isStopped}
+        />
+        <span class="time">{formatTime(duration)}</span>
+      </div>
+    {:else}
+      <div class="seek radio-label">
+        <span class="radio-indicator">LIVE</span>
+      </div>
+    {/if}
   </div>
 
   <div class="volume-section">
@@ -389,6 +421,20 @@
 
   .time:last-child {
     text-align: right;
+  }
+
+  .radio-label {
+    justify-content: center;
+  }
+
+  .radio-indicator {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: #e74c3c;
+    padding: 0.15rem 0.5rem;
+    border: 1px solid #e74c3c;
+    border-radius: 3px;
   }
 
   .volume-section {

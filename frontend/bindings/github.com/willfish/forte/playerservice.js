@@ -94,6 +94,14 @@ export function GetToasts() {
 }
 
 /**
+ * IsRadioMode returns whether the player is currently in radio mode.
+ * @returns {$CancellablePromise<boolean>}
+ */
+export function IsRadioMode() {
+    return $Call.ByID(2964685828);
+}
+
+/**
  * MediaAlbum returns the album of the currently playing track.
  * @returns {$CancellablePromise<string>}
  */
@@ -171,6 +179,18 @@ export function PlayQueue(tracks, startAt) {
 }
 
 /**
+ * PlayRadio starts playback of a radio stream. It saves the current library
+ * queue and enters radio mode where next/prev/shuffle/repeat are disabled.
+ * @param {string} stationName
+ * @param {string} streamURL
+ * @param {string} artworkURL
+ * @returns {$CancellablePromise<void>}
+ */
+export function PlayRadio(stationName, streamURL, artworkURL) {
+    return $Call.ByID(1236378929, stationName, streamURL, artworkURL);
+}
+
+/**
  * Position returns the current playback position in seconds.
  * @returns {$CancellablePromise<number>}
  */
@@ -232,6 +252,22 @@ export function QueueMove($from, to) {
  */
 export function QueueRemove(index) {
     return $Call.ByID(1743380467, index);
+}
+
+/**
+ * RadioArtworkURL returns the artwork URL of the currently playing radio station.
+ * @returns {$CancellablePromise<string>}
+ */
+export function RadioArtworkURL() {
+    return $Call.ByID(1282363134);
+}
+
+/**
+ * RadioStationName returns the name of the currently playing radio station.
+ * @returns {$CancellablePromise<string>}
+ */
+export function RadioStationName() {
+    return $Call.ByID(2576550642);
 }
 
 /**
@@ -319,6 +355,14 @@ export function State() {
  */
 export function Stop() {
     return $Call.ByID(2311398648);
+}
+
+/**
+ * StopRadio stops the current radio stream and restores the library queue.
+ * @returns {$CancellablePromise<void>}
+ */
+export function StopRadio() {
+    return $Call.ByID(3776601259);
 }
 
 /**
