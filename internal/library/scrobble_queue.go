@@ -36,7 +36,7 @@ func (db *DB) PendingScrobbles(service string, limit int) ([]ScrobbleQueueEntry,
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	now := time.Now()
 	var result []ScrobbleQueueEntry
