@@ -35,6 +35,32 @@
   let activeTag = $state('');
   let activeSource = $state<'all' | 'somafm'>('all');
 
+  // Proxied image cache: external URL -> data URI.
+  const iconCache = new Map<string, string>();
+  let proxiedIcons = $state<Record<string, string>>({});
+
+  // Proxy all favicon URLs for a list of stations, batched to avoid
+  // overwhelming the RPC bridge. Updates the reactive map as results arrive.
+  function proxyStationIcons(urls: string[]) {
+    const toFetch = urls.filter(u => u && !u.startsWith('data:') && !iconCache.has(u));
+    for (const url of toFetch) {
+      // Mark pending immediately so we don't re-request.
+      iconCache.set(url, '');
+    }
+    for (const url of toFetch) {
+      LibraryService.ProxyImageURL(url).then((dataUri: string) => {
+        iconCache.set(url, dataUri || '');
+        proxiedIcons = Object.fromEntries(iconCache);
+      }).catch(() => {});
+    }
+  }
+
+  function resolvedIcon(url: string): string {
+    if (!url) return '';
+    if (url.startsWith('data:')) return url;
+    return proxiedIcons[url] || '';
+  }
+
   const isSearchActive = $derived(searchQuery.trim().length > 0);
   const hasFilter = $derived(activeTag !== '' || activeSource !== 'all');
 
@@ -43,6 +69,7 @@
     try {
       const result = await LibraryService.GetTopVotedRadioStations(50);
       stations = (result || []).map(mapStation);
+      proxyStationIcons(stations.map(s => s.favicon));
     } catch {
       stations = [];
     } finally {
@@ -55,6 +82,7 @@
     try {
       const result = await LibraryService.GetRadioStationsByTag(tag, 50);
       stations = (result || []).map(mapStation);
+      proxyStationIcons(stations.map(s => s.favicon));
     } catch {
       stations = [];
     } finally {
@@ -67,6 +95,7 @@
     try {
       const result = await LibraryService.GetSomaFMStations();
       stations = (result || []).map(mapStation);
+      proxyStationIcons(stations.map(s => s.favicon));
     } catch {
       stations = [];
     } finally {
@@ -86,6 +115,7 @@
         addedAt: f.addedAt,
       }));
       favouriteUuids = new Set(favourites.map(f => f.stationUuid));
+      proxyStationIcons(favourites.map(f => f.faviconUrl));
     } catch {
       favourites = [];
       favouriteUuids = new Set();
@@ -125,6 +155,7 @@
       try {
         const result = await LibraryService.SearchRadioStations(value.trim(), 50);
         stations = (result || []).map(mapStation);
+        proxyStationIcons(stations.map(s => s.favicon));
       } catch {
         stations = [];
       } finally {
@@ -169,7 +200,9 @@
 
   async function playStation(name: string, url: string, favicon: string) {
     try {
-      await PlayerService.PlayRadio(name, url, favicon);
+      // Proxy artwork so the webview can display it.
+      const art = favicon ? await LibraryService.ProxyImageURL(favicon) : '';
+      await PlayerService.PlayRadio(name, url, art);
     } catch {
       // ignore play errors
     }
@@ -299,8 +332,8 @@
                 <path d="M8 5v14l11-7z"/>
               </svg>
             </button>
-            {#if station.favicon}
-              <img class="station-icon" src={station.favicon} alt="" loading="lazy" />
+            {#if resolvedIcon(station.favicon)}
+              <img class="station-icon" src={resolvedIcon(station.favicon)} alt="" />
             {:else}
               <div class="station-icon placeholder">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
@@ -358,8 +391,8 @@
                 <path d="M8 5v14l11-7z"/>
               </svg>
             </button>
-            {#if fav.faviconUrl}
-              <img class="station-icon" src={fav.faviconUrl} alt="" loading="lazy" />
+            {#if resolvedIcon(fav.faviconUrl)}
+              <img class="station-icon" src={resolvedIcon(fav.faviconUrl)} alt="" />
             {:else}
               <div class="station-icon placeholder">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
