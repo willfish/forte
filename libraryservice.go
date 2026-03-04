@@ -13,6 +13,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/willfish/forte/internal/artistinfo"
 	"github.com/willfish/forte/internal/library"
+	"github.com/willfish/forte/internal/radio"
 	"github.com/willfish/forte/internal/scrobbling/lastfm"
 	"github.com/willfish/forte/internal/scrobbling/listenbrainz"
 	"github.com/willfish/forte/internal/streaming/jellyfin"
@@ -868,6 +869,149 @@ func (s *LibraryService) GetArtistByName(name string) (int64, error) {
 		return 0, fmt.Errorf("library not initialised")
 	}
 	return s.db.GetArtistByName(name)
+}
+
+// RadioStationJSON is the JSON-friendly radio station type exposed to the frontend.
+type RadioStationJSON struct {
+	UUID      string `json:"uuid"`
+	Name      string `json:"name"`
+	StreamURL string `json:"streamUrl"`
+	Favicon   string `json:"favicon"`
+	Country   string `json:"country"`
+	Tags      string `json:"tags"`
+	Bitrate   int    `json:"bitrate"`
+	Codec     string `json:"codec"`
+	Votes     int    `json:"votes"`
+	Clicks    int    `json:"clicks"`
+}
+
+func stationsToJSON(stations []radio.Station) []RadioStationJSON {
+	result := make([]RadioStationJSON, len(stations))
+	for i, s := range stations {
+		result[i] = RadioStationJSON{
+			UUID:      s.UUID,
+			Name:      s.Name,
+			StreamURL: s.StreamURL,
+			Favicon:   s.Favicon,
+			Country:   s.Country,
+			Tags:      s.Tags,
+			Bitrate:   s.Bitrate,
+			Codec:     s.Codec,
+			Votes:     s.Votes,
+			Clicks:    s.Clicks,
+		}
+	}
+	return result
+}
+
+var radioClient = radio.NewClient()
+
+// SearchRadioStations searches for radio stations by name.
+func (s *LibraryService) SearchRadioStations(query string, limit int) ([]RadioStationJSON, error) {
+	stations, err := radioClient.Search(query, limit)
+	if err != nil {
+		return nil, err
+	}
+	return stationsToJSON(stations), nil
+}
+
+// GetRadioStationsByTag returns radio stations matching a tag.
+func (s *LibraryService) GetRadioStationsByTag(tag string, limit int) ([]RadioStationJSON, error) {
+	stations, err := radioClient.ByTag(tag, limit)
+	if err != nil {
+		return nil, err
+	}
+	return stationsToJSON(stations), nil
+}
+
+// GetRadioStationsByCountry returns radio stations matching a country.
+func (s *LibraryService) GetRadioStationsByCountry(country string, limit int) ([]RadioStationJSON, error) {
+	stations, err := radioClient.ByCountry(country, limit)
+	if err != nil {
+		return nil, err
+	}
+	return stationsToJSON(stations), nil
+}
+
+// GetTopVotedRadioStations returns the top voted radio stations.
+func (s *LibraryService) GetTopVotedRadioStations(limit int) ([]RadioStationJSON, error) {
+	stations, err := radioClient.TopVoted(limit)
+	if err != nil {
+		return nil, err
+	}
+	return stationsToJSON(stations), nil
+}
+
+// GetTopClickedRadioStations returns the most clicked radio stations.
+func (s *LibraryService) GetTopClickedRadioStations(limit int) ([]RadioStationJSON, error) {
+	stations, err := radioClient.TopClicked(limit)
+	if err != nil {
+		return nil, err
+	}
+	return stationsToJSON(stations), nil
+}
+
+// RadioFavouriteJSON is the JSON-friendly radio favourite type exposed to the frontend.
+type RadioFavouriteJSON struct {
+	StationUUID string `json:"stationUuid"`
+	Name        string `json:"name"`
+	StreamURL   string `json:"streamUrl"`
+	FaviconURL  string `json:"faviconUrl"`
+	Tags        string `json:"tags"`
+	AddedAt     string `json:"addedAt"`
+}
+
+// GetRadioFavourites returns all saved radio stations.
+func (s *LibraryService) GetRadioFavourites() ([]RadioFavouriteJSON, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("library not initialised")
+	}
+	favs, err := s.db.GetRadioFavourites()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]RadioFavouriteJSON, len(favs))
+	for i, f := range favs {
+		result[i] = RadioFavouriteJSON{
+			StationUUID: f.StationUUID,
+			Name:        f.Name,
+			StreamURL:   f.StreamURL,
+			FaviconURL:  f.FaviconURL,
+			Tags:        f.Tags,
+			AddedAt:     f.AddedAt,
+		}
+	}
+	return result, nil
+}
+
+// AddRadioFavourite saves a radio station to favourites.
+func (s *LibraryService) AddRadioFavourite(stationUUID, name, streamURL, faviconURL, tags string) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	return s.db.AddRadioFavourite(library.RadioFavourite{
+		StationUUID: stationUUID,
+		Name:        name,
+		StreamURL:   streamURL,
+		FaviconURL:  faviconURL,
+		Tags:        tags,
+	})
+}
+
+// RemoveRadioFavourite removes a radio station from favourites.
+func (s *LibraryService) RemoveRadioFavourite(stationUUID string) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	return s.db.RemoveRadioFavourite(stationUUID)
+}
+
+// IsRadioFavourite checks if a station is in favourites.
+func (s *LibraryService) IsRadioFavourite(stationUUID string) (bool, error) {
+	if s.db == nil {
+		return false, fmt.Errorf("library not initialised")
+	}
+	return s.db.IsRadioFavourite(stationUUID)
 }
 
 // newUUID generates a random UUID v4 string.
