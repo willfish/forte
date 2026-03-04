@@ -75,6 +75,7 @@
     font-size: 0.9rem;
     cursor: pointer;
     text-align: left;
+    transition: background 0.15s ease, color 0.15s ease;
   }
 
   .nav-btn:hover {

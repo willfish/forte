@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fly, fade } from 'svelte/transition';
   import { PlayerService } from "../bindings/github.com/willfish/forte";
 
   type QueueTrack = {
@@ -94,8 +95,8 @@
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="overlay" onclick={onclose}></div>
-  <aside class="panel" aria-label="Play queue">
+  <div class="overlay" onclick={onclose} transition:fade={{ duration: 150 }}></div>
+  <aside class="panel" aria-label="Play queue" transition:fly={{ x: 350, duration: 200 }}>
     <div class="panel-header">
       <h3>Queue</h3>
       <div class="header-actions">
@@ -163,12 +164,6 @@
     z-index: 101;
     display: flex;
     flex-direction: column;
-    animation: slide-in 0.2s ease-out;
-  }
-
-  @keyframes slide-in {
-    from { transform: translateX(100%); }
-    to { transform: translateX(0); }
   }
 
   .panel-header {
