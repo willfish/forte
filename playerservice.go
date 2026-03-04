@@ -16,6 +16,7 @@ import (
 	"github.com/willfish/forte/internal/metadata"
 	"github.com/willfish/forte/internal/player"
 	"github.com/willfish/forte/internal/scrobbling/lastfm"
+	"github.com/willfish/forte/internal/scrobbling/listenbrainz"
 	"github.com/willfish/forte/internal/system"
 )
 
@@ -757,22 +758,38 @@ func (p *PlayerService) startScrobbleTracking() {
 	if p.db == nil {
 		return
 	}
+
+	// Last.fm now-playing.
 	cfg, err := p.db.LoadScrobbleConfig()
-	if err != nil || !cfg.Enabled || cfg.SessionKey == "" {
-		return
+	if err == nil && cfg.Enabled && cfg.SessionKey != "" {
+		track := lastfm.TrackInfo{
+			Artist:   cur.Artist,
+			Track:    cur.Title,
+			Album:    cur.Album,
+			Duration: cur.DurationMs / 1000,
+		}
+		go func() {
+			if err := lastfm.NowPlaying(cfg.APIKey, cfg.APISecret, cfg.SessionKey, track); err != nil {
+				log.Printf("lastfm now-playing: %v", err)
+			}
+		}()
 	}
 
-	track := lastfm.TrackInfo{
-		Artist:   cur.Artist,
-		Track:    cur.Title,
-		Album:    cur.Album,
-		Duration: cur.DurationMs / 1000,
-	}
-	go func() {
-		if err := lastfm.NowPlaying(cfg.APIKey, cfg.APISecret, cfg.SessionKey, track); err != nil {
-			log.Printf("lastfm now-playing: %v", err)
+	// ListenBrainz now-playing.
+	lbCfg, err := p.db.LoadListenBrainzConfig()
+	if err == nil && lbCfg.Enabled && lbCfg.UserToken != "" {
+		lbTrack := listenbrainz.TrackInfo{
+			Artist:     cur.Artist,
+			Track:      cur.Title,
+			Album:      cur.Album,
+			DurationMs: cur.DurationMs,
 		}
-	}()
+		go func() {
+			if err := listenbrainz.NowPlaying(lbCfg.UserToken, lbTrack); err != nil {
+				log.Printf("listenbrainz now-playing: %v", err)
+			}
+		}()
+	}
 }
 
 // checkScrobble accumulates play time and submits a scrobble when the
@@ -801,23 +818,40 @@ func (p *PlayerService) checkScrobble() {
 	if p.db == nil {
 		return
 	}
+
+	ts := time.Now().Unix()
+
+	// Last.fm scrobble.
 	cfg, err := p.db.LoadScrobbleConfig()
-	if err != nil || !cfg.Enabled || cfg.SessionKey == "" {
-		return
+	if err == nil && cfg.Enabled && cfg.SessionKey != "" {
+		track := lastfm.TrackInfo{
+			Artist:   cur.Artist,
+			Track:    cur.Title,
+			Album:    cur.Album,
+			Duration: cur.DurationMs / 1000,
+		}
+		go func() {
+			if err := lastfm.Scrobble(cfg.APIKey, cfg.APISecret, cfg.SessionKey, track, ts); err != nil {
+				log.Printf("lastfm scrobble: %v", err)
+			}
+		}()
 	}
 
-	track := lastfm.TrackInfo{
-		Artist:   cur.Artist,
-		Track:    cur.Title,
-		Album:    cur.Album,
-		Duration: cur.DurationMs / 1000,
-	}
-	ts := time.Now().Unix()
-	go func() {
-		if err := lastfm.Scrobble(cfg.APIKey, cfg.APISecret, cfg.SessionKey, track, ts); err != nil {
-			log.Printf("lastfm scrobble: %v", err)
+	// ListenBrainz scrobble.
+	lbCfg, err := p.db.LoadListenBrainzConfig()
+	if err == nil && lbCfg.Enabled && lbCfg.UserToken != "" {
+		lbTrack := listenbrainz.TrackInfo{
+			Artist:     cur.Artist,
+			Track:      cur.Title,
+			Album:      cur.Album,
+			DurationMs: cur.DurationMs,
 		}
-	}()
+		go func() {
+			if err := listenbrainz.Scrobble(lbCfg.UserToken, lbTrack, ts); err != nil {
+				log.Printf("listenbrainz scrobble: %v", err)
+			}
+		}()
+	}
 }
 
 // resolvePaths translates any server:// paths to streaming URLs.

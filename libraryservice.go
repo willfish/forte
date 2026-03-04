@@ -13,6 +13,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/willfish/forte/internal/library"
 	"github.com/willfish/forte/internal/scrobbling/lastfm"
+	"github.com/willfish/forte/internal/scrobbling/listenbrainz"
 	"github.com/willfish/forte/internal/streaming/jellyfin"
 	"github.com/willfish/forte/internal/streaming/subsonic"
 )
@@ -583,6 +584,66 @@ func (s *LibraryService) SetScrobbleEnabled(enabled bool) error {
 	}
 	cfg.Enabled = enabled
 	return s.db.SaveScrobbleConfig(cfg)
+}
+
+// ListenBrainzConfigJSON is the JSON-friendly ListenBrainz config exposed to the frontend.
+// UserToken is intentionally omitted.
+type ListenBrainzConfigJSON struct {
+	Username string `json:"username"`
+	Enabled  bool   `json:"enabled"`
+}
+
+// GetListenBrainzConfig returns the current ListenBrainz configuration.
+func (s *LibraryService) GetListenBrainzConfig() (ListenBrainzConfigJSON, error) {
+	if s.db == nil {
+		return ListenBrainzConfigJSON{}, fmt.Errorf("library not initialised")
+	}
+	cfg, err := s.db.LoadListenBrainzConfig()
+	if err != nil {
+		return ListenBrainzConfigJSON{}, err
+	}
+	return ListenBrainzConfigJSON{
+		Username: cfg.Username,
+		Enabled:  cfg.Enabled,
+	}, nil
+}
+
+// ConnectListenBrainz validates the user token, retrieves the username, and saves
+// the configuration with scrobbling enabled.
+func (s *LibraryService) ConnectListenBrainz(userToken string) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	username, err := listenbrainz.ValidateToken(userToken)
+	if err != nil {
+		return err
+	}
+	return s.db.SaveListenBrainzConfig(library.ListenBrainzConfig{
+		UserToken: userToken,
+		Username:  username,
+		Enabled:   true,
+	})
+}
+
+// DisconnectListenBrainz clears the ListenBrainz token and username.
+func (s *LibraryService) DisconnectListenBrainz() error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	return s.db.SaveListenBrainzConfig(library.ListenBrainzConfig{})
+}
+
+// SetListenBrainzEnabled toggles ListenBrainz scrobbling on or off.
+func (s *LibraryService) SetListenBrainzEnabled(enabled bool) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	cfg, err := s.db.LoadListenBrainzConfig()
+	if err != nil {
+		return err
+	}
+	cfg.Enabled = enabled
+	return s.db.SaveListenBrainzConfig(cfg)
 }
 
 // newUUID generates a random UUID v4 string.
