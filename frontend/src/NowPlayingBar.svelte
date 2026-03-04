@@ -373,6 +373,7 @@
     align-items: center;
     justify-content: center;
     padding: 0;
+    transition: color 0.15s ease, background 0.15s ease, opacity 0.15s ease;
   }
 
   .transport button:hover:not(:disabled) {
@@ -390,12 +391,17 @@
     height: 32px;
     background: var(--accent);
     color: var(--text-on-accent);
+    transition: transform 0.1s ease;
   }
 
   .transport .play-btn:hover:not(:disabled) {
     background: var(--accent);
     color: var(--text-on-accent);
     filter: brightness(1.15);
+  }
+
+  .transport .play-btn:active:not(:disabled) {
+    transform: scale(0.9);
   }
 
   .transport .mode-btn {

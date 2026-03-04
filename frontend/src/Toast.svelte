@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fly } from 'svelte/transition';
   import { PlayerService } from "../bindings/github.com/willfish/forte";
 
   type ToastItem = {
@@ -57,7 +58,7 @@
 {#if toasts.length > 0}
   <div class="toast-container">
     {#each toasts as toast (toast.id)}
-      <div class="toast toast-{toast.type}" role="alert">
+      <div class="toast toast-{toast.type}" role="alert" transition:fly={{ x: 50, duration: 200 }}>
         <span class="toast-message">{toast.message}</span>
         <button class="toast-close" onclick={() => dismiss(toast.id)} aria-label="Dismiss">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
@@ -87,18 +88,17 @@
     gap: 0.5rem;
     padding: 0.6rem 0.75rem;
     border-radius: 6px;
-    background: var(--bg-secondary, #2a2a2a);
+    background: var(--bg-elevated, var(--bg-hover));
     border-left: 3px solid var(--accent);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    animation: slide-in 0.2s ease-out;
   }
 
   .toast-warn {
-    border-left-color: #f59e0b;
+    border-left-color: var(--warning);
   }
 
   .toast-error {
-    border-left-color: #ef4444;
+    border-left-color: var(--error);
   }
 
   .toast-info {
@@ -129,14 +129,4 @@
     color: var(--text-primary);
   }
 
-  @keyframes slide-in {
-    from {
-      opacity: 0;
-      transform: translateX(1rem);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0);
-    }
-  }
 </style>

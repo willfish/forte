@@ -220,6 +220,7 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    animation: view-enter 0.2s ease-out;
   }
 
   .back-btn {

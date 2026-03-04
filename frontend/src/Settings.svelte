@@ -526,6 +526,7 @@
 <style>
   .settings {
     max-width: 500px;
+    animation: view-enter 0.2s ease-out;
   }
 
   h2 {

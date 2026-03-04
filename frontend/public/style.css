@@ -9,10 +9,15 @@
     --bg-bar: #151e2b;
     --bg-hover: rgba(255, 255, 255, 0.06);
     --bg-active: rgba(51, 102, 170, 0.15);
+    --bg-elevated: #223040;
     --border: #2a3a4a;
     --text-primary: #e0e0e0;
     --text-secondary: #8899aa;
+    --text-on-accent: #ffffff;
     --accent: #3366aa;
+    --error: #ee5555;
+    --success: #44cc88;
+    --warning: #f59e0b;
 }
 
 [data-theme="light"] {
@@ -21,10 +26,15 @@
     --bg-bar: #eaeaea;
     --bg-hover: rgba(0, 0, 0, 0.05);
     --bg-active: rgba(51, 102, 170, 0.1);
+    --bg-elevated: #ffffff;
     --border: #d0d0d0;
     --text-primary: #1a1a1a;
     --text-secondary: #666666;
+    --text-on-accent: #ffffff;
     --accent: #2855a0;
+    --error: #dc2626;
+    --success: #16a34a;
+    --warning: #d97706;
 }
 
 body {
@@ -68,4 +78,19 @@ body {
     overflow: hidden;
     display: flex;
     flex-direction: column;
+}
+
+/* View transition animation applied to content views */
+@keyframes view-enter {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Respect user motion preferences */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
