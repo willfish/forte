@@ -885,14 +885,14 @@ type RadioStationJSON struct {
 	Clicks    int    `json:"clicks"`
 }
 
-var somafmArtwork = radio.NewSomaFMArtwork()
+var somafmClient = radio.NewSomaFMClient()
 
 func stationsToJSON(stations []radio.Station) []RadioStationJSON {
 	result := make([]RadioStationJSON, len(stations))
 	for i, s := range stations {
 		favicon := s.Favicon
 		if favicon == "" {
-			if art := somafmArtwork.Lookup(s.Homepage); art != "" {
+			if art := somafmClient.LookupArtwork(s.Homepage); art != "" {
 				favicon = art
 			}
 		}
@@ -953,6 +953,15 @@ func (s *LibraryService) GetTopVotedRadioStations(limit int) ([]RadioStationJSON
 // GetTopClickedRadioStations returns the most clicked radio stations.
 func (s *LibraryService) GetTopClickedRadioStations(limit int) ([]RadioStationJSON, error) {
 	stations, err := radioClient.TopClicked(limit)
+	if err != nil {
+		return nil, err
+	}
+	return stationsToJSON(stations), nil
+}
+
+// GetSomaFMStations returns all SomaFM channels.
+func (s *LibraryService) GetSomaFMStations() ([]RadioStationJSON, error) {
+	stations, err := somafmClient.Stations()
 	if err != nil {
 		return nil, err
 	}

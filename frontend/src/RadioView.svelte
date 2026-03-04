@@ -31,12 +31,41 @@
   let loading = $state(false);
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Active filters.
+  let activeTag = $state('');
+  let activeSource = $state<'all' | 'somafm'>('all');
+
   const isSearchActive = $derived(searchQuery.trim().length > 0);
+  const hasFilter = $derived(activeTag !== '' || activeSource !== 'all');
 
   async function loadFeatured() {
     loading = true;
     try {
       const result = await LibraryService.GetTopVotedRadioStations(50);
+      stations = (result || []).map(mapStation);
+    } catch {
+      stations = [];
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function loadByTag(tag: string) {
+    loading = true;
+    try {
+      const result = await LibraryService.GetRadioStationsByTag(tag, 50);
+      stations = (result || []).map(mapStation);
+    } catch {
+      stations = [];
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function loadSomaFM() {
+    loading = true;
+    try {
+      const result = await LibraryService.GetSomaFMStations();
       stations = (result || []).map(mapStation);
     } catch {
       stations = [];
@@ -81,6 +110,8 @@
   function handleSearchInput(e: Event) {
     const value = (e.target as HTMLInputElement).value;
     searchQuery = value;
+    activeTag = '';
+    activeSource = 'all';
 
     if (debounceTimer) clearTimeout(debounceTimer);
 
@@ -106,6 +137,34 @@
     searchQuery = '';
     if (debounceTimer) clearTimeout(debounceTimer);
     loadFeatured();
+  }
+
+  function clearFilters() {
+    activeTag = '';
+    activeSource = 'all';
+    searchQuery = '';
+    if (debounceTimer) clearTimeout(debounceTimer);
+    loadFeatured();
+  }
+
+  function filterByTag(tag: string) {
+    searchQuery = '';
+    if (debounceTimer) clearTimeout(debounceTimer);
+    activeSource = 'all';
+    activeTag = tag;
+    loadByTag(tag);
+  }
+
+  function filterBySource(source: 'all' | 'somafm') {
+    searchQuery = '';
+    if (debounceTimer) clearTimeout(debounceTimer);
+    activeTag = '';
+    activeSource = source;
+    if (source === 'somafm') {
+      loadSomaFM();
+    } else {
+      loadFeatured();
+    }
   }
 
   async function playStation(name: string, url: string, favicon: string) {
@@ -190,12 +249,43 @@
       {/if}
     </div>
 
+    <div class="filter-bar">
+      <div class="source-filters">
+        <button
+          class="filter-pill"
+          class:active={activeSource === 'all' && activeTag === ''}
+          onclick={() => filterBySource('all')}
+        >All</button>
+        <button
+          class="filter-pill"
+          class:active={activeSource === 'somafm'}
+          onclick={() => filterBySource('somafm')}
+        >SomaFM</button>
+      </div>
+      {#if hasFilter}
+        <div class="active-filter">
+          {#if activeTag}
+            <span class="filter-label">Tag: {activeTag}</span>
+          {:else if activeSource === 'somafm'}
+            <span class="filter-label">Source: SomaFM</span>
+          {/if}
+          <button class="filter-clear" onclick={clearFilters} aria-label="Clear filter">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+          </button>
+        </div>
+      {/if}
+    </div>
+
     {#if loading}
       <div class="empty">Loading stations...</div>
     {:else if stations.length === 0}
       <div class="empty">
         {#if isSearchActive}
           No stations found for "{searchQuery.trim()}"
+        {:else if activeTag}
+          No stations found for tag "{activeTag}"
         {:else}
           No stations available
         {/if}
@@ -231,7 +321,7 @@
               {#if formatTags(station.tags).length > 0}
                 <div class="station-tags">
                   {#each formatTags(station.tags) as tag}
-                    <span class="tag">{tag}</span>
+                    <button class="tag" class:active={activeTag === tag} onclick={() => filterByTag(tag)}>{tag}</button>
                   {/each}
                 </div>
               {/if}
@@ -397,6 +487,71 @@
     color: var(--text-primary);
   }
 
+  .filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .source-filters {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .filter-pill {
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+
+  .filter-pill:hover {
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+  }
+
+  .filter-pill.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+
+  .active-filter {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    background: var(--bg-hover);
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .filter-label {
+    white-space: nowrap;
+  }
+
+  .filter-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.1rem;
+    border-radius: 50%;
+  }
+
+  .filter-clear:hover {
+    background: var(--bg-elevated, var(--bg-hover));
+    color: var(--text-primary);
+  }
+
   .station-list {
     display: flex;
     flex-direction: column;
@@ -486,6 +641,18 @@
     border-radius: 3px;
     background: var(--bg-hover);
     color: var(--text-secondary);
+    border: none;
+    cursor: pointer;
+  }
+
+  .tag:hover {
+    color: var(--text-primary);
+    background: var(--bg-elevated, var(--bg-hover));
+  }
+
+  .tag.active {
+    background: var(--accent);
+    color: white;
   }
 
   .fav-btn {

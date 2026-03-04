@@ -278,6 +278,16 @@ export function GetServers() {
 }
 
 /**
+ * GetSomaFMStations returns all SomaFM channels.
+ * @returns {$CancellablePromise<$models.RadioStationJSON[]>}
+ */
+export function GetSomaFMStations() {
+    return $Call.ByID(3406641218).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType13($result);
+    }));
+}
+
+/**
  * GetTopAlbums returns the most-played albums for the given period.
  * @param {string} period
  * @param {number} limit
