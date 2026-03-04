@@ -928,6 +928,15 @@ func (s *LibraryService) SearchRadioStations(query string, limit int) ([]RadioSt
 	return stationsToJSON(stations), nil
 }
 
+// SearchRadioStationsFiltered searches with optional country and codec filters.
+func (s *LibraryService) SearchRadioStationsFiltered(country, codec string, limit int) ([]RadioStationJSON, error) {
+	stations, err := radioClient.SearchFiltered(country, codec, limit)
+	if err != nil {
+		return nil, err
+	}
+	return stationsToJSON(stations), nil
+}
+
 // GetRadioStationsByTag returns radio stations matching a tag.
 func (s *LibraryService) GetRadioStationsByTag(tag string, limit int) ([]RadioStationJSON, error) {
 	stations, err := radioClient.ByTag(tag, limit)

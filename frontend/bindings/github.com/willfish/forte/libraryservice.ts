@@ -347,6 +347,15 @@ export function SearchRadioStations(query: string, limit: number): $CancellableP
 }
 
 /**
+ * SearchRadioStationsFiltered searches with optional country and codec filters.
+ */
+export function SearchRadioStationsFiltered(country: string, codec: string, limit: number): $CancellablePromise<$models.RadioStationJSON[]> {
+    return $Call.ByID(2804279923, country, codec, limit).then(($result: any) => {
+        return $$createType13($result);
+    });
+}
+
+/**
  * SetListenBrainzEnabled toggles ListenBrainz scrobbling on or off.
  */
 export function SetListenBrainzEnabled(enabled: boolean): $CancellablePromise<void> {

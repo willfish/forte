@@ -34,6 +34,18 @@
   // Active filters.
   let activeTag = $state('');
   let activeSource = $state<'all' | 'somafm'>('all');
+  let activeCountry = $state('');
+  let activeCodec = $state('');
+
+  const countries = [
+    { code: 'The United States Of America', label: 'US' },
+    { code: 'United Kingdom', label: 'UK' },
+    { code: 'Germany', label: 'DE' },
+    { code: 'France', label: 'FR' },
+    { code: 'Canada', label: 'CA' },
+    { code: 'Australia', label: 'AU' },
+  ];
+  const codecs = ['MP3', 'AAC', 'OGG'];
 
   // Proxied image cache: external URL -> data URI.
   const iconCache = new Map<string, string>();
@@ -62,13 +74,20 @@
   }
 
   const isSearchActive = $derived(searchQuery.trim().length > 0);
-  const hasFilter = $derived(activeTag !== '' || activeSource !== 'all');
+  const hasFilter = $derived(
+    activeTag !== '' || activeSource !== 'all' ||
+    activeCountry !== '' || activeCodec !== ''
+  );
+
+  function filterNoArtwork(list: Station[]): Station[] {
+    return list.filter(s => s.favicon !== '');
+  }
 
   async function loadFeatured() {
     loading = true;
     try {
-      const result = await LibraryService.GetTopVotedRadioStations(50);
-      stations = (result || []).map(mapStation);
+      const result = await LibraryService.GetTopVotedRadioStations(100);
+      stations = filterNoArtwork((result || []).map(mapStation)).slice(0, 50);
       proxyStationIcons(stations.map(s => s.favicon));
     } catch {
       stations = [];
@@ -80,8 +99,8 @@
   async function loadByTag(tag: string) {
     loading = true;
     try {
-      const result = await LibraryService.GetRadioStationsByTag(tag, 50);
-      stations = (result || []).map(mapStation);
+      const result = await LibraryService.GetRadioStationsByTag(tag, 100);
+      stations = filterNoArtwork((result || []).map(mapStation)).slice(0, 50);
       proxyStationIcons(stations.map(s => s.favicon));
     } catch {
       stations = [];
@@ -95,6 +114,21 @@
     try {
       const result = await LibraryService.GetSomaFMStations();
       stations = (result || []).map(mapStation);
+      proxyStationIcons(stations.map(s => s.favicon));
+    } catch {
+      stations = [];
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function loadFiltered() {
+    loading = true;
+    try {
+      const result = await LibraryService.SearchRadioStationsFiltered(
+        activeCountry, activeCodec, 100
+      );
+      stations = filterNoArtwork((result || []).map(mapStation)).slice(0, 50);
       proxyStationIcons(stations.map(s => s.favicon));
     } catch {
       stations = [];
@@ -142,6 +176,8 @@
     searchQuery = value;
     activeTag = '';
     activeSource = 'all';
+    activeCountry = '';
+    activeCodec = '';
 
     if (debounceTimer) clearTimeout(debounceTimer);
 
@@ -153,8 +189,8 @@
     loading = true;
     debounceTimer = setTimeout(async () => {
       try {
-        const result = await LibraryService.SearchRadioStations(value.trim(), 50);
-        stations = (result || []).map(mapStation);
+        const result = await LibraryService.SearchRadioStations(value.trim(), 100);
+        stations = filterNoArtwork((result || []).map(mapStation)).slice(0, 50);
         proxyStationIcons(stations.map(s => s.favicon));
       } catch {
         stations = [];
@@ -173,6 +209,8 @@
   function clearFilters() {
     activeTag = '';
     activeSource = 'all';
+    activeCountry = '';
+    activeCodec = '';
     searchQuery = '';
     if (debounceTimer) clearTimeout(debounceTimer);
     loadFeatured();
@@ -182,6 +220,8 @@
     searchQuery = '';
     if (debounceTimer) clearTimeout(debounceTimer);
     activeSource = 'all';
+    activeCountry = '';
+    activeCodec = '';
     activeTag = tag;
     loadByTag(tag);
   }
@@ -190,11 +230,39 @@
     searchQuery = '';
     if (debounceTimer) clearTimeout(debounceTimer);
     activeTag = '';
+    activeCountry = '';
+    activeCodec = '';
     activeSource = source;
     if (source === 'somafm') {
       loadSomaFM();
     } else {
       loadFeatured();
+    }
+  }
+
+  function filterByCountry(country: string) {
+    searchQuery = '';
+    if (debounceTimer) clearTimeout(debounceTimer);
+    activeTag = '';
+    activeSource = 'all';
+    activeCountry = activeCountry === country ? '' : country;
+    if (activeCountry === '' && activeCodec === '') {
+      loadFeatured();
+    } else {
+      loadFiltered();
+    }
+  }
+
+  function filterByCodec(codec: string) {
+    searchQuery = '';
+    if (debounceTimer) clearTimeout(debounceTimer);
+    activeTag = '';
+    activeSource = 'all';
+    activeCodec = activeCodec === codec ? '' : codec;
+    if (activeCountry === '' && activeCodec === '') {
+      loadFeatured();
+    } else {
+      loadFiltered();
     }
   }
 
@@ -283,10 +351,10 @@
     </div>
 
     <div class="filter-bar">
-      <div class="source-filters">
+      <div class="filter-group">
         <button
           class="filter-pill"
-          class:active={activeSource === 'all' && activeTag === ''}
+          class:active={activeSource === 'all' && activeTag === '' && activeCountry === '' && activeCodec === ''}
           onclick={() => filterBySource('all')}
         >All</button>
         <button
@@ -295,13 +363,30 @@
           onclick={() => filterBySource('somafm')}
         >SomaFM</button>
       </div>
+      <div class="filter-group">
+        {#each countries as c}
+          <button
+            class="filter-pill"
+            class:active={activeCountry === c.code}
+            onclick={() => filterByCountry(c.code)}
+          >{c.label}</button>
+        {/each}
+      </div>
+      <div class="filter-group">
+        {#each codecs as codec}
+          <button
+            class="filter-pill"
+            class:active={activeCodec === codec}
+            onclick={() => filterByCodec(codec)}
+          >{codec}</button>
+        {/each}
+      </div>
       {#if hasFilter}
         <div class="active-filter">
-          {#if activeTag}
-            <span class="filter-label">Tag: {activeTag}</span>
-          {:else if activeSource === 'somafm'}
-            <span class="filter-label">Source: SomaFM</span>
-          {/if}
+          {#if activeTag}<span class="filter-label">Tag: {activeTag}</span>{/if}
+          {#if activeSource === 'somafm'}<span class="filter-label">Source: SomaFM</span>{/if}
+          {#if activeCountry}<span class="filter-label">Country: {countries.find(c => c.code === activeCountry)?.label}</span>{/if}
+          {#if activeCodec}<span class="filter-label">Codec: {activeCodec}</span>{/if}
           <button class="filter-clear" onclick={clearFilters} aria-label="Clear filter">
             <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
               <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
@@ -319,6 +404,8 @@
           No stations found for "{searchQuery.trim()}"
         {:else if activeTag}
           No stations found for tag "{activeTag}"
+        {:else if activeCountry || activeCodec}
+          No stations found for this filter
         {:else}
           No stations available
         {/if}
@@ -527,7 +614,7 @@
     flex-wrap: wrap;
   }
 
-  .source-filters {
+  .filter-group {
     display: flex;
     gap: 0.25rem;
   }
