@@ -124,6 +124,97 @@
     if (!editing) return false;
     return editing.name.trim() !== '' && editing.url.trim() !== '' && editing.username.trim() !== '';
   }
+
+  // Last.fm scrobble state
+  type ScrobbleConfig = {
+    apiKey: string;
+    sessionKey: string;
+    username: string;
+    enabled: boolean;
+  };
+
+  let scrobbleConfig = $state<ScrobbleConfig | null>(null);
+  let lfmApiKey = $state('');
+  let lfmApiSecret = $state('');
+  let lfmAuthToken = $state('');
+  let lfmConnecting = $state(false);
+  let lfmResult = $state<{ ok: boolean; message: string } | null>(null);
+
+  async function loadScrobbleConfig() {
+    try {
+      const cfg = await LibraryService.GetScrobbleConfig();
+      scrobbleConfig = cfg;
+      lfmApiKey = cfg.apiKey || '';
+    } catch {
+      scrobbleConfig = null;
+    }
+  }
+
+  $effect(() => {
+    loadScrobbleConfig();
+  });
+
+  async function saveApiKeys() {
+    lfmResult = null;
+    try {
+      await LibraryService.SaveScrobbleAPIKeys(lfmApiKey, lfmApiSecret);
+      lfmApiSecret = '';
+      lfmResult = { ok: true, message: 'API keys saved' };
+      await loadScrobbleConfig();
+    } catch (err: any) {
+      lfmResult = { ok: false, message: err?.message || String(err) };
+    }
+  }
+
+  async function startLastFmAuth() {
+    lfmConnecting = true;
+    lfmResult = null;
+    try {
+      const token = await LibraryService.StartLastFmAuth();
+      lfmAuthToken = token;
+      lfmResult = { ok: true, message: 'Browser opened - approve the request, then click "Complete authentication"' };
+    } catch (err: any) {
+      lfmResult = { ok: false, message: err?.message || String(err) };
+    } finally {
+      lfmConnecting = false;
+    }
+  }
+
+  async function completeLastFmAuth() {
+    lfmConnecting = true;
+    lfmResult = null;
+    try {
+      await LibraryService.CompleteLastFmAuth(lfmAuthToken);
+      lfmAuthToken = '';
+      lfmResult = { ok: true, message: 'Connected to Last.fm' };
+      await loadScrobbleConfig();
+    } catch (err: any) {
+      lfmResult = { ok: false, message: err?.message || String(err) };
+    } finally {
+      lfmConnecting = false;
+    }
+  }
+
+  async function disconnectLastFm() {
+    lfmResult = null;
+    try {
+      await LibraryService.DisconnectLastFm();
+      lfmAuthToken = '';
+      await loadScrobbleConfig();
+    } catch (err: any) {
+      lfmResult = { ok: false, message: err?.message || String(err) };
+    }
+  }
+
+  async function toggleScrobbleEnabled() {
+    if (!scrobbleConfig) return;
+    try {
+      await LibraryService.SetScrobbleEnabled(!scrobbleConfig.enabled);
+      await loadScrobbleConfig();
+    } catch (err: any) {
+      lfmResult = { ok: false, message: err?.message || String(err) };
+    }
+  }
 </script>
 
 <div class="settings">
@@ -258,6 +349,57 @@
           {/if}
         </div>
       {/if}
+    {/if}
+  </section>
+
+  <section class="section">
+    <h3>Last.fm</h3>
+
+    {#if scrobbleConfig?.sessionKey}
+      <div class="lfm-connected">
+        <p class="lfm-status">Connected as <strong>{scrobbleConfig.username}</strong></p>
+        <label class="lfm-toggle">
+          <input type="checkbox" checked={scrobbleConfig.enabled} onchange={toggleScrobbleEnabled} />
+          Scrobbling {scrobbleConfig.enabled ? 'enabled' : 'disabled'}
+        </label>
+        <button class="btn-cancel" onclick={disconnectLastFm}>Disconnect</button>
+      </div>
+    {:else if scrobbleConfig?.apiKey && !lfmAuthToken}
+      <div class="lfm-auth">
+        <p class="lfm-status">API key configured. Connect your Last.fm account to start scrobbling.</p>
+        <button class="btn-save" onclick={startLastFmAuth} disabled={lfmConnecting}>
+          {lfmConnecting ? 'Opening browser...' : 'Connect to Last.fm'}
+        </button>
+      </div>
+    {:else if lfmAuthToken}
+      <div class="lfm-auth">
+        <p class="lfm-status">Approve the request in your browser, then click below.</p>
+        <button class="btn-save" onclick={completeLastFmAuth} disabled={lfmConnecting}>
+          {lfmConnecting ? 'Verifying...' : 'Complete authentication'}
+        </button>
+      </div>
+    {:else}
+      <div class="server-form">
+        <div class="form-field">
+          <label for="lfm-key">API Key</label>
+          <input id="lfm-key" type="text" bind:value={lfmApiKey} placeholder="Your Last.fm API key" />
+        </div>
+        <div class="form-field">
+          <label for="lfm-secret">API Secret</label>
+          <input id="lfm-secret" type="password" bind:value={lfmApiSecret} placeholder="Your Last.fm API secret" />
+        </div>
+        <div class="form-actions">
+          <button class="btn-save" onclick={saveApiKeys} disabled={!lfmApiKey.trim() || !lfmApiSecret.trim()}>
+            Save
+          </button>
+        </div>
+      </div>
+    {/if}
+
+    {#if lfmResult}
+      <div class="test-result" class:ok={lfmResult.ok} class:err={!lfmResult.ok}>
+        {lfmResult.message}
+      </div>
     {/if}
   </section>
 </div>
@@ -678,5 +820,37 @@
 
   .sync-result.err {
     color: #e55;
+  }
+
+  /* Last.fm */
+  .lfm-connected {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .lfm-status {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    margin: 0;
+  }
+
+  .lfm-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+
+  .lfm-toggle input {
+    accent-color: var(--accent);
+  }
+
+  .lfm-auth {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 </style>

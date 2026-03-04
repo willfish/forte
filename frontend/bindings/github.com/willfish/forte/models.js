@@ -278,6 +278,59 @@ export class PlaylistTrack {
 }
 
 /**
+ * ScrobbleConfigJSON is the JSON-friendly scrobble config exposed to the frontend.
+ * APISecret is intentionally omitted.
+ */
+export class ScrobbleConfigJSON {
+    /**
+     * Creates a new ScrobbleConfigJSON instance.
+     * @param {Partial<ScrobbleConfigJSON>} [$$source = {}] - The source object to create the ScrobbleConfigJSON.
+     */
+    constructor($$source = {}) {
+        if (!("apiKey" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["apiKey"] = "";
+        }
+        if (!("sessionKey" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["sessionKey"] = "";
+        }
+        if (!("username" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["username"] = "";
+        }
+        if (!("enabled" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["enabled"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ScrobbleConfigJSON instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ScrobbleConfigJSON}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ScrobbleConfigJSON(/** @type {Partial<ScrobbleConfigJSON>} */($$parsedSource));
+    }
+}
+
+/**
  * SearchResult is the JSON-friendly search result type exposed to the frontend.
  */
 export class SearchResult {
