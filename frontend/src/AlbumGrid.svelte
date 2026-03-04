@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { LibraryService } from "../bindings/github.com/willfish/forte";
+  import { LibraryService, PlayerService } from "../bindings/github.com/willfish/forte";
   import { isServerOnline, onServerStatusChange } from './lib/stores';
 
   type AlbumItem = {
@@ -73,6 +73,22 @@
     if (onselect) onselect(albumId);
   }
 
+  async function playAlbum(e: Event, albumId: number, albumTitle: string) {
+    e.stopPropagation();
+    const trackList = await LibraryService.GetAlbumTracks(albumId);
+    const queueTracks = (trackList || []).map((t: any) => ({
+      trackId: t.trackId,
+      title: t.title,
+      artist: t.artist,
+      album: albumTitle,
+      durationMs: t.durationMs,
+      filePath: t.filePath,
+    }));
+    if (queueTracks.length > 0) {
+      await PlayerService.PlayQueue(queueTracks, 0);
+    }
+  }
+
   function formatYear(year: number): string {
     return year > 0 ? String(year) : '';
   }
@@ -110,7 +126,19 @@
   </div>
 
   {#if loading}
-    <div class="loading">Loading albums...</div>
+    <div class="grid">
+      {#each Array(12) as _}
+        <div class="album-card skeleton-card">
+          <div class="artwork-wrapper">
+            <div class="artwork-skeleton"></div>
+          </div>
+          <div class="album-info">
+            <span class="skeleton-line skeleton-title"></span>
+            <span class="skeleton-line skeleton-artist"></span>
+          </div>
+        </div>
+      {/each}
+    </div>
   {:else if albums.length === 0}
     <div class="empty">
       <svg class="empty-icon" viewBox="0 0 24 24" width="64" height="64" fill="currentColor">
@@ -127,6 +155,8 @@
           <div class="artwork-wrapper">
             {#if album.artworkSrc}
               <img class="artwork" src={album.artworkSrc} alt="{album.title} cover" loading="lazy" />
+            {:else if album.artworkSrc === undefined}
+              <div class="artwork-skeleton"></div>
             {:else}
               <div class="artwork-placeholder">
                 <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor" opacity="0.3">
@@ -134,6 +164,14 @@
                 </svg>
               </div>
             {/if}
+            <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+            <div class="artwork-overlay" onclick={(e) => playAlbum(e, album.id, album.title)}>
+              <div class="play-btn" aria-label="Play {album.title}">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+              </div>
+            </div>
             {#if album.source === 'server'}
               <span class="source-badge" class:source-badge-offline={unavailable} title={unavailable ? 'Server offline' : 'Server'}>
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
@@ -242,7 +280,7 @@
     font-size: 0.7rem;
   }
 
-  .loading, .empty {
+  .empty {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -272,7 +310,7 @@
 
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 1rem;
     overflow-y: auto;
     flex: 1;
@@ -289,10 +327,16 @@
     cursor: pointer;
     text-align: left;
     color: inherit;
+    transition: transform 0.15s ease, background 0.15s ease;
   }
 
   .album-card:hover {
     background: var(--bg-hover);
+    transform: translateY(-2px);
+  }
+
+  .skeleton-card {
+    pointer-events: none;
   }
 
   .artwork-wrapper {
@@ -303,14 +347,15 @@
   .artwork {
     width: 100%;
     aspect-ratio: 1;
-    border-radius: 4px;
+    border-radius: 6px;
     object-fit: cover;
+    display: block;
   }
 
   .artwork-placeholder {
     width: 100%;
     aspect-ratio: 1;
-    border-radius: 4px;
+    border-radius: 6px;
     background: var(--bg-hover);
     display: flex;
     align-items: center;
@@ -318,12 +363,78 @@
     color: var(--text-secondary);
   }
 
+  .artwork-skeleton {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 6px;
+    background: var(--bg-hover);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  .skeleton-line {
+    display: block;
+    border-radius: 3px;
+    background: var(--bg-hover);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  .skeleton-title {
+    height: 0.85rem;
+    width: 80%;
+  }
+
+  .skeleton-artist {
+    height: 0.75rem;
+    width: 60%;
+    margin-top: 0.25rem;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .artwork-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  .album-card:hover .artwork-overlay {
+    opacity: 1;
+  }
+
+  .play-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent);
+    color: var(--text-on-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .play-btn:hover {
+    transform: scale(1.1);
+  }
+
   .source-badge {
     position: absolute;
     top: 4px;
     right: 4px;
     background: rgba(0, 0, 0, 0.6);
-    color: #fff;
+    color: var(--text-on-accent);
     border-radius: 3px;
     padding: 2px 4px;
     display: flex;

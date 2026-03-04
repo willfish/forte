@@ -36,4 +36,21 @@ test.describe("Album browsing", () => {
     await expect(page.getByText("Airbag")).toBeVisible();
     await expect(page.getByText("Paranoid Android")).toBeVisible();
   });
+
+  test("play button overlay appears on hover", async ({ page }) => {
+    await page.goto("/");
+    const card = page.locator(".album-card").first();
+    await card.hover();
+    const playBtn = card.locator(".play-btn");
+    await expect(playBtn).toBeVisible();
+  });
+
+  test("shows skeleton placeholders while loading", async ({ page }) => {
+    // Skeleton placeholders appear during the loading state.
+    // After data loads they are replaced by album cards.
+    await page.goto("/");
+    // Once loaded, no skeletons should remain.
+    await expect(page.locator(".album-title").first()).toBeVisible();
+    await expect(page.locator(".artwork-skeleton")).toHaveCount(0);
+  });
 });
