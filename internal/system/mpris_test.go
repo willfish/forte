@@ -209,7 +209,9 @@ func (m *mockPlayer) GetRepeat() string         { return "off" }
 func TestMprisPlayerPlay(t *testing.T) {
 	mock := &mockPlayer{}
 	p := &mprisPlayer{m: &MPRIS{player: mock}}
-	p.Play()
+	if err := p.Play(); err != nil {
+		t.Fatalf("Play() returned error: %v", err)
+	}
 	if !mock.resumeCalled {
 		t.Error("Play() should call Resume()")
 	}
@@ -218,7 +220,9 @@ func TestMprisPlayerPlay(t *testing.T) {
 func TestMprisPlayerPause(t *testing.T) {
 	mock := &mockPlayer{}
 	p := &mprisPlayer{m: &MPRIS{player: mock}}
-	p.Pause()
+	if err := p.Pause(); err != nil {
+		t.Fatalf("Pause() returned error: %v", err)
+	}
 	if !mock.pauseCalled {
 		t.Error("Pause() should call Pause()")
 	}
@@ -227,21 +231,27 @@ func TestMprisPlayerPause(t *testing.T) {
 func TestMprisPlayerPlayPause(t *testing.T) {
 	mock := &mockPlayer{state: "playing"}
 	p := &mprisPlayer{m: &MPRIS{player: mock}}
-	p.PlayPause()
+	if err := p.PlayPause(); err != nil {
+		t.Fatalf("PlayPause() returned error: %v", err)
+	}
 	if !mock.pauseCalled {
 		t.Error("PlayPause() when playing should call Pause()")
 	}
 
 	mock = &mockPlayer{state: "paused"}
 	p = &mprisPlayer{m: &MPRIS{player: mock}}
-	p.PlayPause()
+	if err := p.PlayPause(); err != nil {
+		t.Fatalf("PlayPause() returned error: %v", err)
+	}
 	if !mock.resumeCalled {
 		t.Error("PlayPause() when paused should call Resume()")
 	}
 
 	mock = &mockPlayer{state: "stopped"}
 	p = &mprisPlayer{m: &MPRIS{player: mock}}
-	p.PlayPause()
+	if err := p.PlayPause(); err != nil {
+		t.Fatalf("PlayPause() returned error: %v", err)
+	}
 	if !mock.resumeCalled {
 		t.Error("PlayPause() when stopped should call Resume()")
 	}
@@ -250,7 +260,9 @@ func TestMprisPlayerPlayPause(t *testing.T) {
 func TestMprisPlayerStop(t *testing.T) {
 	mock := &mockPlayer{}
 	p := &mprisPlayer{m: &MPRIS{player: mock}}
-	p.Stop()
+	if err := p.Stop(); err != nil {
+		t.Fatalf("Stop() returned error: %v", err)
+	}
 	if !mock.stopCalled {
 		t.Error("Stop() should call Stop()")
 	}
@@ -259,7 +271,9 @@ func TestMprisPlayerStop(t *testing.T) {
 func TestMprisPlayerNext(t *testing.T) {
 	mock := &mockPlayer{}
 	p := &mprisPlayer{m: &MPRIS{player: mock}}
-	p.Next()
+	if err := p.Next(); err != nil {
+		t.Fatalf("Next() returned error: %v", err)
+	}
 	if !mock.nextCalled {
 		t.Error("Next() should call Next()")
 	}
@@ -268,7 +282,9 @@ func TestMprisPlayerNext(t *testing.T) {
 func TestMprisPlayerPrevious(t *testing.T) {
 	mock := &mockPlayer{}
 	p := &mprisPlayer{m: &MPRIS{player: mock}}
-	p.Previous()
+	if err := p.Previous(); err != nil {
+		t.Fatalf("Previous() returned error: %v", err)
+	}
 	if !mock.previousCalled {
 		t.Error("Previous() should call Previous()")
 	}
@@ -279,14 +295,18 @@ func TestSetPositionOutOfRange(t *testing.T) {
 	p := &mprisPlayer{m: &MPRIS{player: mock}}
 
 	// Negative position should be rejected (no Seek called).
-	p.SetPosition("/org/forte/track/1", -1_000_000)
+	if err := p.SetPosition("/org/forte/track/1", -1_000_000); err != nil {
+		t.Fatalf("SetPosition returned error: %v", err)
+	}
 	if mock.seekPos != 0 {
 		t.Error("SetPosition with negative position should not seek")
 	}
 
 	// Beyond duration should be rejected.
 	mock.seekPos = 0
-	p.SetPosition("/org/forte/track/1", 500_000_000_000)
+	if err := p.SetPosition("/org/forte/track/1", 500_000_000_000); err != nil {
+		t.Fatalf("SetPosition returned error: %v", err)
+	}
 	if mock.seekPos != 0 {
 		t.Error("SetPosition beyond duration should not seek")
 	}
