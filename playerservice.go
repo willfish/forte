@@ -44,6 +44,7 @@ type PlayerService struct {
 	radioName       string
 	radioStreamURL  string
 	radioArtworkURL string
+	radioLastTitle  string // last ICY stream title, for change detection
 	savedQueue      []player.QueueTrack
 	savedPosition   int
 }
@@ -142,6 +143,7 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 					p.mpris.UpdatePosition(p.engine.Position())
 				}
 				p.checkScrobble()
+				p.checkRadioTitle()
 			case <-saveTicker.C:
 				p.saveState()
 			case <-flushTicker.C:
@@ -571,11 +573,16 @@ func (p *PlayerService) State() string {
 }
 
 // MediaTitle returns the title of the currently playing track.
+// In radio mode, filters out the raw stream URL (shown when no ICY metadata is available).
 func (p *PlayerService) MediaTitle() string {
 	if p.engine == nil {
 		return ""
 	}
-	return p.engine.MediaTitle()
+	t := p.engine.MediaTitle()
+	if p.radioMode && t == p.radioStreamURL {
+		return ""
+	}
+	return t
 }
 
 // MediaArtist returns the artist of the currently playing track.
@@ -1036,6 +1043,7 @@ func (p *PlayerService) PlayRadio(stationName, streamURL, artworkURL string) err
 	p.radioName = stationName
 	p.radioStreamURL = streamURL
 	p.radioArtworkURL = artworkURL
+	p.radioLastTitle = ""
 
 	// Clear the queue and play the stream directly.
 	p.queue.Clear()
@@ -1067,6 +1075,7 @@ func (p *PlayerService) StopRadio() {
 	p.radioName = ""
 	p.radioStreamURL = ""
 	p.radioArtworkURL = ""
+	p.radioLastTitle = ""
 
 	if p.engine != nil {
 		p.engine.Stop()
@@ -1089,6 +1098,39 @@ func (p *PlayerService) StopRadio() {
 	}
 	if p.onTrayUpdate != nil {
 		p.onTrayUpdate("", "")
+	}
+}
+
+// checkRadioTitle detects ICY stream title changes during radio playback
+// and updates MPRIS metadata, tray tooltip, and desktop notifications.
+func (p *PlayerService) checkRadioTitle() {
+	if !p.radioMode || p.engine == nil {
+		return
+	}
+	t := p.MediaTitle() // filtered: empty when no ICY data
+	if t == p.radioLastTitle {
+		return
+	}
+	p.radioLastTitle = t
+
+	if p.mpris != nil {
+		artist := "Radio"
+		if t != "" {
+			artist = t
+		}
+		p.mpris.UpdateMetadata(p.radioName, artist, "", p.radioStreamURL, 0, 0)
+	}
+
+	if p.onTrayUpdate != nil {
+		if t != "" {
+			p.onTrayUpdate(p.radioName, t)
+		} else {
+			p.onTrayUpdate(p.radioName, "Radio")
+		}
+	}
+
+	if p.notifier != nil && t != "" {
+		p.notifier.Notify(p.radioName, t, nil)
 	}
 }
 
