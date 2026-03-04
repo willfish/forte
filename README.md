@@ -48,7 +48,21 @@ The Go backend handles all I/O (database, network, playback). The Svelte fronten
 - [go-task](https://taskfile.dev) (or use `go install` directly)
 - [Wails 3](https://wails.io): `go install github.com/wailsapp/wails/v3/cmd/wails3@latest`
 
-### With Nix
+### Install with Nix
+
+```sh
+nix build github:willfish/forte
+```
+
+Or add to a NixOS/home-manager configuration:
+
+```nix
+environment.systemPackages = [
+  (builtins.getFlake "github:willfish/forte").packages.${system}.default
+];
+```
+
+### With Nix (development)
 
 The repository includes a `flake.nix` that provides all dependencies:
 
