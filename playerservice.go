@@ -38,6 +38,14 @@ type PlayerService struct {
 	scrobbleTrackID int64
 	scrobbleElapsed time.Duration
 	scrobbled       bool
+
+	// Radio mode state.
+	radioMode       bool
+	radioName       string
+	radioStreamURL  string
+	radioArtworkURL string
+	savedQueue      []player.QueueTrack
+	savedPosition   int
 }
 
 // ServiceStartup initialises the mpv engine when the application starts.
@@ -1009,6 +1017,94 @@ func (p *PlayerService) flushListenBrainzQueue() {
 		_ = p.db.RemoveScrobble(e.ID)
 	}
 	log.Printf("scrobble queue: flushed %d listenbrainz scrobbles", len(entries))
+}
+
+// PlayRadio starts playback of a radio stream. It saves the current library
+// queue and enters radio mode where next/prev/shuffle/repeat are disabled.
+func (p *PlayerService) PlayRadio(stationName, streamURL, artworkURL string) error {
+	if p.engine == nil {
+		return fmt.Errorf("player not initialised")
+	}
+
+	// Save the library queue if not already in radio mode.
+	if !p.radioMode {
+		p.savedQueue = p.queue.Tracks()
+		p.savedPosition = p.queue.Position()
+	}
+
+	p.radioMode = true
+	p.radioName = stationName
+	p.radioStreamURL = streamURL
+	p.radioArtworkURL = artworkURL
+
+	// Clear the queue and play the stream directly.
+	p.queue.Clear()
+	if err := p.engine.Play(streamURL); err != nil {
+		return fmt.Errorf("play radio: %w", err)
+	}
+
+	if p.mpris != nil {
+		p.mpris.UpdateMetadata(stationName, "Radio", "", streamURL, 0, 0)
+		p.mpris.UpdatePlaybackStatus("playing")
+	}
+	if p.onTrayUpdate != nil {
+		p.onTrayUpdate(stationName, "Radio")
+	}
+	if p.notifier != nil {
+		p.notifier.Notify(stationName, "Radio", nil)
+	}
+
+	return nil
+}
+
+// StopRadio stops the current radio stream and restores the library queue.
+func (p *PlayerService) StopRadio() {
+	if !p.radioMode {
+		return
+	}
+
+	p.radioMode = false
+	p.radioName = ""
+	p.radioStreamURL = ""
+	p.radioArtworkURL = ""
+
+	if p.engine != nil {
+		p.engine.Stop()
+	}
+
+	// Restore the library queue.
+	if len(p.savedQueue) > 0 {
+		pos := p.savedPosition
+		if pos < 0 || pos >= len(p.savedQueue) {
+			pos = 0
+		}
+		p.queue.Replace(p.savedQueue, pos)
+	}
+	p.savedQueue = nil
+	p.savedPosition = 0
+
+	if p.mpris != nil {
+		p.mpris.UpdatePlaybackStatus("stopped")
+		p.mpris.ClearMetadata()
+	}
+	if p.onTrayUpdate != nil {
+		p.onTrayUpdate("", "")
+	}
+}
+
+// IsRadioMode returns whether the player is currently in radio mode.
+func (p *PlayerService) IsRadioMode() bool {
+	return p.radioMode
+}
+
+// RadioStationName returns the name of the currently playing radio station.
+func (p *PlayerService) RadioStationName() string {
+	return p.radioName
+}
+
+// RadioArtworkURL returns the artwork URL of the currently playing radio station.
+func (p *PlayerService) RadioArtworkURL() string {
+	return p.radioArtworkURL
 }
 
 // SetReplayGain sets the ReplayGain mode: "track", "album", or "no" (off).
