@@ -61,3 +61,11 @@ body {
     flex-direction: column;
     overflow-y: auto;
 }
+
+.content-area {
+    position: relative;
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}

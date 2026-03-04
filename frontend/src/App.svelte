@@ -2,6 +2,7 @@
   import Sidebar from './Sidebar.svelte';
   import Content from './Content.svelte';
   import NowPlayingBar from './NowPlayingBar.svelte';
+  import NowPlayingView from './NowPlayingView.svelte';
   import ShortcutHelp from './ShortcutHelp.svelte';
   import QueuePanel from './QueuePanel.svelte';
   import Toast from './Toast.svelte';
@@ -12,6 +13,7 @@
 
   let showHelp = $state(false);
   let showQueue = $state(false);
+  let showNowPlaying = $state(false);
 
   function onKeydown(e: KeyboardEvent) {
     if (e.key === '?' && (e.ctrlKey || e.metaKey)) {
@@ -22,6 +24,7 @@
     if (e.key === 'Escape') {
       if (showHelp) { showHelp = false; return; }
       if (showQueue) { showQueue = false; return; }
+      if (showNowPlaying) { showNowPlaying = false; return; }
     }
     handleKeydown(e);
   }
@@ -34,9 +37,14 @@
     <div class="sidebar-wrap">
       <Sidebar />
     </div>
-    <Content />
+    <div class="content-area">
+      <Content />
+      {#if showNowPlaying}
+        <NowPlayingView onclose={() => showNowPlaying = false} />
+      {/if}
+    </div>
   </div>
-  <NowPlayingBar onqueuetoggle={() => showQueue = !showQueue} />
+  <NowPlayingBar onqueuetoggle={() => showQueue = !showQueue} onexpand={() => showNowPlaying = true} />
 </div>
 
 <QueuePanel open={showQueue} onclose={() => showQueue = false} />
