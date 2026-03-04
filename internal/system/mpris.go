@@ -220,16 +220,20 @@ func (p *mprisPlayer) Previous() *dbus.Error {
 	return nil
 }
 
-func (p *mprisPlayer) SeekOffset(offsetUs int64) *dbus.Error {
-	currentPos := p.m.player.Position()
+// clampSeek calculates a new position from a microsecond offset, clamped to [0, duration].
+func clampSeek(currentPos float64, offsetUs int64, duration float64) float64 {
 	newPos := currentPos + float64(offsetUs)/1e6
 	if newPos < 0 {
 		newPos = 0
 	}
-	dur := p.m.player.Duration()
-	if dur > 0 && newPos > dur {
-		newPos = dur
+	if duration > 0 && newPos > duration {
+		newPos = duration
 	}
+	return newPos
+}
+
+func (p *mprisPlayer) SeekOffset(offsetUs int64) *dbus.Error {
+	newPos := clampSeek(p.m.player.Position(), offsetUs, p.m.player.Duration())
 	p.m.player.Seek(newPos)
 
 	_ = p.m.conn.Emit(
@@ -274,36 +278,32 @@ func (m *MPRIS) onShuffleChanged(c *prop.Change) *dbus.Error {
 }
 
 func (m *MPRIS) onLoopStatusChanged(c *prop.Change) *dbus.Error {
-	status := c.Value.(string)
-	switch status {
-	case "Track":
-		m.player.SetRepeat("one")
-	case "Playlist":
-		m.player.SetRepeat("all")
-	default:
-		m.player.SetRepeat("off")
-	}
+	m.player.SetRepeat(mapLoopStatusToRepeat(c.Value.(string)))
 	return nil
 }
 
 // --- State update methods (called by PlayerService to push changes) ---
 
-// UpdatePlaybackStatus pushes a playback state change to D-Bus.
-func (m *MPRIS) UpdatePlaybackStatus(state string) {
-	var status string
+// mapPlaybackStatus converts an internal state to the MPRIS2 PlaybackStatus.
+func mapPlaybackStatus(state string) string {
 	switch state {
 	case "playing":
-		status = "Playing"
+		return "Playing"
 	case "paused":
-		status = "Paused"
+		return "Paused"
 	default:
-		status = "Stopped"
+		return "Stopped"
 	}
-	m.setProp(ifacePlayer, "PlaybackStatus", dbus.MakeVariant(status))
 }
 
-// UpdateMetadata pushes track metadata to D-Bus.
-func (m *MPRIS) UpdateMetadata(title, artist, album, filePath string, durationMs int, trackID int64) {
+// UpdatePlaybackStatus pushes a playback state change to D-Bus.
+func (m *MPRIS) UpdatePlaybackStatus(state string) {
+	m.setProp(ifacePlayer, "PlaybackStatus", dbus.MakeVariant(mapPlaybackStatus(state)))
+}
+
+// buildMetadata constructs an MPRIS2 metadata map from track info.
+// artURL is optional; pass "" to omit artwork.
+func buildMetadata(title, artist, album, filePath string, durationMs int, trackID int64, artURL string) map[string]dbus.Variant {
 	md := map[string]dbus.Variant{
 		"mpris:trackid": dbus.MakeVariant(dbus.ObjectPath("/org/forte/track/" + strconv.FormatInt(trackID, 10))),
 		"mpris:length":  dbus.MakeVariant(int64(durationMs) * 1000),
@@ -321,11 +321,17 @@ func (m *MPRIS) UpdateMetadata(title, artist, album, filePath string, durationMs
 	if filePath != "" {
 		md["xesam:url"] = dbus.MakeVariant("file://" + filePath)
 	}
-
-	if artURL := m.exportArtwork(); artURL != "" {
+	if artURL != "" {
 		md["mpris:artUrl"] = dbus.MakeVariant(artURL)
 	}
 
+	return md
+}
+
+// UpdateMetadata pushes track metadata to D-Bus.
+func (m *MPRIS) UpdateMetadata(title, artist, album, filePath string, durationMs int, trackID int64) {
+	artURL := m.exportArtwork()
+	md := buildMetadata(title, artist, album, filePath, durationMs, trackID, artURL)
 	m.setProp(ifacePlayer, "Metadata", dbus.MakeVariant(md))
 }
 
@@ -339,18 +345,33 @@ func (m *MPRIS) UpdateShuffle(enabled bool) {
 	m.setProp(ifacePlayer, "Shuffle", dbus.MakeVariant(enabled))
 }
 
-// UpdateLoopStatus pushes repeat mode to D-Bus.
-func (m *MPRIS) UpdateLoopStatus(mode string) {
-	var status string
+// mapRepeatToLoopStatus converts an internal repeat mode to MPRIS2 LoopStatus.
+func mapRepeatToLoopStatus(mode string) string {
 	switch mode {
 	case "one":
-		status = "Track"
+		return "Track"
 	case "all":
-		status = "Playlist"
+		return "Playlist"
 	default:
-		status = "None"
+		return "None"
 	}
-	m.setProp(ifacePlayer, "LoopStatus", dbus.MakeVariant(status))
+}
+
+// mapLoopStatusToRepeat converts an MPRIS2 LoopStatus to an internal repeat mode.
+func mapLoopStatusToRepeat(status string) string {
+	switch status {
+	case "Track":
+		return "one"
+	case "Playlist":
+		return "all"
+	default:
+		return "off"
+	}
+}
+
+// UpdateLoopStatus pushes repeat mode to D-Bus.
+func (m *MPRIS) UpdateLoopStatus(mode string) {
+	m.setProp(ifacePlayer, "LoopStatus", dbus.MakeVariant(mapRepeatToLoopStatus(mode)))
 }
 
 // UpdatePosition updates the Position property (no signal emitted per spec).
