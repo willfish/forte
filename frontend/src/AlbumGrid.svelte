@@ -204,6 +204,8 @@
     justify-content: space-between;
     padding: 0 0 1rem;
     flex-shrink: 0;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 
   .count {

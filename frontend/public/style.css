@@ -94,3 +94,15 @@ body {
         transition-duration: 0.01ms !important;
     }
 }
+
+/* Responsive: collapse sidebar to icons at narrow widths */
+@media (max-width: 900px) {
+    .sidebar-wrap {
+        width: 56px;
+    }
+}
+
+/* Minimum usable width */
+body {
+    min-width: 700px;
+}

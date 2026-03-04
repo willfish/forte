@@ -28,7 +28,7 @@
       <li>
         <button class="nav-btn" class:active={currentView === item.view} onclick={() => navigate(item.view)}>
           <span class="icon">{item.icon}</span>
-          {item.label}
+          <span class="label">{item.label}</span>
         </button>
       </li>
     {/each}
@@ -92,5 +92,38 @@
     font-size: 1.1rem;
     width: 1.25rem;
     text-align: center;
+    flex-shrink: 0;
+  }
+
+  .label {
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 900px) {
+    .brand {
+      text-align: center;
+      padding: 1.25rem 0.25rem;
+      font-size: 0;
+    }
+
+    .brand::after {
+      content: 'F';
+      font-size: 1.1rem;
+    }
+
+    li {
+      padding: 0 0.25rem;
+    }
+
+    .nav-btn {
+      justify-content: center;
+      padding: 0.5rem;
+      gap: 0;
+    }
+
+    .label {
+      display: none;
+    }
   }
 </style>

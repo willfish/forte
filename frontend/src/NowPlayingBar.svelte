@@ -501,4 +501,26 @@
     accent-color: var(--accent);
     height: 4px;
   }
+
+  @media (max-width: 900px) {
+    .bar {
+      grid-template-columns: 1fr auto auto;
+      height: auto;
+      padding: 0.5rem 0.75rem;
+      gap: 0.5rem;
+    }
+
+    .controls {
+      flex-direction: row;
+      gap: 0.5rem;
+    }
+
+    .seek {
+      display: none;
+    }
+
+    .volume-section input {
+      display: none;
+    }
+  }
 </style>
