@@ -158,3 +158,19 @@ CREATE TABLE play_history (
 CREATE INDEX idx_play_history_played_at ON play_history (played_at);
 CREATE INDEX idx_play_history_track ON play_history (track_id);
 `
+
+const migration009 = `
+CREATE TABLE artist_metadata (
+	artist_id    INTEGER PRIMARY KEY REFERENCES artists(id) ON DELETE CASCADE,
+	bio          TEXT NOT NULL DEFAULT '',
+	image_url    TEXT NOT NULL DEFAULT '',
+	similar_json TEXT NOT NULL DEFAULT '[]',
+	mb_id        TEXT NOT NULL DEFAULT '',
+	mb_area      TEXT NOT NULL DEFAULT '',
+	mb_type      TEXT NOT NULL DEFAULT '',
+	mb_begin     TEXT NOT NULL DEFAULT '',
+	mb_end       TEXT NOT NULL DEFAULT '',
+	mb_tags      TEXT NOT NULL DEFAULT '',
+	fetched_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`
