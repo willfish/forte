@@ -14,5 +14,6 @@ export {
     AlbumTrack,
     Playlist,
     PlaylistTrack,
+    SearchResult,
     ServerConfig
 } from "./models.js";
