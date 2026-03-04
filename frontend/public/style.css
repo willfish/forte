@@ -2,44 +2,88 @@
     box-sizing: border-box;
 }
 
+/* ============================================================
+   Design tokens
+   ============================================================ */
+
+:root {
+    /* --- Typography scale --- */
+    --text-xs:  0.7rem;   /* timestamps, badges */
+    --text-sm:  0.75rem;  /* labels, secondary info */
+    --text-base: 0.85rem; /* body text */
+    --text-md:  0.9rem;   /* slightly emphasised body */
+    --text-lg:  1rem;     /* subheadings, toolbar text */
+    --text-xl:  1.25rem;  /* section headings */
+    --text-2xl: 1.5rem;   /* page headings */
+    --text-3xl: 1.75rem;  /* hero headings */
+
+    /* --- Spacing scale (4px grid, 1rem = 16px) --- */
+    --space-1:  0.25rem;  /* 4px  */
+    --space-2:  0.5rem;   /* 8px  */
+    --space-3:  0.75rem;  /* 12px */
+    --space-4:  1rem;     /* 16px */
+    --space-5:  1.25rem;  /* 20px */
+    --space-6:  1.5rem;   /* 24px */
+    --space-8:  2rem;     /* 32px */
+    --space-12: 3rem;     /* 48px */
+
+    /* --- Border radius --- */
+    --radius-sm:   3px;
+    --radius-md:   4px;
+    --radius-lg:   6px;
+    --radius-xl:   8px;
+    --radius-full: 50%;
+}
+
+/* --- Colour tokens: dark theme (default) --- */
 :root,
 [data-theme="dark"] {
     --bg-main: #1b2636;
     --bg-sidebar: #151e2b;
     --bg-bar: #151e2b;
+    --bg-elevated: #223040;
     --bg-hover: rgba(255, 255, 255, 0.06);
     --bg-active: rgba(51, 102, 170, 0.15);
-    --bg-elevated: #223040;
     --border: #2a3a4a;
+
     --text-primary: #e0e0e0;
     --text-secondary: #8899aa;
     --text-on-accent: #ffffff;
+
     --accent: #3366aa;
     --error: #ee5555;
     --success: #44cc88;
     --warning: #f59e0b;
 }
 
+/* --- Colour tokens: light theme --- */
 [data-theme="light"] {
     --bg-main: #f5f5f5;
     --bg-sidebar: #eaeaea;
     --bg-bar: #eaeaea;
+    --bg-elevated: #ffffff;
     --bg-hover: rgba(0, 0, 0, 0.05);
     --bg-active: rgba(51, 102, 170, 0.1);
-    --bg-elevated: #ffffff;
     --border: #d0d0d0;
+
     --text-primary: #1a1a1a;
     --text-secondary: #666666;
     --text-on-accent: #ffffff;
+
     --accent: #2855a0;
     --error: #dc2626;
     --success: #16a34a;
     --warning: #d97706;
 }
 
+/* ============================================================
+   Global base styles
+   ============================================================ */
+
 body {
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: var(--text-base);
     background: var(--bg-main);
     color: var(--text-primary);
     overflow: hidden;

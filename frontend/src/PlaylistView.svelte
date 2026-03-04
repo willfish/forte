@@ -299,7 +299,7 @@
     border: none;
     border-radius: 6px;
     background: var(--accent);
-    color: #fff;
+    color: var(--text-on-accent);
     cursor: pointer;
     font-size: 0.9rem;
   }
@@ -376,7 +376,7 @@
   }
 
   .action-btn.delete:hover {
-    color: #e55;
+    color: var(--error);
   }
 
   .rename-input {
@@ -470,7 +470,7 @@
   }
 
   .remove-btn:hover {
-    color: #e55;
+    color: var(--error);
     background: var(--bg-hover);
   }
 </style>
