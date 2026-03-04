@@ -15,6 +15,7 @@ import (
 	"github.com/willfish/forte/internal/library"
 	"github.com/willfish/forte/internal/metadata"
 	"github.com/willfish/forte/internal/player"
+	"github.com/willfish/forte/internal/scrobbling/lastfm"
 	"github.com/willfish/forte/internal/system"
 )
 
@@ -31,6 +32,11 @@ type PlayerService struct {
 	onTrayUpdate   func(title, artist string) // set by main.go for tooltip updates
 	manualSkip     int32                      // atomic: set before explicit Next/Previous to suppress auto-advance
 	stopSave       chan struct{}
+
+	// Scrobble tracking state.
+	scrobbleTrackID int64
+	scrobbleElapsed time.Duration
+	scrobbled       bool
 }
 
 // ServiceStartup initialises the mpv engine when the application starts.
@@ -66,6 +72,7 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 		}
 		p.queue.Next()
 		p.pushMPRISMetadata()
+		p.startScrobbleTracking()
 	})
 
 	// When the mpv playlist ends, loop back if repeat-all is on.
@@ -123,6 +130,7 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 				if p.mpris != nil && p.engine != nil {
 					p.mpris.UpdatePosition(p.engine.Position())
 				}
+				p.checkScrobble()
 			case <-saveTicker.C:
 				p.saveState()
 			case <-p.stopSave:
@@ -325,6 +333,7 @@ func (p *PlayerService) PlayQueue(tracks []player.QueueTrack, startAt int) error
 	atomic.StoreInt32(&p.manualSkip, 1) // suppress callback for initial load
 	err := p.engine.PlayAll(resolved)
 	p.pushMPRISMetadata()
+	p.startScrobbleTracking()
 	return err
 }
 
@@ -732,6 +741,83 @@ func (p *PlayerService) skipToNextPlayable() {
 		p.mpris.UpdatePlaybackStatus("stopped")
 		p.mpris.ClearMetadata()
 	}
+}
+
+// startScrobbleTracking resets scrobble state for the current track and
+// sends a "now playing" notification to Last.fm if configured.
+func (p *PlayerService) startScrobbleTracking() {
+	cur := p.queue.Current()
+	if cur == nil {
+		return
+	}
+	p.scrobbleTrackID = cur.TrackID
+	p.scrobbleElapsed = 0
+	p.scrobbled = false
+
+	if p.db == nil {
+		return
+	}
+	cfg, err := p.db.LoadScrobbleConfig()
+	if err != nil || !cfg.Enabled || cfg.SessionKey == "" {
+		return
+	}
+
+	track := lastfm.TrackInfo{
+		Artist:   cur.Artist,
+		Track:    cur.Title,
+		Album:    cur.Album,
+		Duration: cur.DurationMs / 1000,
+	}
+	go func() {
+		if err := lastfm.NowPlaying(cfg.APIKey, cfg.APISecret, cfg.SessionKey, track); err != nil {
+			log.Printf("lastfm now-playing: %v", err)
+		}
+	}()
+}
+
+// checkScrobble accumulates play time and submits a scrobble when the
+// threshold is reached (50% of duration or 4 minutes, whichever is first).
+func (p *PlayerService) checkScrobble() {
+	if p.scrobbled || p.engine == nil {
+		return
+	}
+	if p.engine.State().String() != "playing" {
+		return
+	}
+	p.scrobbleElapsed += time.Second
+
+	cur := p.queue.Current()
+	if cur == nil || cur.TrackID != p.scrobbleTrackID {
+		return
+	}
+
+	threshold := time.Duration(lastfm.ScrobbleThreshold(cur.DurationMs)) * time.Millisecond
+	if threshold <= 0 || p.scrobbleElapsed < threshold {
+		return
+	}
+
+	p.scrobbled = true
+
+	if p.db == nil {
+		return
+	}
+	cfg, err := p.db.LoadScrobbleConfig()
+	if err != nil || !cfg.Enabled || cfg.SessionKey == "" {
+		return
+	}
+
+	track := lastfm.TrackInfo{
+		Artist:   cur.Artist,
+		Track:    cur.Title,
+		Album:    cur.Album,
+		Duration: cur.DurationMs / 1000,
+	}
+	ts := time.Now().Unix()
+	go func() {
+		if err := lastfm.Scrobble(cfg.APIKey, cfg.APISecret, cfg.SessionKey, track, ts); err != nil {
+			log.Printf("lastfm scrobble: %v", err)
+		}
+	}()
 }
 
 // resolvePaths translates any server:// paths to streaming URLs.

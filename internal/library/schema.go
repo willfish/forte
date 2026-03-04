@@ -112,3 +112,15 @@ ALTER TABLE albums ADD COLUMN remote_id TEXT NOT NULL DEFAULT '';
 CREATE INDEX idx_albums_server ON albums (server_id);
 CREATE INDEX idx_tracks_server ON tracks (server_id);
 `
+
+const migration005 = `
+CREATE TABLE scrobble_config (
+	id          INTEGER PRIMARY KEY CHECK (id = 1),
+	api_key     TEXT NOT NULL DEFAULT '',
+	api_secret  TEXT NOT NULL DEFAULT '',
+	session_key TEXT NOT NULL DEFAULT '',
+	username    TEXT NOT NULL DEFAULT '',
+	enabled     INTEGER NOT NULL DEFAULT 0
+);
+INSERT INTO scrobble_config (id) VALUES (1);
+`

@@ -44,6 +44,15 @@ export function AlbumArtwork(albumID) {
 }
 
 /**
+ * CompleteLastFmAuth exchanges the authorized token for a session key.
+ * @param {string} token
+ * @returns {$CancellablePromise<void>}
+ */
+export function CompleteLastFmAuth(token) {
+    return $Call.ByID(3698942302, token);
+}
+
+/**
  * CreatePlaylist creates a new playlist and returns its ID.
  * @param {string} name
  * @returns {$CancellablePromise<number>}
@@ -68,6 +77,14 @@ export function DeletePlaylist(id) {
  */
 export function DeleteServer(id) {
     return $Call.ByID(3862467038, id);
+}
+
+/**
+ * DisconnectLastFm clears the Last.fm session key and username.
+ * @returns {$CancellablePromise<void>}
+ */
+export function DisconnectLastFm() {
+    return $Call.ByID(970487533);
 }
 
 /**
@@ -117,12 +134,22 @@ export function GetPlaylists() {
 }
 
 /**
+ * GetScrobbleConfig returns the current Last.fm scrobble configuration.
+ * @returns {$CancellablePromise<$models.ScrobbleConfigJSON>}
+ */
+export function GetScrobbleConfig() {
+    return $Call.ByID(3948527462).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType8($result);
+    }));
+}
+
+/**
  * GetServerStatuses returns the online/offline status of all configured servers.
  * @returns {$CancellablePromise<$models.ServerStatusJSON[]>}
  */
 export function GetServerStatuses() {
     return $Call.ByID(1839345631).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType9($result);
+        return $$createType10($result);
     }));
 }
 
@@ -132,7 +159,7 @@ export function GetServerStatuses() {
  */
 export function GetServers() {
     return $Call.ByID(3711954650).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType11($result);
+        return $$createType12($result);
     }));
 }
 
@@ -168,6 +195,16 @@ export function RenamePlaylist(id, name) {
 }
 
 /**
+ * SaveScrobbleAPIKeys saves the Last.fm API key and secret.
+ * @param {string} apiKey
+ * @param {string} apiSecret
+ * @returns {$CancellablePromise<void>}
+ */
+export function SaveScrobbleAPIKeys(apiKey, apiSecret) {
+    return $Call.ByID(1590775235, apiKey, apiSecret);
+}
+
+/**
  * Search searches the library for tracks matching the query.
  * @param {string} query
  * @param {number} limit
@@ -175,8 +212,26 @@ export function RenamePlaylist(id, name) {
  */
 export function Search(query, limit) {
     return $Call.ByID(2206755262, query, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType13($result);
+        return $$createType14($result);
     }));
+}
+
+/**
+ * SetScrobbleEnabled toggles scrobbling on or off.
+ * @param {boolean} enabled
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetScrobbleEnabled(enabled) {
+    return $Call.ByID(22544365, enabled);
+}
+
+/**
+ * StartLastFmAuth begins the Last.fm auth flow: requests a token and opens
+ * the browser for user approval. Returns the token for use with CompleteLastFmAuth.
+ * @returns {$CancellablePromise<string>}
+ */
+export function StartLastFmAuth() {
+    return $Call.ByID(1558738173);
 }
 
 /**
@@ -214,9 +269,10 @@ const $$createType4 = $models.PlaylistTrack.createFrom;
 const $$createType5 = $Create.Array($$createType4);
 const $$createType6 = $models.Playlist.createFrom;
 const $$createType7 = $Create.Array($$createType6);
-const $$createType8 = $models.ServerStatusJSON.createFrom;
-const $$createType9 = $Create.Array($$createType8);
-const $$createType10 = $models.ServerConfig.createFrom;
-const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = $models.SearchResult.createFrom;
-const $$createType13 = $Create.Array($$createType12);
+const $$createType8 = $models.ScrobbleConfigJSON.createFrom;
+const $$createType9 = $models.ServerStatusJSON.createFrom;
+const $$createType10 = $Create.Array($$createType9);
+const $$createType11 = $models.ServerConfig.createFrom;
+const $$createType12 = $Create.Array($$createType11);
+const $$createType13 = $models.SearchResult.createFrom;
+const $$createType14 = $Create.Array($$createType13);

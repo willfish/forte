@@ -14,6 +14,7 @@ export {
     AlbumTrack,
     Playlist,
     PlaylistTrack,
+    ScrobbleConfigJSON,
     SearchResult,
     ServerConfig,
     ServerStatusJSON
