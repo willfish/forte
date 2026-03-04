@@ -44,6 +44,8 @@ func main() {
 		},
 	})
 
+	app.SetIcon(appIcon)
+
 	// System tray with playback controls.
 	tray := app.SystemTray.New()
 
