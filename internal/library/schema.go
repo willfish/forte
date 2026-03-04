@@ -94,3 +94,14 @@ CREATE TABLE playback_state (
 );
 INSERT INTO playback_state (id) VALUES (1);
 `
+
+const migration003 = `
+CREATE TABLE servers (
+	id       TEXT PRIMARY KEY,
+	name     TEXT NOT NULL,
+	type     TEXT NOT NULL DEFAULT 'subsonic',
+	url      TEXT NOT NULL,
+	username TEXT NOT NULL,
+	password TEXT NOT NULL DEFAULT ''
+);
+`
