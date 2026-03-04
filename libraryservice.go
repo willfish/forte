@@ -11,6 +11,7 @@ import (
 
 	"github.com/pkg/browser"
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/willfish/forte/internal/artistinfo"
 	"github.com/willfish/forte/internal/library"
 	"github.com/willfish/forte/internal/scrobbling/lastfm"
 	"github.com/willfish/forte/internal/scrobbling/listenbrainz"
@@ -742,6 +743,131 @@ func toStatJSON(entries []library.StatEntry) []StatEntryJSON {
 		}
 	}
 	return result
+}
+
+// SimilarArtistJSON is the JSON-friendly similar artist type exposed to the frontend.
+type SimilarArtistJSON struct {
+	Name     string `json:"name"`
+	InLibrary bool   `json:"inLibrary"`
+}
+
+// ArtistInfoJSON is the JSON-friendly artist info type exposed to the frontend.
+type ArtistInfoJSON struct {
+	Name        string              `json:"name"`
+	Bio         string              `json:"bio"`
+	ImageURL    string              `json:"imageUrl"`
+	Area        string              `json:"area"`
+	Type        string              `json:"type"`
+	ActiveYears string              `json:"activeYears"`
+	Similar     []SimilarArtistJSON `json:"similar"`
+	Albums      []Album             `json:"albums"`
+	Tags        string              `json:"tags"`
+}
+
+// GetArtistInfo returns metadata for the named artist, using cache with 30-day TTL.
+func (s *LibraryService) GetArtistInfo(artistName string) (ArtistInfoJSON, error) {
+	if s.db == nil {
+		return ArtistInfoJSON{}, fmt.Errorf("library not initialised")
+	}
+
+	artistID, err := s.db.GetArtistByName(artistName)
+	if err != nil {
+		return ArtistInfoJSON{}, fmt.Errorf("artist not found: %w", err)
+	}
+
+	// Check cache.
+	cached, err := s.db.GetArtistMeta(artistID)
+	if err != nil {
+		return ArtistInfoJSON{}, err
+	}
+
+	var meta library.ArtistMeta
+	if cached != nil {
+		meta = *cached
+	} else {
+		// Fetch from external services.
+		apiKey := ""
+		cfg, err := s.db.LoadScrobbleConfig()
+		if err == nil {
+			apiKey = cfg.APIKey
+		}
+
+		result, err := artistinfo.Fetch(apiKey, artistName)
+		if err != nil {
+			return ArtistInfoJSON{}, err
+		}
+
+		meta = library.ArtistMeta{
+			Bio:      result.Bio,
+			ImageURL: result.ImageURL,
+			MbID:     result.MbID,
+			MbArea:   result.MbArea,
+			MbType:   result.MbType,
+			MbBegin:  result.MbBegin,
+			MbEnd:    result.MbEnd,
+			MbTags:   result.MbTags,
+		}
+		for _, sim := range result.Similar {
+			meta.Similar = append(meta.Similar, library.SimilarArtist{Name: sim.Name})
+		}
+
+		_ = s.db.SaveArtistMeta(artistID, meta)
+	}
+
+	// Build albums list.
+	dbAlbums, err := s.db.GetArtistAlbums(artistID)
+	if err != nil {
+		return ArtistInfoJSON{}, err
+	}
+	albums := make([]Album, len(dbAlbums))
+	for i, a := range dbAlbums {
+		albums[i] = Album{
+			ID:         a.ID,
+			Title:      a.Title,
+			Artist:     a.Artist,
+			Year:       a.Year,
+			TrackCount: a.TrackCount,
+			Source:     sourceFromServerID(a.ServerID),
+			ServerID:   a.ServerID,
+		}
+	}
+
+	// Check which similar artists are in the library.
+	similar := make([]SimilarArtistJSON, len(meta.Similar))
+	for i, sim := range meta.Similar {
+		_, lookupErr := s.db.GetArtistByName(sim.Name)
+		similar[i] = SimilarArtistJSON{
+			Name:     sim.Name,
+			InLibrary: lookupErr == nil,
+		}
+	}
+
+	activeYears := meta.MbBegin
+	if meta.MbEnd != "" {
+		activeYears += " - " + meta.MbEnd
+	} else if meta.MbBegin != "" {
+		activeYears += " - present"
+	}
+
+	return ArtistInfoJSON{
+		Name:        artistName,
+		Bio:         meta.Bio,
+		ImageURL:    meta.ImageURL,
+		Area:        meta.MbArea,
+		Type:        meta.MbType,
+		ActiveYears: activeYears,
+		Similar:     similar,
+		Albums:      albums,
+		Tags:        meta.MbTags,
+	}, nil
+}
+
+// GetArtistByName returns the artist ID for the given name.
+func (s *LibraryService) GetArtistByName(name string) (int64, error) {
+	if s.db == nil {
+		return 0, fmt.Errorf("library not initialised")
+	}
+	return s.db.GetArtistByName(name)
 }
 
 // newUUID generates a random UUID v4 string.

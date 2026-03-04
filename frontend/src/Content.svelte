@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { getCurrentView, onViewChange, setServerStatuses, type View } from './lib/stores';
+  import { getCurrentView, onViewChange, setCurrentView, setServerStatuses, type View } from './lib/stores';
   import { LibraryService } from "../bindings/github.com/willfish/forte";
   import AlbumGrid from './AlbumGrid.svelte';
   import AlbumView from './AlbumView.svelte';
+  import ArtistView from './ArtistView.svelte';
   import PlaylistView from './PlaylistView.svelte';
   import StatsView from './StatsView.svelte';
   import Settings from './Settings.svelte';
@@ -10,6 +11,7 @@
 
   let currentView = $state<View>(getCurrentView());
   let selectedAlbumId = $state<number | null>(null);
+  let selectedArtistName = $state<string | null>(null);
 
   // Search state.
   let searchQuery = $state('');
@@ -24,6 +26,7 @@
     return onViewChange((v) => {
       currentView = v;
       selectedAlbumId = null;
+      selectedArtistName = null;
       clearSearch();
     });
   });
@@ -51,6 +54,17 @@
 
   function handleAlbumSelect(albumId: number) {
     selectedAlbumId = albumId;
+    selectedArtistName = null;
+  }
+
+  function handleArtistSelect(name: string) {
+    selectedArtistName = name;
+    selectedAlbumId = null;
+    clearSearch();
+    if (currentView !== 'library') {
+      currentView = 'library';
+      setCurrentView('library');
+    }
   }
 
   function handleSearchInput(e: Event) {
@@ -141,17 +155,24 @@
       {#if searching}
         <div class="searching">Searching...</div>
       {:else}
-        <SearchResults results={searchResults} query={searchQuery.trim()} />
+        <SearchResults results={searchResults} query={searchQuery.trim()} onartist={handleArtistSelect} />
       {/if}
+    {:else if selectedArtistName !== null}
+      <ArtistView
+        artistName={selectedArtistName}
+        onback={() => selectedArtistName = null}
+        onalbum={handleAlbumSelect}
+        onartist={handleArtistSelect}
+      />
     {:else if selectedAlbumId !== null}
-      <AlbumView albumId={selectedAlbumId} onback={() => selectedAlbumId = null} />
+      <AlbumView albumId={selectedAlbumId} onback={() => selectedAlbumId = null} onartist={handleArtistSelect} />
     {:else}
       <AlbumGrid onselect={handleAlbumSelect} />
     {/if}
   {:else if currentView === 'playlists'}
     <PlaylistView />
   {:else if currentView === 'stats'}
-    <StatsView />
+    <StatsView onartist={handleArtistSelect} />
   {:else if currentView === 'settings'}
     <Settings />
   {/if}

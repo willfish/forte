@@ -131,12 +131,32 @@ export function GetAlbums(sort, order, source) {
 }
 
 /**
+ * GetArtistByName returns the artist ID for the given name.
+ * @param {string} name
+ * @returns {$CancellablePromise<number>}
+ */
+export function GetArtistByName(name) {
+    return $Call.ByID(1148779767, name);
+}
+
+/**
+ * GetArtistInfo returns metadata for the named artist, using cache with 30-day TTL.
+ * @param {string} artistName
+ * @returns {$CancellablePromise<$models.ArtistInfoJSON>}
+ */
+export function GetArtistInfo(artistName) {
+    return $Call.ByID(2345670893, artistName).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType4($result);
+    }));
+}
+
+/**
  * GetListenBrainzConfig returns the current ListenBrainz configuration.
  * @returns {$CancellablePromise<$models.ListenBrainzConfigJSON>}
  */
 export function GetListenBrainzConfig() {
     return $Call.ByID(1867711289).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType4($result);
+        return $$createType5($result);
     }));
 }
 
@@ -147,7 +167,7 @@ export function GetListenBrainzConfig() {
  */
 export function GetPlaylistTracks(playlistID) {
     return $Call.ByID(4244880336, playlistID).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType6($result);
+        return $$createType7($result);
     }));
 }
 
@@ -157,7 +177,7 @@ export function GetPlaylistTracks(playlistID) {
  */
 export function GetPlaylists() {
     return $Call.ByID(1524576557).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType8($result);
+        return $$createType9($result);
     }));
 }
 
@@ -168,7 +188,7 @@ export function GetPlaylists() {
  */
 export function GetRecentlyPlayed(limit) {
     return $Call.ByID(3884039413, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType10($result);
+        return $$createType11($result);
     }));
 }
 
@@ -178,7 +198,7 @@ export function GetRecentlyPlayed(limit) {
  */
 export function GetScrobbleConfig() {
     return $Call.ByID(3948527462).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType11($result);
+        return $$createType12($result);
     }));
 }
 
@@ -196,7 +216,7 @@ export function GetScrobbleQueueSize() {
  */
 export function GetServerStatuses() {
     return $Call.ByID(1839345631).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType13($result);
+        return $$createType14($result);
     }));
 }
 
@@ -206,7 +226,7 @@ export function GetServerStatuses() {
  */
 export function GetServers() {
     return $Call.ByID(3711954650).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType15($result);
+        return $$createType16($result);
     }));
 }
 
@@ -218,7 +238,7 @@ export function GetServers() {
  */
 export function GetTopAlbums(period, limit) {
     return $Call.ByID(1740480677, period, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType17($result);
+        return $$createType18($result);
     }));
 }
 
@@ -230,7 +250,7 @@ export function GetTopAlbums(period, limit) {
  */
 export function GetTopArtists(period, limit) {
     return $Call.ByID(2628386383, period, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType17($result);
+        return $$createType18($result);
     }));
 }
 
@@ -242,7 +262,7 @@ export function GetTopArtists(period, limit) {
  */
 export function GetTopTracks(period, limit) {
     return $Call.ByID(3437861925, period, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType17($result);
+        return $$createType18($result);
     }));
 }
 
@@ -295,7 +315,7 @@ export function SaveScrobbleAPIKeys(apiKey, apiSecret) {
  */
 export function Search(query, limit) {
     return $Call.ByID(2206755262, query, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType19($result);
+        return $$createType20($result);
     }));
 }
 
@@ -357,19 +377,20 @@ const $$createType0 = $models.AlbumTrack.createFrom;
 const $$createType1 = $Create.Array($$createType0);
 const $$createType2 = $models.Album.createFrom;
 const $$createType3 = $Create.Array($$createType2);
-const $$createType4 = $models.ListenBrainzConfigJSON.createFrom;
-const $$createType5 = $models.PlaylistTrack.createFrom;
-const $$createType6 = $Create.Array($$createType5);
-const $$createType7 = $models.Playlist.createFrom;
-const $$createType8 = $Create.Array($$createType7);
-const $$createType9 = $models.RecentPlayJSON.createFrom;
-const $$createType10 = $Create.Array($$createType9);
-const $$createType11 = $models.ScrobbleConfigJSON.createFrom;
-const $$createType12 = $models.ServerStatusJSON.createFrom;
-const $$createType13 = $Create.Array($$createType12);
-const $$createType14 = $models.ServerConfig.createFrom;
-const $$createType15 = $Create.Array($$createType14);
-const $$createType16 = $models.StatEntryJSON.createFrom;
-const $$createType17 = $Create.Array($$createType16);
-const $$createType18 = $models.SearchResult.createFrom;
-const $$createType19 = $Create.Array($$createType18);
+const $$createType4 = $models.ArtistInfoJSON.createFrom;
+const $$createType5 = $models.ListenBrainzConfigJSON.createFrom;
+const $$createType6 = $models.PlaylistTrack.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = $models.Playlist.createFrom;
+const $$createType9 = $Create.Array($$createType8);
+const $$createType10 = $models.RecentPlayJSON.createFrom;
+const $$createType11 = $Create.Array($$createType10);
+const $$createType12 = $models.ScrobbleConfigJSON.createFrom;
+const $$createType13 = $models.ServerStatusJSON.createFrom;
+const $$createType14 = $Create.Array($$createType13);
+const $$createType15 = $models.ServerConfig.createFrom;
+const $$createType16 = $Create.Array($$createType15);
+const $$createType17 = $models.StatEntryJSON.createFrom;
+const $$createType18 = $Create.Array($$createType17);
+const $$createType19 = $models.SearchResult.createFrom;
+const $$createType20 = $Create.Array($$createType19);

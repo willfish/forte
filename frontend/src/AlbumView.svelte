@@ -23,7 +23,7 @@
     totalDurationMs: number;
   };
 
-  const { albumId, onback }: { albumId: number; onback: () => void } = $props();
+  const { albumId, onback, onartist }: { albumId: number; onback: () => void; onartist: (name: string) => void } = $props();
 
   let albumInfo = $state<AlbumInfo>({ title: '', artist: '', year: 0, trackCount: 0, artworkSrc: '', totalDurationMs: 0 });
   let tracks = $state<Track[]>([]);
@@ -163,7 +163,7 @@
     {/if}
     <div class="album-meta">
       <h1 class="album-title">{albumInfo.title}</h1>
-      <p class="album-artist">{albumInfo.artist}</p>
+      <button class="album-artist artist-link" onclick={() => onartist(albumInfo.artist)}>{albumInfo.artist}</button>
       <p class="album-details">
         {#if albumInfo.year > 0}{albumInfo.year} &middot; {/if}
         {albumInfo.trackCount} track{albumInfo.trackCount !== 1 ? 's' : ''} &middot;
@@ -287,6 +287,19 @@
     font-size: 1rem;
     color: var(--text-secondary);
     margin: 0 0 0.5rem;
+  }
+
+  .artist-link {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .artist-link:hover {
+    color: var(--accent);
+    text-decoration: underline;
   }
 
   .album-details {

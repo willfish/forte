@@ -167,6 +167,101 @@ export class AlbumTrack {
 }
 
 /**
+ * ArtistInfoJSON is the JSON-friendly artist info type exposed to the frontend.
+ */
+export class ArtistInfoJSON {
+    /**
+     * Creates a new ArtistInfoJSON instance.
+     * @param {Partial<ArtistInfoJSON>} [$$source = {}] - The source object to create the ArtistInfoJSON.
+     */
+    constructor($$source = {}) {
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("bio" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["bio"] = "";
+        }
+        if (!("imageUrl" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["imageUrl"] = "";
+        }
+        if (!("area" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["area"] = "";
+        }
+        if (!("type" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["type"] = "";
+        }
+        if (!("activeYears" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["activeYears"] = "";
+        }
+        if (!("similar" in $$source)) {
+            /**
+             * @member
+             * @type {SimilarArtistJSON[]}
+             */
+            this["similar"] = [];
+        }
+        if (!("albums" in $$source)) {
+            /**
+             * @member
+             * @type {Album[]}
+             */
+            this["albums"] = [];
+        }
+        if (!("tags" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["tags"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ArtistInfoJSON instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ArtistInfoJSON}
+     */
+    static createFrom($$source = {}) {
+        const $$createField6_0 = $$createType1;
+        const $$createField7_0 = $$createType3;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("similar" in $$parsedSource) {
+            $$parsedSource["similar"] = $$createField6_0($$parsedSource["similar"]);
+        }
+        if ("albums" in $$parsedSource) {
+            $$parsedSource["albums"] = $$createField7_0($$parsedSource["albums"]);
+        }
+        return new ArtistInfoJSON(/** @type {Partial<ArtistInfoJSON>} */($$parsedSource));
+    }
+}
+
+/**
  * ListenBrainzConfigJSON is the JSON-friendly ListenBrainz config exposed to the frontend.
  * UserToken is intentionally omitted.
  */
@@ -648,6 +743,44 @@ export class ServerStatusJSON {
 }
 
 /**
+ * SimilarArtistJSON is the JSON-friendly similar artist type exposed to the frontend.
+ */
+export class SimilarArtistJSON {
+    /**
+     * Creates a new SimilarArtistJSON instance.
+     * @param {Partial<SimilarArtistJSON>} [$$source = {}] - The source object to create the SimilarArtistJSON.
+     */
+    constructor($$source = {}) {
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("inLibrary" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["inLibrary"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SimilarArtistJSON instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {SimilarArtistJSON}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new SimilarArtistJSON(/** @type {Partial<SimilarArtistJSON>} */($$parsedSource));
+    }
+}
+
+/**
  * StatEntryJSON is the JSON-friendly stat entry type exposed to the frontend.
  */
 export class StatEntryJSON {
@@ -698,3 +831,9 @@ export class StatEntryJSON {
         return new StatEntryJSON(/** @type {Partial<StatEntryJSON>} */($$parsedSource));
     }
 }
+
+// Private type creation functions
+const $$createType0 = SimilarArtistJSON.createFrom;
+const $$createType1 = $Create.Array($$createType0);
+const $$createType2 = Album.createFrom;
+const $$createType3 = $Create.Array($$createType2);
