@@ -141,6 +141,16 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   // --- PlayerService ---
   // State
   2570357237: () => "stopped",
+  // PlayRadio
+  1236378929: () => undefined,
+  // StopRadio
+  3776601259: () => undefined,
+  // IsRadioMode
+  2964685828: () => false,
+  // RadioStationName
+  2576550642: () => "",
+  // RadioArtworkURL
+  1282363134: () => "",
   // Play
   1808111650: () => undefined,
   // Pause

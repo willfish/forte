@@ -108,9 +108,9 @@
     loadFeatured();
   }
 
-  async function playStation(url: string) {
+  async function playStation(name: string, url: string, favicon: string) {
     try {
-      await PlayerService.Play(url);
+      await PlayerService.PlayRadio(name, url, favicon);
     } catch {
       // ignore play errors
     }
@@ -204,7 +204,7 @@
       <div class="station-list">
         {#each stations as station (station.uuid)}
           <div class="station-card">
-            <button class="station-play" onclick={() => playStation(station.streamUrl)} aria-label="Play {station.name}">
+            <button class="station-play" onclick={() => playStation(station.name, station.streamUrl, station.favicon)} aria-label="Play {station.name}">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                 <path d="M8 5v14l11-7z"/>
               </svg>
@@ -263,7 +263,7 @@
       <div class="station-list">
         {#each favourites as fav (fav.stationUuid)}
           <div class="station-card">
-            <button class="station-play" onclick={() => playStation(fav.streamUrl)} aria-label="Play {fav.name}">
+            <button class="station-play" onclick={() => playStation(fav.name, fav.streamUrl, fav.faviconUrl)} aria-label="Play {fav.name}">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                 <path d="M8 5v14l11-7z"/>
               </svg>
