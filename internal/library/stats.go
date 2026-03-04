@@ -91,7 +91,7 @@ func (db *DB) RecentlyPlayed(limit int) ([]RecentPlay, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var result []RecentPlay
 	for rows.Next() {
@@ -110,7 +110,7 @@ func (db *DB) queryStats(query string, limit int) ([]StatEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var result []StatEntry
 	for rows.Next() {
