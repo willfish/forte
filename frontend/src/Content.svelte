@@ -4,6 +4,7 @@
   import AlbumGrid from './AlbumGrid.svelte';
   import AlbumView from './AlbumView.svelte';
   import PlaylistView from './PlaylistView.svelte';
+  import StatsView from './StatsView.svelte';
   import Settings from './Settings.svelte';
   import SearchResults from './SearchResults.svelte';
 
@@ -149,6 +150,8 @@
     {/if}
   {:else if currentView === 'playlists'}
     <PlaylistView />
+  {:else if currentView === 'stats'}
+    <StatsView />
   {:else if currentView === 'settings'}
     <Settings />
   {/if}

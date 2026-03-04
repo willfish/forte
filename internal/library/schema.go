@@ -147,3 +147,14 @@ CREATE TABLE scrobble_queue (
 );
 CREATE INDEX idx_scrobble_queue_service ON scrobble_queue (service);
 `
+
+const migration008 = `
+CREATE TABLE play_history (
+	id                 INTEGER PRIMARY KEY,
+	track_id           INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+	played_at          TEXT NOT NULL DEFAULT (datetime('now')),
+	duration_played_ms INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX idx_play_history_played_at ON play_history (played_at);
+CREATE INDEX idx_play_history_track ON play_history (track_id);
+`
