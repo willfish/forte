@@ -12,6 +12,7 @@ export {
 export {
     Album,
     AlbumTrack,
+    ArtistInfoJSON,
     ListenBrainzConfigJSON,
     Playlist,
     PlaylistTrack,
@@ -20,5 +21,6 @@ export {
     SearchResult,
     ServerConfig,
     ServerStatusJSON,
+    SimilarArtistJSON,
     StatEntryJSON
 } from "./models.js";

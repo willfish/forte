@@ -14,7 +14,7 @@
     serverId: string;
   };
 
-  const { results, query }: { results: Result[]; query: string } = $props();
+  const { results, query, onartist }: { results: Result[]; query: string; onartist: (name: string) => void } = $props();
 
   let currentFilePath = $state('');
   let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -112,7 +112,8 @@
             </svg>
           {/if}
         </span>
-        <span class="col-artist">{result.artist}</span>
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <span class="col-artist artist-link" role="link" tabindex="0" onclick={(e: MouseEvent) => { e.stopPropagation(); onartist(result.artist); }} onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') { e.stopPropagation(); onartist(result.artist); }}}>{result.artist}</span>
         <span class="col-album">{result.album}</span>
         <span class="col-duration">{formatDuration(result.durationMs)}</span>
       </button>
@@ -218,6 +219,19 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .artist-link {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .artist-link:hover {
+    color: var(--accent);
+    text-decoration: underline;
   }
 
   .col-duration {

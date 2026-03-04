@@ -1,6 +1,8 @@
 <script lang="ts">
   import { LibraryService } from "../bindings/github.com/willfish/forte";
 
+  const { onartist }: { onartist: (name: string) => void } = $props();
+
   type StatEntry = {
     name: string;
     secondLine: string;
@@ -124,7 +126,7 @@
               <li class="stat-row">
                 <span class="rank">{i + 1}</span>
                 <div class="stat-info">
-                  <span class="stat-name">{entry.name}</span>
+                  <button class="stat-name artist-link" onclick={() => onartist(entry.name)}>{entry.name}</button>
                 </div>
                 <span class="stat-meta">{entry.playCount} plays</span>
                 <span class="stat-duration">{formatDuration(entry.totalMs)}</span>
@@ -144,7 +146,7 @@
                 <div class="stat-info">
                   <span class="stat-name">{entry.name}</span>
                   {#if entry.secondLine}
-                    <span class="stat-secondary">{entry.secondLine}</span>
+                    <button class="stat-secondary artist-link" onclick={() => onartist(entry.secondLine)}>{entry.secondLine}</button>
                   {/if}
                 </div>
                 <span class="stat-meta">{entry.playCount} plays</span>
@@ -165,7 +167,7 @@
                 <div class="stat-info">
                   <span class="stat-name">{entry.name}</span>
                   {#if entry.secondLine}
-                    <span class="stat-secondary">{entry.secondLine}</span>
+                    <button class="stat-secondary artist-link" onclick={() => onartist(entry.secondLine)}>{entry.secondLine}</button>
                   {/if}
                 </div>
                 <span class="stat-meta">{entry.playCount} plays</span>
@@ -185,7 +187,9 @@
             <li class="stat-row">
               <div class="stat-info">
                 <span class="stat-name">{play.title}</span>
-                <span class="stat-secondary">{play.artist}{play.album ? ` - ${play.album}` : ''}</span>
+                <span class="stat-secondary">
+                  <button class="artist-link inline-link" onclick={() => onartist(play.artist)}>{play.artist}</button>{play.album ? ` - ${play.album}` : ''}
+                </span>
               </div>
               <span class="stat-duration">{formatTrackDuration(play.durationMs)}</span>
               <span class="stat-meta">{relativeTime(play.playedAt)}</span>
@@ -342,5 +346,24 @@
     color: var(--text-secondary);
     flex-shrink: 0;
     white-space: nowrap;
+  }
+
+  .artist-link {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+    font-size: inherit;
+    color: inherit;
+  }
+
+  .artist-link:hover {
+    color: var(--accent);
+    text-decoration: underline;
+  }
+
+  .inline-link {
+    display: inline;
   }
 </style>
