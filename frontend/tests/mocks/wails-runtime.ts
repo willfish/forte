@@ -109,6 +109,35 @@ const fixtures: Record<number, (...args: any[]) => any> = {
     tags: "alternative, rock, electronic",
   }),
 
+  // SearchRadioStations
+  1619368624: () => [
+    { uuid: "st-1", name: "Jazz FM", streamUrl: "https://stream.example.com/jazz", favicon: "", country: "United Kingdom", tags: "jazz,smooth", bitrate: 128, codec: "MP3", votes: 42, clicks: 100 },
+    { uuid: "st-2", name: "Rock Radio", streamUrl: "https://stream.example.com/rock", favicon: "", country: "Germany", tags: "rock,indie", bitrate: 256, codec: "AAC", votes: 10, clicks: 50 },
+  ],
+  // GetTopVotedRadioStations
+  1723581283: () => [
+    { uuid: "st-1", name: "Jazz FM", streamUrl: "https://stream.example.com/jazz", favicon: "", country: "United Kingdom", tags: "jazz,smooth", bitrate: 128, codec: "MP3", votes: 42, clicks: 100 },
+    { uuid: "st-3", name: "Classical 24", streamUrl: "https://stream.example.com/classical", favicon: "", country: "France", tags: "classical", bitrate: 320, codec: "MP3", votes: 200, clicks: 500 },
+  ],
+  // GetTopClickedRadioStations
+  46869912: () => [
+    { uuid: "st-3", name: "Classical 24", streamUrl: "https://stream.example.com/classical", favicon: "", country: "France", tags: "classical", bitrate: 320, codec: "MP3", votes: 200, clicks: 500 },
+  ],
+  // GetRadioStationsByTag
+  3897998615: () => [],
+  // GetRadioStationsByCountry
+  3988982917: () => [],
+  // GetRadioFavourites
+  590575721: () => [
+    { stationUuid: "st-1", name: "Jazz FM", streamUrl: "https://stream.example.com/jazz", faviconUrl: "", tags: "jazz,smooth", addedAt: "2024-01-01 00:00:00" },
+  ],
+  // AddRadioFavourite
+  3744144887: () => undefined,
+  // RemoveRadioFavourite
+  876184048: () => undefined,
+  // IsRadioFavourite
+  329793224: () => false,
+
   // --- PlayerService ---
   // State
   2570357237: () => "stopped",
