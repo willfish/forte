@@ -1,7 +1,7 @@
 // Reactive stores for application state.
 
 // Current view shown in the content area.
-export type View = 'library' | 'playlists' | 'settings';
+export type View = 'library' | 'playlists' | 'stats' | 'settings';
 
 // Simple store using Svelte 5 module-level state is not possible
 // in a .ts file, so we use a plain object with getter/setter callbacks.

@@ -823,6 +823,9 @@ func (p *PlayerService) checkScrobble() {
 		return
 	}
 
+	// Record play in local listening history.
+	_ = p.db.RecordPlay(cur.TrackID, int(p.scrobbleElapsed.Milliseconds()))
+
 	ts := time.Now().Unix()
 
 	// Last.fm scrobble.
