@@ -88,7 +88,7 @@
     gap: 0.5rem;
     padding: 0.6rem 0.75rem;
     border-radius: 6px;
-    background: var(--bg-elevated, var(--bg-hover));
+    background: var(--bg-elevated);
     border-left: 3px solid var(--accent);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }

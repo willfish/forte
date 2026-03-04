@@ -695,7 +695,7 @@
   }
 
   .action-btn.delete:hover {
-    color: #e55;
+    color: var(--error);
   }
 
   .btn-add {
@@ -826,13 +826,13 @@
   }
 
   .test-result.ok {
-    color: #4c8;
-    background: rgba(68, 204, 136, 0.1);
+    color: var(--success);
+    background: color-mix(in srgb, var(--success) 10%, transparent);
   }
 
   .test-result.err {
-    color: #e55;
-    background: rgba(238, 85, 85, 0.1);
+    color: var(--error);
+    background: color-mix(in srgb, var(--error) 10%, transparent);
   }
 
   .form-actions {
@@ -888,7 +888,7 @@
     border: none;
     border-radius: 6px;
     background: var(--accent);
-    color: #fff;
+    color: var(--text-on-accent);
     cursor: pointer;
     font-size: 0.85rem;
   }
@@ -935,11 +935,11 @@
   }
 
   .sync-result.ok {
-    color: #4c8;
+    color: var(--success);
   }
 
   .sync-result.err {
-    color: #e55;
+    color: var(--error);
   }
 
   /* Last.fm */
