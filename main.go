@@ -5,17 +5,23 @@ import (
 	"log"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
+//go:embed build/appicon.png
+var appIcon []byte
+
 func main() {
+	ps := &PlayerService{}
+
 	app := application.New(application.Options{
 		Name:        "Forte",
 		Description: "A modern music player",
 		Services: []application.Service{
-			application.NewService(&PlayerService{}),
+			application.NewService(ps),
 			application.NewService(&LibraryService{}),
 		},
 		Assets: application.AssetOptions{
@@ -23,7 +29,33 @@ func main() {
 		},
 	})
 
-	app.Window.NewWithOptions(application.WebviewWindowOptions{
+	// System tray with playback controls.
+	tray := app.SystemTray.New()
+
+	menu := app.NewMenu()
+	menu.Add("Play/Pause").OnClick(func(_ *application.Context) {
+		if ps.State() == "playing" {
+			ps.Pause()
+		} else {
+			ps.Resume()
+		}
+	})
+	menu.Add("Next").OnClick(func(_ *application.Context) {
+		ps.Next()
+	})
+	menu.Add("Previous").OnClick(func(_ *application.Context) {
+		ps.Previous()
+	})
+	menu.AddSeparator()
+	menu.Add("Show/Hide Window").OnClick(func(_ *application.Context) {
+		tray.ToggleWindow()
+	})
+	menu.AddSeparator()
+	menu.Add("Quit").OnClick(func(_ *application.Context) {
+		app.Quit()
+	})
+
+	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "Forte",
 		Width:            1200,
 		Height:           800,
@@ -32,6 +64,31 @@ func main() {
 		BackgroundColour: application.NewRGB(27, 38, 54),
 		URL:              "/",
 	})
+
+	// Close to tray: hide the window instead of quitting.
+	window.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		window.Hide()
+		e.Cancel()
+	})
+
+	tray.SetIcon(appIcon).SetMenu(menu).AttachWindow(window)
+	tray.SetTooltip("Forte")
+
+	// Left-click toggles window, right-click opens menu.
+	tray.OnClick(func() {
+		tray.ToggleWindow()
+	})
+
+	// Update tooltip when track changes.
+	ps.onTrayUpdate = func(title, artist string) {
+		if title == "" {
+			tray.SetTooltip("Forte")
+		} else if artist != "" {
+			tray.SetTooltip(title + " - " + artist)
+		} else {
+			tray.SetTooltip(title)
+		}
+	}
 
 	err := app.Run()
 	if err != nil {

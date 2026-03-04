@@ -15,15 +15,19 @@ import (
 	"github.com/willfish/forte/internal/library"
 	"github.com/willfish/forte/internal/metadata"
 	"github.com/willfish/forte/internal/player"
+	"github.com/willfish/forte/internal/system"
 )
 
 // PlayerService exposes audio playback controls to the frontend.
 type PlayerService struct {
-	engine     *player.Engine
-	queue      *player.Queue
-	db         *library.DB
-	manualSkip int32     // atomic: set before explicit Next/Previous to suppress auto-advance
-	stopSave   chan struct{}
+	engine       *player.Engine
+	queue        *player.Queue
+	db           *library.DB
+	mpris        *system.MPRIS
+	notifier     *system.Notifier
+	onTrayUpdate func(title, artist string) // set by main.go for tooltip updates
+	manualSkip   int32                      // atomic: set before explicit Next/Previous to suppress auto-advance
+	stopSave     chan struct{}
 }
 
 // ServiceStartup initialises the mpv engine when the application starts.
@@ -56,11 +60,16 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 			return // explicit Next/Previous already updated the queue
 		}
 		p.queue.Next()
+		p.pushMPRISMetadata()
 	})
 
 	// When the mpv playlist ends, loop back if repeat-all is on.
 	e.SetOnPlaylistEnd(func() {
 		if p.queue.Repeat() != player.RepeatAll {
+			if p.mpris != nil {
+				p.mpris.UpdatePlaybackStatus("stopped")
+				p.mpris.ClearMetadata()
+			}
 			return
 		}
 		p.queue.SetPosition(0)
@@ -71,17 +80,40 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 		}
 	})
 
+	// Start MPRIS2 D-Bus provider.
+	system.SetReadArtworkFn(metadata.ReadArtwork)
+	mpris, err := system.NewMPRIS(p)
+	if err != nil {
+		log.Printf("mpris: %v (media keys will not work)", err)
+	} else {
+		p.mpris = mpris
+	}
+
+	// Start desktop notifications.
+	notifier, err := system.NewNotifier()
+	if err != nil {
+		log.Printf("notifications: %v (desktop notifications will not work)", err)
+	} else {
+		p.notifier = notifier
+	}
+
 	// Restore saved playback state.
 	p.restoreState()
 
-	// Periodic save every 10 seconds.
+	// Periodic save (10s) and MPRIS position update (1s).
 	p.stopSave = make(chan struct{})
 	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
+		posTicker := time.NewTicker(1 * time.Second)
+		saveTicker := time.NewTicker(10 * time.Second)
+		defer posTicker.Stop()
+		defer saveTicker.Stop()
 		for {
 			select {
-			case <-ticker.C:
+			case <-posTicker.C:
+				if p.mpris != nil && p.engine != nil {
+					p.mpris.UpdatePosition(p.engine.Position())
+				}
+			case <-saveTicker.C:
 				p.saveState()
 			case <-p.stopSave:
 				return
@@ -98,6 +130,12 @@ func (p *PlayerService) ServiceShutdown() error {
 		close(p.stopSave)
 	}
 	p.saveState()
+	if p.notifier != nil {
+		p.notifier.Close()
+	}
+	if p.mpris != nil {
+		p.mpris.Close()
+	}
 	if p.engine != nil {
 		p.engine.Close()
 	}
@@ -105,6 +143,40 @@ func (p *PlayerService) ServiceShutdown() error {
 		return p.db.Close()
 	}
 	return nil
+}
+
+func (p *PlayerService) pushMPRISMetadata() {
+	cur := p.queue.Current()
+	if p.mpris != nil {
+		if cur == nil {
+			p.mpris.ClearMetadata()
+		} else {
+			p.mpris.UpdateMetadata(cur.Title, cur.Artist, cur.Album, cur.FilePath, cur.DurationMs, cur.TrackID)
+			p.mpris.UpdatePlaybackStatus(p.State())
+		}
+	}
+
+	// Update tray tooltip.
+	if p.onTrayUpdate != nil {
+		if cur != nil {
+			p.onTrayUpdate(cur.Title, cur.Artist)
+		} else {
+			p.onTrayUpdate("", "")
+		}
+	}
+
+	// Send desktop notification for the new track.
+	if p.notifier != nil && cur != nil {
+		var artwork []byte
+		if cur.FilePath != "" {
+			artwork, _, _ = metadata.ReadArtwork(cur.FilePath)
+		}
+		body := cur.Artist
+		if cur.Album != "" {
+			body += " - " + cur.Album
+		}
+		p.notifier.Notify(cur.Title, body, artwork)
+	}
 }
 
 func (p *PlayerService) saveState() {
@@ -235,7 +307,9 @@ func (p *PlayerService) PlayQueue(tracks []player.QueueTrack, startAt int) error
 		return nil
 	}
 	atomic.StoreInt32(&p.manualSkip, 1) // suppress callback for initial load
-	return p.engine.PlayAll(paths)
+	err := p.engine.PlayAll(paths)
+	p.pushMPRISMetadata()
+	return err
 }
 
 // QueueAppend adds a track to the end of the queue.
@@ -280,6 +354,13 @@ func (p *PlayerService) QueueClear() {
 	if p.engine != nil {
 		p.engine.Stop()
 	}
+	if p.mpris != nil {
+		p.mpris.UpdatePlaybackStatus("stopped")
+		p.mpris.ClearMetadata()
+	}
+	if p.onTrayUpdate != nil {
+		p.onTrayUpdate("", "")
+	}
 }
 
 // GetQueue returns all tracks in the queue.
@@ -306,6 +387,9 @@ func (p *PlayerService) SetShuffle(enabled bool) {
 	}
 	upcoming := p.queue.Paths(pos + 1)
 	p.engine.ReplaceUpcoming(upcoming)
+	if p.mpris != nil {
+		p.mpris.UpdateShuffle(enabled)
+	}
 }
 
 // GetShuffle returns whether shuffle mode is active.
@@ -328,6 +412,9 @@ func (p *PlayerService) SetRepeat(mode string) {
 
 	if p.engine != nil {
 		p.engine.SetLoopFile(rm == player.RepeatOne)
+	}
+	if p.mpris != nil {
+		p.mpris.UpdateLoopStatus(mode)
 	}
 }
 
@@ -365,6 +452,9 @@ func (p *PlayerService) Pause() {
 	if p.engine != nil {
 		p.engine.Pause()
 	}
+	if p.mpris != nil {
+		p.mpris.UpdatePlaybackStatus("paused")
+	}
 }
 
 // Resume resumes paused playback.
@@ -372,12 +462,22 @@ func (p *PlayerService) Resume() {
 	if p.engine != nil {
 		p.engine.Resume()
 	}
+	if p.mpris != nil {
+		p.mpris.UpdatePlaybackStatus("playing")
+	}
 }
 
 // Stop halts the current playback.
 func (p *PlayerService) Stop() {
 	if p.engine != nil {
 		p.engine.Stop()
+	}
+	if p.mpris != nil {
+		p.mpris.UpdatePlaybackStatus("stopped")
+		p.mpris.ClearMetadata()
+	}
+	if p.onTrayUpdate != nil {
+		p.onTrayUpdate("", "")
 	}
 }
 
@@ -392,6 +492,9 @@ func (p *PlayerService) Seek(seconds float64) {
 func (p *PlayerService) SetVolume(percent int) {
 	if p.engine != nil {
 		p.engine.SetVolume(percent)
+	}
+	if p.mpris != nil {
+		p.mpris.UpdateVolume(percent)
 	}
 }
 
@@ -539,6 +642,21 @@ func (p *PlayerService) ReplayGain() string {
 		return ""
 	}
 	return p.engine.ReplayGain()
+}
+
+// SetNotifications enables or disables desktop notifications.
+func (p *PlayerService) SetNotifications(enabled bool) {
+	if p.notifier != nil {
+		p.notifier.SetEnabled(enabled)
+	}
+}
+
+// GetNotifications returns whether desktop notifications are enabled.
+func (p *PlayerService) GetNotifications() bool {
+	if p.notifier == nil {
+		return false
+	}
+	return p.notifier.Enabled()
 }
 
 // Version returns the mpv library version string.
