@@ -7,6 +7,7 @@
   import PlaylistView from './PlaylistView.svelte';
   import StatsView from './StatsView.svelte';
   import Settings from './Settings.svelte';
+  import RadioView from './RadioView.svelte';
   import SearchResults from './SearchResults.svelte';
 
   let currentView = $state<View>(getCurrentView());
@@ -169,6 +170,8 @@
     {:else}
       <AlbumGrid onselect={handleAlbumSelect} />
     {/if}
+  {:else if currentView === 'radio'}
+    <RadioView />
   {:else if currentView === 'playlists'}
     <PlaylistView />
   {:else if currentView === 'stats'}
