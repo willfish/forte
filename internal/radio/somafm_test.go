@@ -1,6 +1,7 @@
 package radio
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -130,5 +131,101 @@ func TestSomaFMClientStations(t *testing.T) {
 	}
 	if stations[1].StreamURL != "https://api.somafm.com/dronezone.pls" {
 		t.Errorf("stations[1].StreamURL = %q, want mp3 URL", stations[1].StreamURL)
+	}
+}
+
+// TestSomaFMJSONParsing verifies that the actual SomaFM API response
+// format deserializes correctly and produces stations with artwork.
+func TestSomaFMJSONParsing(t *testing.T) {
+	// Realistic JSON matching the live SomaFM channels.json format.
+	raw := `{
+		"channels": [
+			{
+				"id": "groovesalad",
+				"title": "Groove Salad",
+				"description": "A nicely chilled plate of ambient beats.",
+				"dj": "DJ Nickel",
+				"genre": "ambient|electronica",
+				"image": "https://api.somafm.com/img/groovesalad120.png",
+				"largeimage": "https://api.somafm.com/logos/256/groovesalad256.png",
+				"xlimage": "https://api.somafm.com/logos/512/groovesalad512.png",
+				"listeners": "1200",
+				"lastPlaying": "Zero 7 - In The Waiting Line",
+				"playlists": [
+					{"url": "https://api.somafm.com/groovesalad.pls", "format": "mp3", "quality": "highest"},
+					{"url": "https://api.somafm.com/groovesalad130.pls", "format": "aac", "quality": "highest"},
+					{"url": "https://api.somafm.com/groovesalad64.pls", "format": "aacp", "quality": "high"}
+				]
+			},
+			{
+				"id": "dronezone",
+				"title": "Drone Zone",
+				"description": "Served best chilled.",
+				"genre": "ambient|space",
+				"image": "https://api.somafm.com/img/dronezone120.png",
+				"largeimage": "https://api.somafm.com/logos/256/dronezone256.png",
+				"xlimage": "https://api.somafm.com/logos/512/dronezone512.png",
+				"listeners": "800",
+				"playlists": [
+					{"url": "https://api.somafm.com/dronezone.pls", "format": "mp3", "quality": "highest"},
+					{"url": "https://api.somafm.com/dronezone130.pls", "format": "aac", "quality": "highest"}
+				]
+			}
+		]
+	}`
+
+	var data somafmResponse
+	if err := json.Unmarshal([]byte(raw), &data); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+
+	if len(data.Channels) != 2 {
+		t.Fatalf("got %d channels, want 2", len(data.Channels))
+	}
+
+	// Verify deserialization picked up the right image field.
+	for _, ch := range data.Channels {
+		if ch.Image == "" {
+			t.Errorf("channel %q: Image is empty (xlimage not parsed)", ch.ID)
+		}
+		if ch.ID == "groovesalad" && ch.Image != "https://api.somafm.com/logos/512/groovesalad512.png" {
+			t.Errorf("channel %q: Image = %q, want xlimage URL", ch.ID, ch.Image)
+		}
+	}
+
+	// Populate the client with parsed data and verify Stations() output.
+	s := NewSomaFMClient()
+	s.mu.Lock()
+	s.channels = data.Channels
+	s.artIndex = make(map[string]string)
+	for _, ch := range data.Channels {
+		if ch.Image != "" {
+			s.artIndex[ch.ID] = ch.Image
+		}
+	}
+	s.fetchedAt = time.Now()
+	s.mu.Unlock()
+
+	stations, err := s.Stations()
+	if err != nil {
+		t.Fatalf("Stations(): %v", err)
+	}
+
+	for _, st := range stations {
+		if st.Favicon == "" {
+			t.Errorf("station %q: Favicon is empty", st.Name)
+		}
+		if st.StreamURL == "" {
+			t.Errorf("station %q: StreamURL is empty", st.Name)
+		}
+		if st.Homepage == "" {
+			t.Errorf("station %q: Homepage is empty", st.Name)
+		}
+	}
+
+	// Verify artwork lookup works with parsed data.
+	art := s.LookupArtwork("https://somafm.com/groovesalad/")
+	if art != "https://api.somafm.com/logos/512/groovesalad512.png" {
+		t.Errorf("LookupArtwork = %q, want xlimage URL", art)
 	}
 }
