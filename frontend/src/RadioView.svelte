@@ -107,8 +107,27 @@
   async function loadFeatured() {
     loading = true;
     try {
-      const result = await LibraryService.GetTopVotedRadioStations(100);
-      stations = await proxyAndFilter((result || []).map(mapStation), 50);
+      // Fetch top-voted stations from curated countries in parallel,
+      // then merge and deduplicate for a mainstream default view.
+      const perCountry = await Promise.all(
+        countries.map(c =>
+          LibraryService.SearchRadioStationsFiltered(c.code, '', 20)
+            .then(r => (r || []).map(mapStation))
+            .catch(() => [] as Station[])
+        )
+      );
+      const seen = new Set<string>();
+      const merged: Station[] = [];
+      for (const batch of perCountry) {
+        for (const s of batch) {
+          if (!seen.has(s.uuid)) {
+            seen.add(s.uuid);
+            merged.push(s);
+          }
+        }
+      }
+      merged.sort((a, b) => b.votes - a.votes);
+      stations = await proxyAndFilter(merged, 50);
     } catch {
       stations = [];
     } finally {
