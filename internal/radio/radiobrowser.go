@@ -16,6 +16,7 @@ import (
 type Station struct {
 	UUID      string `json:"stationuuid"`
 	Name      string `json:"name"`
+	Homepage  string `json:"homepage"`
 	StreamURL string `json:"url_resolved"`
 	Favicon   string `json:"favicon"`
 	Country   string `json:"country"`

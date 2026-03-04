@@ -885,14 +885,22 @@ type RadioStationJSON struct {
 	Clicks    int    `json:"clicks"`
 }
 
+var somafmArtwork = radio.NewSomaFMArtwork()
+
 func stationsToJSON(stations []radio.Station) []RadioStationJSON {
 	result := make([]RadioStationJSON, len(stations))
 	for i, s := range stations {
+		favicon := s.Favicon
+		if favicon == "" {
+			if art := somafmArtwork.Lookup(s.Homepage); art != "" {
+				favicon = art
+			}
+		}
 		result[i] = RadioStationJSON{
 			UUID:      s.UUID,
 			Name:      s.Name,
 			StreamURL: s.StreamURL,
-			Favicon:   s.Favicon,
+			Favicon:   favicon,
 			Country:   s.Country,
 			Tags:      s.Tags,
 			Bitrate:   s.Bitrate,
