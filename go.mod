@@ -5,6 +5,7 @@ go 1.25
 require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gen2brain/go-mpv v0.2.3
+	github.com/godbus/dbus/v5 v5.2.2
 	github.com/wailsapp/wails/v3 v3.0.0-alpha.74
 	go.senan.xyz/taglib v0.11.1
 	modernc.org/sqlite v1.46.1
@@ -26,7 +27,6 @@ require (
 	github.com/go-git/go-billy/v5 v5.7.0 // indirect
 	github.com/go-git/go-git/v5 v5.16.5 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
