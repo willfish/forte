@@ -51,20 +51,37 @@
   const iconCache = new Map<string, string>();
   let proxiedIcons = $state<Record<string, string>>({});
 
-  // Proxy all favicon URLs for a list of stations, batched to avoid
-  // overwhelming the RPC bridge. Updates the reactive map as results arrive.
-  function proxyStationIcons(urls: string[]) {
+  // Proxy all favicon URLs for a list of stations in parallel.
+  // Returns the set of URLs that resolved successfully.
+  async function proxyStationIcons(urls: string[]): Promise<Set<string>> {
+    const resolved = new Set<string>();
     const toFetch = urls.filter(u => u && !u.startsWith('data:') && !iconCache.has(u));
+
+    // Already-cached or data URIs count as resolved.
+    for (const u of urls) {
+      if (!u) continue;
+      if (u.startsWith('data:')) { resolved.add(u); continue; }
+      const cached = iconCache.get(u);
+      if (cached) resolved.add(u);
+    }
+
+    // Mark pending immediately so we don't re-request.
     for (const url of toFetch) {
-      // Mark pending immediately so we don't re-request.
       iconCache.set(url, '');
     }
-    for (const url of toFetch) {
-      LibraryService.ProxyImageURL(url).then((dataUri: string) => {
+
+    await Promise.all(toFetch.map(async (url) => {
+      try {
+        const dataUri = await LibraryService.ProxyImageURL(url);
         iconCache.set(url, dataUri || '');
-        proxiedIcons = Object.fromEntries(iconCache);
-      }).catch(() => {});
-    }
+        if (dataUri) resolved.add(url);
+      } catch {
+        // Failed to proxy - leave as empty.
+      }
+    }));
+
+    proxiedIcons = Object.fromEntries(iconCache);
+    return resolved;
   }
 
   function resolvedIcon(url: string): string {
@@ -79,16 +96,19 @@
     activeCountry !== '' || activeCodec !== ''
   );
 
-  function filterNoArtwork(list: Station[]): Station[] {
-    return list.filter(s => s.favicon !== '');
+  // Proxy favicons and filter out stations with broken/missing artwork.
+  // Over-fetches then slices to `limit` after filtering.
+  async function proxyAndFilter(raw: Station[], limit: number): Promise<Station[]> {
+    const withUrl = raw.filter(s => s.favicon !== '');
+    const validUrls = await proxyStationIcons(withUrl.map(s => s.favicon));
+    return withUrl.filter(s => validUrls.has(s.favicon)).slice(0, limit);
   }
 
   async function loadFeatured() {
     loading = true;
     try {
       const result = await LibraryService.GetTopVotedRadioStations(100);
-      stations = filterNoArtwork((result || []).map(mapStation)).slice(0, 50);
-      proxyStationIcons(stations.map(s => s.favicon));
+      stations = await proxyAndFilter((result || []).map(mapStation), 50);
     } catch {
       stations = [];
     } finally {
@@ -100,8 +120,7 @@
     loading = true;
     try {
       const result = await LibraryService.GetRadioStationsByTag(tag, 100);
-      stations = filterNoArtwork((result || []).map(mapStation)).slice(0, 50);
-      proxyStationIcons(stations.map(s => s.favicon));
+      stations = await proxyAndFilter((result || []).map(mapStation), 50);
     } catch {
       stations = [];
     } finally {
@@ -113,8 +132,9 @@
     loading = true;
     try {
       const result = await LibraryService.GetSomaFMStations();
-      stations = (result || []).map(mapStation);
-      proxyStationIcons(stations.map(s => s.favicon));
+      const mapped = (result || []).map(mapStation);
+      await proxyStationIcons(mapped.map(s => s.favicon));
+      stations = mapped;
     } catch {
       stations = [];
     } finally {
@@ -128,8 +148,7 @@
       const result = await LibraryService.SearchRadioStationsFiltered(
         activeCountry, activeCodec, 100
       );
-      stations = filterNoArtwork((result || []).map(mapStation)).slice(0, 50);
-      proxyStationIcons(stations.map(s => s.favicon));
+      stations = await proxyAndFilter((result || []).map(mapStation), 50);
     } catch {
       stations = [];
     } finally {
@@ -149,7 +168,7 @@
         addedAt: f.addedAt,
       }));
       favouriteUuids = new Set(favourites.map(f => f.stationUuid));
-      proxyStationIcons(favourites.map(f => f.faviconUrl));
+      await proxyStationIcons(favourites.map(f => f.faviconUrl));
     } catch {
       favourites = [];
       favouriteUuids = new Set();
@@ -190,8 +209,7 @@
     debounceTimer = setTimeout(async () => {
       try {
         const result = await LibraryService.SearchRadioStations(value.trim(), 100);
-        stations = filterNoArtwork((result || []).map(mapStation)).slice(0, 50);
-        proxyStationIcons(stations.map(s => s.favicon));
+        stations = await proxyAndFilter((result || []).map(mapStation), 50);
       } catch {
         stations = [];
       } finally {
