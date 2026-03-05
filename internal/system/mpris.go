@@ -3,7 +3,6 @@ package system
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -395,9 +394,11 @@ func (m *MPRIS) setProp(iface, name string, value dbus.Variant) {
 	if m.props == nil {
 		return
 	}
-	if err := m.props.Set(iface, name, value); err != nil {
-		log.Printf("mpris: set %s.%s: %v", iface, name, err)
-	}
+	// Use SetMust for internal updates - Set() enforces the Writable flag
+	// which rejects writes to read-only properties like PlaybackStatus and
+	// Metadata. Those are correctly read-only for external D-Bus clients,
+	// but the application itself needs to update them.
+	m.props.SetMust(iface, name, value.Value())
 }
 
 func (m *MPRIS) exportArtwork() string {

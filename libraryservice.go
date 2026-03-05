@@ -1046,15 +1046,18 @@ func (s *LibraryService) IsRadioFavourite(stationUUID string) (bool, error) {
 }
 
 // imageProxyCache caches proxied image data URIs keyed by URL.
+// inflight tracks URLs currently being fetched; waiters block on the channel.
 var imageProxyCache struct {
 	sync.Mutex
-	m map[string]string
+	m        map[string]string
+	inflight map[string]chan struct{}
 }
 
 var imageProxyClient = &http.Client{Timeout: 5 * time.Second}
 
 // ProxyImageURL fetches a remote image and returns it as a base64 data URI.
-// Results are cached in memory. Returns empty string on failure.
+// Results are cached in memory. Concurrent requests for the same URL are
+// coalesced into a single HTTP fetch. Returns empty string on failure.
 func (s *LibraryService) ProxyImageURL(url string) string {
 	if url == "" || (!strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://")) {
 		return ""
@@ -1063,13 +1066,45 @@ func (s *LibraryService) ProxyImageURL(url string) string {
 	imageProxyCache.Lock()
 	if imageProxyCache.m == nil {
 		imageProxyCache.m = make(map[string]string)
+		imageProxyCache.inflight = make(map[string]chan struct{})
 	}
+
+	// Return cached result immediately.
 	if cached, ok := imageProxyCache.m[url]; ok {
 		imageProxyCache.Unlock()
 		return cached
 	}
+
+	// If another goroutine is already fetching this URL, wait for it.
+	if ch, ok := imageProxyCache.inflight[url]; ok {
+		imageProxyCache.Unlock()
+		<-ch
+		imageProxyCache.Lock()
+		cached := imageProxyCache.m[url]
+		imageProxyCache.Unlock()
+		return cached
+	}
+
+	// Mark this URL as in-flight.
+	ch := make(chan struct{})
+	imageProxyCache.inflight[url] = ch
 	imageProxyCache.Unlock()
 
+	// Fetch the image. Always clean up the in-flight entry and signal waiters.
+	dataURI := fetchImage(url)
+
+	imageProxyCache.Lock()
+	if dataURI != "" {
+		imageProxyCache.m[url] = dataURI
+	}
+	delete(imageProxyCache.inflight, url)
+	imageProxyCache.Unlock()
+	close(ch)
+
+	return dataURI
+}
+
+func fetchImage(url string) string {
 	resp, err := imageProxyClient.Get(url)
 	if err != nil {
 		return ""
@@ -1090,13 +1125,7 @@ func (s *LibraryService) ProxyImageURL(url string) string {
 		mime = http.DetectContentType(data)
 	}
 
-	dataURI := "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)
-
-	imageProxyCache.Lock()
-	imageProxyCache.m[url] = dataURI
-	imageProxyCache.Unlock()
-
-	return dataURI
+	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)
 }
 
 // newUUID generates a random UUID v4 string.
