@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -39,7 +40,8 @@ type PlayerService struct {
 	scrobbleElapsed time.Duration
 	scrobbled       bool
 
-	// Radio mode state.
+	// Radio mode state (protected by radioMu).
+	radioMu         sync.RWMutex
 	radioMode       bool
 	radioName       string
 	radioStreamURL  string
@@ -579,7 +581,13 @@ func (p *PlayerService) MediaTitle() string {
 		return ""
 	}
 	t := p.engine.MediaTitle()
-	if p.radioMode && t == p.radioStreamURL {
+
+	p.radioMu.RLock()
+	isRadio := p.radioMode
+	streamURL := p.radioStreamURL
+	p.radioMu.RUnlock()
+
+	if isRadio && t == streamURL {
 		return ""
 	}
 	return t
@@ -1034,16 +1042,17 @@ func (p *PlayerService) PlayRadio(stationName, streamURL, artworkURL string) err
 	}
 
 	// Save the library queue if not already in radio mode.
+	p.radioMu.Lock()
 	if !p.radioMode {
 		p.savedQueue = p.queue.Tracks()
 		p.savedPosition = p.queue.Position()
 	}
-
 	p.radioMode = true
 	p.radioName = stationName
 	p.radioStreamURL = streamURL
 	p.radioArtworkURL = artworkURL
 	p.radioLastTitle = ""
+	p.radioMu.Unlock()
 
 	// Clear the queue and play the stream directly.
 	p.queue.Clear()
@@ -1067,7 +1076,9 @@ func (p *PlayerService) PlayRadio(stationName, streamURL, artworkURL string) err
 
 // StopRadio stops the current radio stream and restores the library queue.
 func (p *PlayerService) StopRadio() {
+	p.radioMu.Lock()
 	if !p.radioMode {
+		p.radioMu.Unlock()
 		return
 	}
 
@@ -1076,21 +1087,24 @@ func (p *PlayerService) StopRadio() {
 	p.radioStreamURL = ""
 	p.radioArtworkURL = ""
 	p.radioLastTitle = ""
+	savedQueue := p.savedQueue
+	savedPosition := p.savedPosition
+	p.savedQueue = nil
+	p.savedPosition = 0
+	p.radioMu.Unlock()
 
 	if p.engine != nil {
 		p.engine.Stop()
 	}
 
 	// Restore the library queue.
-	if len(p.savedQueue) > 0 {
-		pos := p.savedPosition
-		if pos < 0 || pos >= len(p.savedQueue) {
+	if len(savedQueue) > 0 {
+		pos := savedPosition
+		if pos < 0 || pos >= len(savedQueue) {
 			pos = 0
 		}
-		p.queue.Replace(p.savedQueue, pos)
+		p.queue.Replace(savedQueue, pos)
 	}
-	p.savedQueue = nil
-	p.savedPosition = 0
 
 	if p.mpris != nil {
 		p.mpris.UpdatePlaybackStatus("stopped")
@@ -1104,48 +1118,72 @@ func (p *PlayerService) StopRadio() {
 // checkRadioTitle detects ICY stream title changes during radio playback
 // and updates MPRIS metadata, tray tooltip, and desktop notifications.
 func (p *PlayerService) checkRadioTitle() {
+	p.radioMu.RLock()
 	if !p.radioMode || p.engine == nil {
+		p.radioMu.RUnlock()
 		return
 	}
-	t := p.MediaTitle() // filtered: empty when no ICY data
-	if t == p.radioLastTitle {
+	streamURL := p.radioStreamURL
+	name := p.radioName
+	lastTitle := p.radioLastTitle
+	p.radioMu.RUnlock()
+
+	t := p.engine.MediaTitle()
+	// Filter out raw stream URL (shown when no ICY metadata is available).
+	if t == streamURL {
+		t = ""
+	}
+
+	if t == lastTitle {
 		return
 	}
+
+	p.radioMu.Lock()
 	p.radioLastTitle = t
+	p.radioMu.Unlock()
 
 	if p.mpris != nil {
 		artist := "Radio"
 		if t != "" {
 			artist = t
 		}
-		p.mpris.UpdateMetadata(p.radioName, artist, "", p.radioStreamURL, 0, 0)
+		p.mpris.UpdateMetadata(name, artist, "", streamURL, 0, 0)
 	}
 
 	if p.onTrayUpdate != nil {
 		if t != "" {
-			p.onTrayUpdate(p.radioName, t)
+			p.onTrayUpdate(name, t)
 		} else {
-			p.onTrayUpdate(p.radioName, "Radio")
+			p.onTrayUpdate(name, "Radio")
 		}
 	}
 
 	if p.notifier != nil && t != "" {
-		p.notifier.Notify(p.radioName, t, nil)
+		p.notifier.Notify(name, t, nil)
 	}
 }
 
 // IsRadioMode returns whether the player is currently in radio mode.
 func (p *PlayerService) IsRadioMode() bool {
+	p.radioMu.RLock()
+	defer p.radioMu.RUnlock()
+
 	return p.radioMode
 }
 
 // RadioStationName returns the name of the currently playing radio station.
 func (p *PlayerService) RadioStationName() string {
+	p.radioMu.RLock()
+	defer p.radioMu.RUnlock()
+
 	return p.radioName
 }
 
 // RadioArtworkURL returns the artwork URL of the currently playing radio station.
 func (p *PlayerService) RadioArtworkURL() string {
+	p.radioMu.RLock()
+	defer p.radioMu.RUnlock()
+
 	return p.radioArtworkURL
 }
 

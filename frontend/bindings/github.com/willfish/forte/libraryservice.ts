@@ -294,7 +294,8 @@ export function MoveTrackInPlaylist(playlistID: number, fromPos: number, toPos: 
 
 /**
  * ProxyImageURL fetches a remote image and returns it as a base64 data URI.
- * Results are cached in memory. Returns empty string on failure.
+ * Results are cached in memory. Concurrent requests for the same URL are
+ * coalesced into a single HTTP fetch. Returns empty string on failure.
  */
 export function ProxyImageURL(url: string): $CancellablePromise<string> {
     return $Call.ByID(1305746552, url);
