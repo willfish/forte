@@ -24,7 +24,9 @@ var trayIconIdle []byte
 var trayIconPlaying []byte
 
 // setupCrashLog directs Go runtime crash output (SIGSEGV, etc.) to a file
-// so crashes from the installed program can be diagnosed.
+// so crashes from the installed program can be diagnosed. It also writes
+// /proc/self/maps at startup so library addresses can be resolved from the
+// faulting PC in the crash trace.
 func setupCrashLog() *os.File {
 	dir, err := os.UserConfigDir()
 	if err != nil {
@@ -42,6 +44,15 @@ func setupCrashLog() *os.File {
 		_ = f.Close()
 		return nil
 	}
+
+	// Write process memory maps so we can resolve library addresses on crash.
+	maps, err := os.ReadFile("/proc/self/maps")
+	if err == nil {
+		_, _ = f.WriteString("=== /proc/self/maps at startup ===\n")
+		_, _ = f.Write(maps)
+		_, _ = f.WriteString("=== end maps ===\n\n")
+	}
+
 	return f
 }
 
