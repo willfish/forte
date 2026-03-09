@@ -58,6 +58,7 @@ type MPRIS struct {
 	player  PlayerControl
 	artDir  string
 	artPath string // current temp art file path
+	closed  bool
 }
 
 // NewMPRIS creates and registers the MPRIS2 service on the session bus.
@@ -161,6 +162,10 @@ func NewMPRIS(player PlayerControl) (*MPRIS, error) {
 
 // Close releases the D-Bus connection and cleans up temp files.
 func (m *MPRIS) Close() {
+	m.mu.Lock()
+	m.closed = true
+	m.mu.Unlock()
+
 	if m.conn != nil {
 		_, _ = m.conn.ReleaseName(busName)
 		_ = m.conn.Close()
@@ -235,6 +240,11 @@ func (p *mprisPlayer) SeekOffset(offsetUs int64) *dbus.Error {
 	newPos := clampSeek(p.m.player.Position(), offsetUs, p.m.player.Duration())
 	p.m.player.Seek(newPos)
 
+	p.m.mu.Lock()
+	defer p.m.mu.Unlock()
+	if p.m.closed {
+		return nil
+	}
 	_ = p.m.conn.Emit(
 		dbus.ObjectPath(objectPath),
 		ifacePlayer+".Seeked",
@@ -251,6 +261,11 @@ func (p *mprisPlayer) SetPosition(trackID dbus.ObjectPath, positionUs int64) *db
 	}
 	p.m.player.Seek(newPos)
 
+	p.m.mu.Lock()
+	defer p.m.mu.Unlock()
+	if p.m.closed {
+		return nil
+	}
 	_ = p.m.conn.Emit(
 		dbus.ObjectPath(objectPath),
 		ifacePlayer+".Seeked",
@@ -377,7 +392,7 @@ func (m *MPRIS) UpdateLoopStatus(mode string) {
 func (m *MPRIS) UpdatePosition(seconds float64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.props == nil {
+	if m.closed || m.props == nil {
 		return
 	}
 	m.props.SetMust(ifacePlayer, "Position", int64(seconds*1e6))
@@ -391,7 +406,7 @@ func (m *MPRIS) ClearMetadata() {
 func (m *MPRIS) setProp(iface, name string, value dbus.Variant) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.props == nil {
+	if m.closed || m.props == nil {
 		return
 	}
 	// Use SetMust for internal updates - Set() enforces the Writable flag
@@ -402,6 +417,14 @@ func (m *MPRIS) setProp(iface, name string, value dbus.Variant) {
 }
 
 func (m *MPRIS) exportArtwork() string {
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return ""
+	}
+	artDir := m.artDir
+	m.mu.Unlock()
+
 	mediaPath := m.player.MediaPath()
 	if mediaPath == "" {
 		return ""
@@ -412,11 +435,14 @@ func (m *MPRIS) exportArtwork() string {
 		return ""
 	}
 
-	path := filepath.Join(m.artDir, "cover.jpg")
+	path := filepath.Join(artDir, "cover.jpg")
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return ""
 	}
+
+	m.mu.Lock()
 	m.artPath = path
+	m.mu.Unlock()
 	return "file://" + path
 }
 

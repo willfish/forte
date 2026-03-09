@@ -40,6 +40,7 @@ type Engine struct {
 	mu             sync.Mutex
 	handle         *mpv.Mpv
 	state          PlaybackState
+	closed         bool         // set by Close, checked by all public methods
 	stop           chan struct{}
 	done           chan struct{} // closed when event loop exits
 	onTrackChange  func()       // called when mpv loads a new file
@@ -89,6 +90,9 @@ func NewEngine() (*Engine, error) {
 func (e *Engine) Play(path string) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return nil
+	}
 
 	if err := e.handle.Command([]string{"loadfile", path, "replace"}); err != nil {
 		return fmt.Errorf("mpv loadfile: %w", err)
@@ -102,6 +106,9 @@ func (e *Engine) Play(path string) error {
 func (e *Engine) Enqueue(path string) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return nil
+	}
 
 	if err := e.handle.Command([]string{"loadfile", path, "append"}); err != nil {
 		return fmt.Errorf("mpv enqueue: %w", err)
@@ -117,6 +124,9 @@ func (e *Engine) PlayAll(paths []string) error {
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return nil
+	}
 
 	// Load the first track (replaces playlist).
 	if err := e.handle.Command([]string{"loadfile", paths[0], "replace"}); err != nil {
@@ -138,6 +148,9 @@ func (e *Engine) PlayAll(paths []string) error {
 func (e *Engine) Pause() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return
+	}
 
 	if e.state != StatePlaying {
 		return
@@ -150,6 +163,9 @@ func (e *Engine) Pause() {
 func (e *Engine) Resume() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return
+	}
 
 	if e.state != StatePaused {
 		return
@@ -162,6 +178,9 @@ func (e *Engine) Resume() {
 func (e *Engine) Stop() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return
+	}
 
 	_ = e.handle.Command([]string{"stop"})
 	e.state = StateStopped
@@ -171,6 +190,9 @@ func (e *Engine) Stop() {
 func (e *Engine) Seek(seconds float64) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return
+	}
 
 	if e.state == StateStopped {
 		return
@@ -189,6 +211,9 @@ func (e *Engine) SetVolume(percent int) {
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return
+	}
 
 	_ = e.handle.SetProperty("volume", mpv.FormatDouble, float64(percent))
 }
@@ -197,6 +222,9 @@ func (e *Engine) SetVolume(percent int) {
 func (e *Engine) Volume() int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return 0
+	}
 
 	v, err := e.handle.GetProperty("volume", mpv.FormatDouble)
 	if err != nil {
@@ -209,6 +237,9 @@ func (e *Engine) Volume() int {
 func (e *Engine) Position() float64 {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return 0
+	}
 
 	v, err := e.handle.GetProperty("time-pos", mpv.FormatDouble)
 	if err != nil {
@@ -221,6 +252,9 @@ func (e *Engine) Position() float64 {
 func (e *Engine) Duration() float64 {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return 0
+	}
 
 	v, err := e.handle.GetProperty("duration", mpv.FormatDouble)
 	if err != nil {
@@ -242,6 +276,9 @@ func (e *Engine) SetReplayGain(mode string) error {
 	case "track", "album", "no":
 		e.mu.Lock()
 		defer e.mu.Unlock()
+		if e.closed {
+			return nil
+		}
 
 		return e.handle.SetPropertyString("replaygain", mode)
 	default:
@@ -253,6 +290,9 @@ func (e *Engine) SetReplayGain(mode string) error {
 func (e *Engine) ReplayGain() string {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return ""
+	}
 
 	return e.handle.GetPropertyString("replaygain")
 }
@@ -282,6 +322,9 @@ func (e *Engine) SetOnStreamError(fn func()) {
 func (e *Engine) SetLoopFile(loop bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return
+	}
 
 	if loop {
 		_ = e.handle.SetPropertyString("loop-file", "inf")
@@ -295,6 +338,9 @@ func (e *Engine) SetLoopFile(loop bool) {
 func (e *Engine) ReplaceUpcoming(paths []string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return
+	}
 
 	// Get current playlist position and count.
 	pos, err := e.handle.GetProperty("playlist-pos", mpv.FormatInt64)
@@ -320,17 +366,26 @@ func (e *Engine) ReplaceUpcoming(paths []string) {
 	}
 }
 
-// Close shuts down the mpv instance.
+// Close shuts down the mpv instance. It waits for the event loop to exit,
+// then holds the mutex while destroying the handle so no concurrent caller
+// can access it mid-destroy.
 func (e *Engine) Close() {
 	close(e.stop)
 	<-e.done // wait for the event loop goroutine to exit
+
+	e.mu.Lock()
+	e.closed = true
 	e.handle.TerminateDestroy()
+	e.mu.Unlock()
 }
 
 // MediaTitle returns the title of the currently playing track.
 func (e *Engine) MediaTitle() string {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return ""
+	}
 
 	return e.handle.GetPropertyString("media-title")
 }
@@ -339,6 +394,9 @@ func (e *Engine) MediaTitle() string {
 func (e *Engine) MediaArtist() string {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return ""
+	}
 
 	return e.handle.GetPropertyString("metadata/by-key/artist")
 }
@@ -347,6 +405,9 @@ func (e *Engine) MediaArtist() string {
 func (e *Engine) MediaAlbum() string {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return ""
+	}
 
 	return e.handle.GetPropertyString("metadata/by-key/album")
 }
@@ -355,6 +416,9 @@ func (e *Engine) MediaAlbum() string {
 func (e *Engine) MediaPath() string {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return ""
+	}
 
 	return e.handle.GetPropertyString("path")
 }
@@ -363,6 +427,9 @@ func (e *Engine) MediaPath() string {
 func (e *Engine) Next() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return
+	}
 
 	_ = e.handle.Command([]string{"playlist-next"})
 }
@@ -371,6 +438,9 @@ func (e *Engine) Next() {
 func (e *Engine) Previous() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return
+	}
 
 	_ = e.handle.Command([]string{"playlist-prev"})
 }
@@ -379,6 +449,9 @@ func (e *Engine) Previous() {
 func (e *Engine) Version() string {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return ""
+	}
 
 	return e.handle.GetPropertyString("mpv-version")
 }
@@ -424,9 +497,9 @@ func (e *Engine) handleEvent() (shutdown bool) {
 				slog.Debug("stream error, invoking onStreamError")
 				errCb()
 			} else {
+				e.mu.Lock()
 				pos, _ := e.handle.GetProperty("playlist-pos", mpv.FormatInt64)
 				if pos == nil || pos.(int64) < 0 {
-					e.mu.Lock()
 					e.state = StateStopped
 					cb := e.onPlaylistEnd
 					e.mu.Unlock()
@@ -434,13 +507,15 @@ func (e *Engine) handleEvent() (shutdown bool) {
 						cb()
 					}
 					slog.Debug("playlist finished (after error)")
+				} else {
+					e.mu.Unlock()
 				}
 			}
 		case mpv.EndFileEOF, mpv.EndFileStop:
 			// Check if mpv has more playlist entries queued.
+			e.mu.Lock()
 			pos, _ := e.handle.GetProperty("playlist-pos", mpv.FormatInt64)
 			if pos == nil || pos.(int64) < 0 {
-				e.mu.Lock()
 				e.state = StateStopped
 				cb := e.onPlaylistEnd
 				e.mu.Unlock()
@@ -449,6 +524,7 @@ func (e *Engine) handleEvent() (shutdown bool) {
 				}
 				slog.Debug("playlist finished")
 			} else {
+				e.mu.Unlock()
 				slog.Debug("track ended, next track queued")
 			}
 		}

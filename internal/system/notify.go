@@ -22,6 +22,7 @@ type Notifier struct {
 	conn       *dbus.Conn
 	replacesID uint32
 	enabled    bool
+	closed     bool
 	iconDir    string
 }
 
@@ -51,7 +52,7 @@ func (n *Notifier) Notify(title, body string, artwork []byte) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	if !n.enabled {
+	if n.closed || !n.enabled {
 		return
 	}
 
@@ -101,6 +102,10 @@ func (n *Notifier) Enabled() bool {
 
 // Close releases the D-Bus connection and cleans up temp files.
 func (n *Notifier) Close() {
+	n.mu.Lock()
+	n.closed = true
+	n.mu.Unlock()
+
 	if n.conn != nil {
 		_ = n.conn.Close()
 	}
