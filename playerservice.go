@@ -36,7 +36,8 @@ type PlayerService struct {
 	stopSave       chan struct{}
 	tickerDone     chan struct{} // closed when the ticker goroutine exits
 
-	// Scrobble tracking state.
+	// Scrobble tracking state (protected by scrobbleMu).
+	scrobbleMu      sync.Mutex
 	scrobbleTrackID int64
 	scrobbleElapsed time.Duration
 	scrobbled       bool
@@ -784,9 +785,11 @@ func (p *PlayerService) startScrobbleTracking() {
 	if cur == nil {
 		return
 	}
+	p.scrobbleMu.Lock()
 	p.scrobbleTrackID = cur.TrackID
 	p.scrobbleElapsed = 0
 	p.scrobbled = false
+	p.scrobbleMu.Unlock()
 
 	if p.db == nil {
 		return
@@ -828,32 +831,40 @@ func (p *PlayerService) startScrobbleTracking() {
 // checkScrobble accumulates play time and submits a scrobble when the
 // threshold is reached (50% of duration or 4 minutes, whichever is first).
 func (p *PlayerService) checkScrobble() {
-	if p.scrobbled || p.engine == nil {
+	if p.engine == nil {
 		return
 	}
 	if p.engine.State().String() != "playing" {
 		return
 	}
-	p.scrobbleElapsed += time.Second
 
 	cur := p.queue.Current()
-	if cur == nil || cur.TrackID != p.scrobbleTrackID {
+
+	p.scrobbleMu.Lock()
+	if p.scrobbled {
+		p.scrobbleMu.Unlock()
 		return
 	}
-
+	p.scrobbleElapsed += time.Second
+	if cur == nil || cur.TrackID != p.scrobbleTrackID {
+		p.scrobbleMu.Unlock()
+		return
+	}
 	threshold := time.Duration(lastfm.ScrobbleThreshold(cur.DurationMs)) * time.Millisecond
 	if threshold <= 0 || p.scrobbleElapsed < threshold {
+		p.scrobbleMu.Unlock()
 		return
 	}
-
 	p.scrobbled = true
+	elapsedMs := int(p.scrobbleElapsed.Milliseconds())
+	p.scrobbleMu.Unlock()
 
 	if p.db == nil {
 		return
 	}
 
 	// Record play in local listening history.
-	_ = p.db.RecordPlay(cur.TrackID, int(p.scrobbleElapsed.Milliseconds()))
+	_ = p.db.RecordPlay(cur.TrackID, elapsedMs)
 
 	ts := time.Now().Unix()
 
