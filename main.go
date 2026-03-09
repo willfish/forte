@@ -3,6 +3,9 @@ package main
 import (
 	"embed"
 	"log"
+	"os"
+	"path/filepath"
+	"runtime/debug"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -20,7 +23,33 @@ var trayIconIdle []byte
 //go:embed build/tray-playing-32.png
 var trayIconPlaying []byte
 
+// setupCrashLog directs Go runtime crash output (SIGSEGV, etc.) to a file
+// so crashes from the installed program can be diagnosed.
+func setupCrashLog() *os.File {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return nil
+	}
+	logDir := filepath.Join(dir, "forte")
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		return nil
+	}
+	f, err := os.Create(filepath.Join(logDir, "crash.log"))
+	if err != nil {
+		return nil
+	}
+	if err := debug.SetCrashOutput(f, debug.CrashOptions{}); err != nil {
+		_ = f.Close()
+		return nil
+	}
+	return f
+}
+
 func main() {
+	if f := setupCrashLog(); f != nil {
+		defer func() { _ = f.Close() }()
+	}
+
 	ps := &PlayerService{}
 	ls := &LibraryService{}
 
