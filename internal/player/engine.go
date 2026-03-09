@@ -294,7 +294,7 @@ func (e *Engine) ReplayGain() string {
 		return ""
 	}
 
-	return e.handle.GetPropertyString("replaygain")
+	return e.getPropertyString("replaygain")
 }
 
 // SetOnTrackChange registers a callback invoked when mpv loads a new file.
@@ -366,6 +366,22 @@ func (e *Engine) ReplaceUpcoming(paths []string) {
 	}
 }
 
+// getPropertyString safely reads a string property from mpv.
+// Unlike Mpv.GetPropertyString (which can SIGSEGV when mpv returns NULL via
+// purego), this uses GetProperty with FormatString which checks for errors
+// before touching the result pointer. Must be called with e.mu held.
+func (e *Engine) getPropertyString(name string) string {
+	v, err := e.handle.GetProperty(name, mpv.FormatString)
+	if err != nil || v == nil {
+		return ""
+	}
+	s, ok := v.(string)
+	if !ok {
+		return ""
+	}
+	return s
+}
+
 // Close shuts down the mpv instance. It waits for the event loop to exit,
 // then holds the mutex while destroying the handle so no concurrent caller
 // can access it mid-destroy.
@@ -387,7 +403,7 @@ func (e *Engine) MediaTitle() string {
 		return ""
 	}
 
-	return e.handle.GetPropertyString("media-title")
+	return e.getPropertyString("media-title")
 }
 
 // MediaArtist returns the artist of the currently playing track.
@@ -398,7 +414,7 @@ func (e *Engine) MediaArtist() string {
 		return ""
 	}
 
-	return e.handle.GetPropertyString("metadata/by-key/artist")
+	return e.getPropertyString("metadata/by-key/artist")
 }
 
 // MediaAlbum returns the album of the currently playing track.
@@ -409,7 +425,7 @@ func (e *Engine) MediaAlbum() string {
 		return ""
 	}
 
-	return e.handle.GetPropertyString("metadata/by-key/album")
+	return e.getPropertyString("metadata/by-key/album")
 }
 
 // MediaPath returns the file path of the currently playing track.
@@ -420,7 +436,7 @@ func (e *Engine) MediaPath() string {
 		return ""
 	}
 
-	return e.handle.GetPropertyString("path")
+	return e.getPropertyString("path")
 }
 
 // Next skips to the next track in the playlist.
@@ -453,7 +469,7 @@ func (e *Engine) Version() string {
 		return ""
 	}
 
-	return e.handle.GetPropertyString("mpv-version")
+	return e.getPropertyString("mpv-version")
 }
 
 func (e *Engine) eventLoop() {
@@ -486,6 +502,9 @@ func (e *Engine) handleEvent() (shutdown bool) {
 
 	switch event.EventID {
 	case mpv.EventEnd:
+		if event.Data == nil {
+			break
+		}
 		ef := event.EndFile()
 		switch ef.Reason {
 		case mpv.EndFileError:
