@@ -23,20 +23,19 @@
   function startPolling() {
     if (pollTimer) return;
     pollTimer = setInterval(async () => {
-      playbackState = await PlayerService.State();
-      position = await PlayerService.Position();
-      duration = await PlayerService.Duration();
-      volume = await PlayerService.Volume();
-      title = await PlayerService.MediaTitle();
-      artist = await PlayerService.MediaArtist();
-      album = await PlayerService.MediaAlbum();
-      shuffleOn = await PlayerService.GetShuffle();
-      repeatMode = await PlayerService.GetRepeat();
-      radioMode = await PlayerService.IsRadioMode();
-      if (radioMode) {
-        radioStation = await PlayerService.RadioStationName();
-        radioArtwork = await PlayerService.RadioArtworkURL();
-      }
+      const s = await PlayerService.GetPlaybackStatus();
+      playbackState = s.state;
+      position = s.position;
+      duration = s.duration;
+      volume = s.volume;
+      title = s.title;
+      artist = s.artist;
+      album = s.album;
+      shuffleOn = s.shuffle;
+      repeatMode = s.repeat;
+      radioMode = s.radioMode;
+      radioStation = s.radioStation;
+      radioArtwork = s.radioArtwork;
     }, 250);
   }
 
