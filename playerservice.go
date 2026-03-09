@@ -1204,6 +1204,49 @@ func (p *PlayerService) RadioArtworkURL() string {
 	return p.radioArtworkURL
 }
 
+// PlaybackStatus holds all frequently-polled playback state in a single struct,
+// reducing Wails IPC round-trips from ~13/poll to 1/poll.
+type PlaybackStatus struct {
+	State        string  `json:"state"`
+	Position     float64 `json:"position"`
+	Duration     float64 `json:"duration"`
+	Volume       int     `json:"volume"`
+	Title        string  `json:"title"`
+	Artist       string  `json:"artist"`
+	Album        string  `json:"album"`
+	Shuffle      bool    `json:"shuffle"`
+	Repeat       string  `json:"repeat"`
+	RadioMode    bool    `json:"radioMode"`
+	RadioStation string  `json:"radioStation"`
+	RadioArtwork string  `json:"radioArtwork"`
+}
+
+// GetPlaybackStatus returns all frequently-polled playback state in a single
+// IPC call. This reduces WebKit message churn from ~60 messages/s to ~4/s,
+// working around a use-after-free bug in WebKitGTK 2.50.5's FormDataElement
+// destructor that triggers under high IPC volume.
+func (p *PlayerService) GetPlaybackStatus() PlaybackStatus {
+	s := PlaybackStatus{
+		State:    p.State(),
+		Position: p.Position(),
+		Duration: p.Duration(),
+		Volume:   p.Volume(),
+		Title:    p.MediaTitle(),
+		Artist:   p.MediaArtist(),
+		Album:    p.MediaAlbum(),
+		Shuffle:  p.GetShuffle(),
+		Repeat:   p.GetRepeat(),
+	}
+
+	p.radioMu.RLock()
+	s.RadioMode = p.radioMode
+	s.RadioStation = p.radioName
+	s.RadioArtwork = p.radioArtworkURL
+	p.radioMu.RUnlock()
+
+	return s
+}
+
 // SetReplayGain sets the ReplayGain mode: "track", "album", or "no" (off).
 func (p *PlayerService) SetReplayGain(mode string) error {
 	if p.engine == nil {
