@@ -34,6 +34,7 @@ type PlayerService struct {
 	onTrayUpdate   func(title, artist string) // set by main.go for tooltip updates
 	manualSkip     int32                      // atomic: set before explicit Next/Previous to suppress auto-advance
 	stopSave       chan struct{}
+	tickerDone     chan struct{} // closed when the ticker goroutine exits
 
 	// Scrobble tracking state.
 	scrobbleTrackID int64
@@ -131,7 +132,9 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 
 	// Periodic save (10s), MPRIS position update (1s), and scrobble queue flush (5m).
 	p.stopSave = make(chan struct{})
+	p.tickerDone = make(chan struct{})
 	go func() {
+		defer close(p.tickerDone)
 		posTicker := time.NewTicker(1 * time.Second)
 		saveTicker := time.NewTicker(10 * time.Second)
 		flushTicker := time.NewTicker(5 * time.Minute)
@@ -163,6 +166,9 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 func (p *PlayerService) ServiceShutdown() error {
 	if p.stopSave != nil {
 		close(p.stopSave)
+	}
+	if p.tickerDone != nil {
+		<-p.tickerDone // wait for ticker goroutine to fully exit
 	}
 	p.saveState()
 	if p.notifier != nil {
