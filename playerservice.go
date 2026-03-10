@@ -5,7 +5,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -106,8 +108,16 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 		}
 	})
 
-	// When mpv fails to play a stream, skip past offline server tracks.
+	// When mpv fails to play a stream, stop radio or skip past offline server tracks.
 	e.SetOnStreamError(func() {
+		p.radioMu.RLock()
+		isRadio := p.radioMode
+		p.radioMu.RUnlock()
+		if isRadio {
+			p.toasts.Push("Radio stream lost", "warn")
+			p.StopRadio()
+			return
+		}
 		p.skipToNextPlayable()
 	})
 
@@ -1071,6 +1081,11 @@ func (p *PlayerService) PlayRadio(stationName, streamURL, artworkURL string) err
 	p.radioLastTitle = ""
 	p.radioMu.Unlock()
 
+	// Fetch artwork server-side to avoid WebKit external HTTP requests.
+	if artworkURL != "" {
+		go p.fetchRadioArtwork(artworkURL)
+	}
+
 	// Clear the queue and play the stream directly.
 	p.queue.Clear()
 	if err := p.engine.Play(streamURL); err != nil {
@@ -1089,6 +1104,39 @@ func (p *PlayerService) PlayRadio(stationName, streamURL, artworkURL string) err
 	}
 
 	return nil
+}
+
+// fetchRadioArtwork downloads the artwork URL and stores it as a data: URI
+// so the frontend never makes external HTTP requests through WebKit.
+func (p *PlayerService) fetchRadioArtwork(url string) {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(url) //nolint:noctx // fire-and-forget background fetch
+	if err != nil {
+		return // leave original URL as fallback
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return
+	}
+
+	const maxSize = 1 << 20 // 1 MB
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxSize))
+	if err != nil || len(data) == 0 {
+		return
+	}
+
+	mime := resp.Header.Get("Content-Type")
+	if mime == "" {
+		mime = "image/png"
+	}
+	dataURI := "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)
+
+	p.radioMu.Lock()
+	// Only update if we're still playing the same station.
+	if p.radioMode && p.radioArtworkURL == url {
+		p.radioArtworkURL = dataURI
+	}
+	p.radioMu.Unlock()
 }
 
 // StopRadio stops the current radio stream and restores the library queue.
