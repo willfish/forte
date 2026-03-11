@@ -1264,6 +1264,7 @@ type PlaybackStatus struct {
 	Album        string  `json:"album"`
 	Shuffle      bool    `json:"shuffle"`
 	Repeat       string  `json:"repeat"`
+	MediaPath    string  `json:"mediaPath"`
 	RadioMode    bool    `json:"radioMode"`
 	RadioStation string  `json:"radioStation"`
 	RadioArtwork string  `json:"radioArtwork"`
@@ -1275,15 +1276,16 @@ type PlaybackStatus struct {
 // destructor that triggers under high IPC volume.
 func (p *PlayerService) GetPlaybackStatus() PlaybackStatus {
 	s := PlaybackStatus{
-		State:    p.State(),
-		Position: p.Position(),
-		Duration: p.Duration(),
-		Volume:   p.Volume(),
-		Title:    p.MediaTitle(),
-		Artist:   p.MediaArtist(),
-		Album:    p.MediaAlbum(),
-		Shuffle:  p.GetShuffle(),
-		Repeat:   p.GetRepeat(),
+		State:     p.State(),
+		Position:  p.Position(),
+		Duration:  p.Duration(),
+		Volume:    p.Volume(),
+		Title:     p.MediaTitle(),
+		Artist:    p.MediaArtist(),
+		Album:     p.MediaAlbum(),
+		MediaPath: p.MediaPath(),
+		Shuffle:   p.GetShuffle(),
+		Repeat:    p.GetRepeat(),
 	}
 
 	p.radioMu.RLock()

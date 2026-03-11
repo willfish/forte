@@ -78,12 +78,8 @@
   function startPolling() {
     if (pollTimer) return;
     pollTimer = setInterval(async () => {
-      const state = await PlayerService.State();
-      if (state !== 'stopped') {
-        currentFilePath = await PlayerService.MediaPath();
-      } else {
-        currentFilePath = '';
-      }
+      const s = await PlayerService.GetPlaybackStatus();
+      currentFilePath = s.state !== 'stopped' ? s.mediaPath : '';
     }, 500);
   }
 
