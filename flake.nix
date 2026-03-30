@@ -15,7 +15,7 @@
           pname = "forte-frontend";
           version = "0.1.0";
           src = ./frontend;
-          npmDepsHash = "sha256-izThZlAW9yVoqlLB4qvs/G1epJqiMTESxQpVUfT19f8=";
+          npmDepsHash = "sha256-QaeA7Z17kghQMTHWY9rqahO34hG7K4ogrPEfRohucMo=";
           buildPhase = ''
             npm run build
           '';
@@ -77,6 +77,7 @@
         packages = {
           default = forte;
           forte = forte;
+          frontend = frontend;
         };
 
         devShells.default = pkgs.mkShell {

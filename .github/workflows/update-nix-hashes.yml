@@ -1,0 +1,52 @@
+name: Update Nix hashes
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - flake.nix
+      - go.mod
+      - go.sum
+      - frontend/package.json
+      - frontend/package-lock.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  update-hashes:
+    name: Refresh flake dependency hashes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update flake hashes
+        run: |
+          nix shell nixpkgs#nix-update -c nix-update --flake --version=skip forte
+          nix shell nixpkgs#nix-update -c nix-update --flake --version=skip frontend
+
+      - name: Commit updated hashes
+        run: |
+          if git diff --quiet -- flake.nix; then
+            echo "No flake hash changes to commit"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add flake.nix
+          git commit -m "ci: update Nix dependency hashes"
+          git push origin HEAD:${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
