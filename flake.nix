@@ -15,7 +15,7 @@
           pname = "forte-frontend";
           version = "0.1.0";
           src = ./frontend;
-          npmDepsHash = "sha256-QaeA7Z17kghQMTHWY9rqahO34hG7K4ogrPEfRohucMo=";
+          npmDepsHash = "sha256-xwSJENVvXsGOXCEnp0aUY5g1HriS3LsZgIfg0fJyOKQ=";
           buildPhase = ''
             npm run build
           '';
@@ -29,7 +29,7 @@
           pname = "forte";
           version = "0.1.0";
           src = ./.;
-          vendorHash = "sha256-9jLpRJQGgsUotSOS5ikr3WOvuXAqZWqmXRvI3ewn36c=";
+          vendorHash = "sha256-xwSJENVvXsGOXCEnp0aUY5g1HriS3LsZgIfg0fJyOKQ=";
           tags = [ "production" "nocgo" "gtk4" ];
           ldflags = [ "-s" "-w" ];
           subPackages = [ "." ];
