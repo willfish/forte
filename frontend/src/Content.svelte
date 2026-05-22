@@ -206,8 +206,6 @@
     {/if}
   {:else if currentView === 'radio'}
     <RadioView />
-  {:else if currentView === 'history'}
-    <RadioView initialTab="history" />
   {:else if currentView === 'playlists' && libraryEnabled}
     <PlaylistView />
   {:else if currentView === 'stats' && libraryEnabled}
