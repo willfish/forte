@@ -15,7 +15,8 @@
           pname = "forte-frontend";
           version = "0.1.0";
           src = ./frontend;
-          npmDepsHash = "sha256-zCzHDKFSowfaPyKi2fUEvXkpotx0koK30OjQWBZ/RX8=";
+          nodejs = pkgs.nodejs_22;
+          npmDepsHash = "sha256-TWuww6q2PVFmoDqjkgGw67ZUometknyPtBOLARdcEfU=";
           buildPhase = ''
             npm run build
           '';
@@ -29,7 +30,8 @@
           pname = "forte";
           version = "0.1.0";
           src = ./.;
-          vendorHash = "sha256-ZaGM6mtQHojsnXJmyEzMPVF5dmt29kUkfJx2wQmOSDw=";
+          go = pkgs.go_1_25;
+          vendorHash = "sha256-l/iMbtl+O1X4N8Wdbn1ohNd9AIgs4kyyeqGPZxGCfhE=";
           tags = [ "production" "nocgo" "gtk4" ];
           ldflags = [ "-s" "-w" ];
           subPackages = [ "." ];
@@ -82,7 +84,7 @@
 
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
-            go
+            go_1_25
             nodejs_22
             go-task
             golangci-lint
