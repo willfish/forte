@@ -1,47 +1,22 @@
 <script lang="ts">
   import { PlayerService } from "../bindings/github.com/willfish/forte";
+  import { onPlaybackStatusChange } from './lib/playback';
   import { isServerOnline, onServerStatusChange } from './lib/stores';
+  import type { SearchResult } from './lib/types';
 
-  type Result = {
-    trackId: number;
-    title: string;
-    artist: string;
-    album: string;
-    genre: string;
-    durationMs: number;
-    filePath: string;
-    source: string;
-    serverId: string;
-  };
-
-  const { results, query, onartist }: { results: Result[]; query: string; onartist: (name: string) => void } = $props();
+  const { results, query, onartist }: { results: SearchResult[]; query: string; onartist: (name: string) => void } = $props();
 
   let currentFilePath = $state('');
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
   let statusVersion = $state(0);
 
   $effect(() => {
     return onServerStatusChange(() => { statusVersion++; });
   });
 
-  function startPolling() {
-    if (pollTimer) return;
-    pollTimer = setInterval(async () => {
-      const s = await PlayerService.GetPlaybackStatus();
-      currentFilePath = s.state !== 'stopped' ? s.mediaPath : '';
-    }, 500);
-  }
-
-  function stopPolling() {
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
-  }
-
   $effect(() => {
-    startPolling();
-    return () => stopPolling();
+    return onPlaybackStatusChange((s) => {
+      currentFilePath = s.mediaPath;
+    });
   });
 
   async function playFromResult(index: number) {

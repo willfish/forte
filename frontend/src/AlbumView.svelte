@@ -1,18 +1,8 @@
 <script lang="ts">
   import { LibraryService, PlayerService } from "../bindings/github.com/willfish/forte";
+  import { onPlaybackStatusChange } from './lib/playback';
   import { isServerOnline, onServerStatusChange } from './lib/stores';
-
-  type Track = {
-    trackId: number;
-    title: string;
-    artist: string;
-    trackNumber: number;
-    discNumber: number;
-    durationMs: number;
-    filePath: string;
-    source: string;
-    serverId: string;
-  };
+  import { toSource, type AlbumTrack, type QueueTrack } from './lib/types';
 
   type AlbumInfo = {
     title: string;
@@ -26,9 +16,8 @@
   const { albumId, onback, onartist }: { albumId: number; onback: () => void; onartist: (name: string) => void } = $props();
 
   let albumInfo = $state<AlbumInfo>({ title: '', artist: '', year: 0, trackCount: 0, artworkSrc: '', totalDurationMs: 0 });
-  let tracks = $state<Track[]>([]);
+  let tracks = $state<AlbumTrack[]>([]);
   let currentFilePath = $state('');
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
   let statusVersion = $state(0);
 
   $effect(() => {
@@ -41,7 +30,7 @@
       LibraryService.AlbumArtwork(albumId),
     ]);
 
-    tracks = (trackList || []).map((t: any) => ({
+    tracks = (trackList || []).map((t) => ({
       trackId: t.trackId,
       title: t.title,
       artist: t.artist,
@@ -49,7 +38,7 @@
       discNumber: t.discNumber,
       durationMs: t.durationMs,
       filePath: t.filePath,
-      source: t.source || 'local',
+      source: toSource(t.source),
       serverId: t.serverId || '',
     }));
 
@@ -66,7 +55,7 @@
 
     // Get album metadata from the album list
     const albums = await LibraryService.GetAlbums('title', 'asc', '');
-    const match = (albums || []).find((a: any) => a.id === albumId);
+    const match = (albums || []).find((a) => a.id === albumId);
     if (match) {
       albumInfo.title = match.title;
       albumInfo.artist = match.artist;
@@ -75,29 +64,15 @@
     }
   }
 
-  function startPolling() {
-    if (pollTimer) return;
-    pollTimer = setInterval(async () => {
-      const s = await PlayerService.GetPlaybackStatus();
-      currentFilePath = s.state !== 'stopped' ? s.mediaPath : '';
-    }, 500);
-  }
-
-  function stopPolling() {
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
-  }
-
   $effect(() => {
     loadAlbum();
-    startPolling();
-    return () => stopPolling();
+    return onPlaybackStatusChange((s) => {
+      currentFilePath = s.mediaPath;
+    });
   });
 
   async function playFromTrack(index: number) {
-    const queueTracks = tracks.map(t => ({
+    const queueTracks: QueueTrack[] = tracks.map(t => ({
       trackId: t.trackId,
       title: t.title,
       artist: t.artist,
@@ -127,7 +102,7 @@
 
   // Group tracks by disc number for multi-disc display.
   const discs = $derived(() => {
-    const map = new Map<number, Track[]>();
+    const map = new Map<number, AlbumTrack[]>();
     for (const t of tracks) {
       const disc = t.discNumber || 1;
       if (!map.has(disc)) map.set(disc, []);

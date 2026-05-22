@@ -4,6 +4,9 @@
 bin/
 frontend/.vite/
 frontend/dist
+!frontend/dist/
+frontend/dist/*
+!frontend/dist/.gitkeep
 frontend/node_modules
 frontend/test-results
 

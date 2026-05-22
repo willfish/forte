@@ -1,19 +1,9 @@
 <script lang="ts">
   import { LibraryService, PlayerService } from "../bindings/github.com/willfish/forte";
   import { isServerOnline, onServerStatusChange } from './lib/stores';
+  import { toSource, type Album, type QueueTrack } from './lib/types';
 
-  type AlbumItem = {
-    id: number;
-    title: string;
-    artist: string;
-    year: number;
-    trackCount: number;
-    source: string;
-    serverId: string;
-    artworkSrc?: string;
-  };
-
-  let albums = $state<AlbumItem[]>([]);
+  let albums = $state<Album[]>([]);
   let sortField = $state('artist');
   let sortOrder = $state('asc');
   let sourceFilter = $state('');
@@ -30,13 +20,13 @@
     loading = true;
     try {
       const result = await LibraryService.GetAlbums(sortField, sortOrder, sourceFilter);
-      albums = (result || []).map((a: any) => ({
+      albums = (result || []).map((a) => ({
         id: a.id,
         title: a.title,
         artist: a.artist,
         year: a.year,
         trackCount: a.trackCount,
-        source: a.source || 'local',
+        source: toSource(a.source),
         serverId: a.serverId || '',
       }));
       // Load artwork lazily after albums are rendered.
@@ -73,10 +63,17 @@
     if (onselect) onselect(albumId);
   }
 
+  function handleAlbumKeydown(e: KeyboardEvent, albumId: number) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleAlbumClick(albumId);
+    }
+  }
+
   async function playAlbum(e: Event, albumId: number, albumTitle: string) {
     e.stopPropagation();
     const trackList = await LibraryService.GetAlbumTracks(albumId);
-    const queueTracks = (trackList || []).map((t: any) => ({
+    const queueTracks: QueueTrack[] = (trackList || []).map((t) => ({
       trackId: t.trackId,
       title: t.title,
       artist: t.artist,
@@ -151,7 +148,14 @@
     <div class="grid">
       {#each albums as album (album.id)}
         {@const unavailable = statusVersion >= 0 && album.serverId && !isServerOnline(album.serverId)}
-        <button class="album-card" class:unavailable={unavailable} onclick={() => handleAlbumClick(album.id)}>
+        <div
+          class="album-card"
+          class:unavailable={unavailable}
+          role="button"
+          tabindex="0"
+          onclick={() => handleAlbumClick(album.id)}
+          onkeydown={(e) => handleAlbumKeydown(e, album.id)}
+        >
           <div class="artwork-wrapper">
             {#if album.artworkSrc}
               <img class="artwork" src={album.artworkSrc} alt="{album.title} cover" loading="lazy" />
@@ -164,14 +168,11 @@
                 </svg>
               </div>
             {/if}
-            <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-            <div class="artwork-overlay" onclick={(e) => playAlbum(e, album.id, album.title)}>
-              <div class="play-btn" aria-label="Play {album.title}">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                  <path d="M8 5v14l11-7z"/>
-                </svg>
-              </div>
-            </div>
+            <button class="artwork-overlay play-btn" type="button" onclick={(e) => playAlbum(e, album.id, album.title)} aria-label="Play {album.title}">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+            </button>
             {#if album.source === 'server'}
               <span class="source-badge" class:source-badge-offline={unavailable} title={unavailable ? 'Server offline' : 'Server'}>
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
@@ -184,7 +185,7 @@
             <span class="album-title">{album.title}</span>
             <span class="album-artist">{album.artist}{formatYear(album.year) ? ` (${formatYear(album.year)})` : ''}</span>
           </div>
-        </button>
+        </div>
       {/each}
     </div>
   {/if}
@@ -400,8 +401,11 @@
   .artwork-overlay {
     position: absolute;
     inset: 0;
+    border: none;
     border-radius: 6px;
     background: rgba(0, 0, 0, 0.4);
+    color: var(--text-on-accent);
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -413,22 +417,19 @@
     opacity: 1;
   }
 
-  .play-btn {
+  .artwork-overlay svg {
     width: 44px;
     height: 44px;
     border-radius: 50%;
-    border: none;
     background: var(--accent);
     color: var(--text-on-accent);
     display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
+    padding: 10px;
     transition: transform 0.15s ease;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 
-  .play-btn:hover {
+  .artwork-overlay:hover svg {
     transform: scale(1.1);
   }
 

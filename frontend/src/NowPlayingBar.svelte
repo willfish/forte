@@ -1,5 +1,7 @@
 <script lang="ts">
   import { PlayerService } from "../bindings/github.com/willfish/forte";
+  import { onPlaybackStatusChange, refreshPlaybackStatus } from './lib/playback';
+  import type { PlaybackStatus, RepeatMode } from './lib/types';
 
   const { onqueuetoggle, onexpand }: { onqueuetoggle: () => void; onexpand: () => void } = $props();
 
@@ -12,61 +14,32 @@
   let album = $state('');
   let artworkSrc = $state('');
   let shuffleOn = $state(false);
-  let repeatMode = $state('off');
+  let repeatMode = $state<RepeatMode>('off');
   let muted = $state(false);
   let volumeBeforeMute = $state(100);
   let radioMode = $state(false);
   let radioStation = $state('');
   let radioArtwork = $state('');
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
-
-  function startPolling() {
-    if (pollTimer) return;
-    pollTimer = setInterval(async () => {
-      const s = await PlayerService.GetPlaybackStatus();
-      playbackState = s.state;
-      position = s.position;
-      duration = s.duration;
-      volume = s.volume;
-      title = s.title;
-      artist = s.artist;
-      album = s.album;
-      shuffleOn = s.shuffle;
-      repeatMode = s.repeat;
-      radioMode = s.radioMode;
-      radioStation = s.radioStation;
-      radioArtwork = s.radioArtwork;
-    }, 250);
-  }
-
-  function stopPolling() {
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
-  }
-
-  // Fetch artwork less frequently (only when track changes).
-  let lastArtworkKey = '';
-  async function refreshArtwork() {
-    const key = title + '|' + artist;
-    if (key === lastArtworkKey) return;
-    lastArtworkKey = key;
-    if (playbackState === 'stopped' || !title) {
-      artworkSrc = '';
-      return;
-    }
-    artworkSrc = await PlayerService.Artwork();
-  }
 
   $effect(() => {
-    startPolling();
-    const artworkTimer = setInterval(refreshArtwork, 1000);
-    return () => {
-      stopPolling();
-      clearInterval(artworkTimer);
-    };
+    return onPlaybackStatusChange(applyStatus);
   });
+
+  function applyStatus(s: PlaybackStatus) {
+    playbackState = s.state;
+    position = s.position;
+    duration = s.duration;
+    volume = s.volume;
+    title = s.title;
+    artist = s.artist;
+    album = s.album;
+    artworkSrc = s.artworkSrc;
+    shuffleOn = s.shuffle;
+    repeatMode = s.repeat;
+    radioMode = s.radioMode;
+    radioStation = s.radioStation;
+    radioArtwork = s.radioArtwork;
+  }
 
   function formatTime(seconds: number): string {
     const m = Math.floor(seconds / 60);
@@ -91,18 +64,17 @@
     } else {
       await PlayerService.Stop();
     }
-    artworkSrc = '';
-    lastArtworkKey = '';
+    await refreshPlaybackStatus();
   }
 
   async function previous() {
     await PlayerService.Previous();
-    lastArtworkKey = '';
+    await refreshPlaybackStatus();
   }
 
   async function next() {
     await PlayerService.Next();
-    lastArtworkKey = '';
+    await refreshPlaybackStatus();
   }
 
   async function handleSeek(e: Event) {
@@ -130,13 +102,13 @@
 
   async function toggleShuffle() {
     await PlayerService.SetShuffle(!shuffleOn);
-    shuffleOn = !shuffleOn;
+    await refreshPlaybackStatus();
   }
 
   async function cycleRepeat() {
-    const next = repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
+    const next: RepeatMode = repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
     await PlayerService.SetRepeat(next);
-    repeatMode = next;
+    await refreshPlaybackStatus();
   }
 
   const isStopped = $derived(playbackState === 'stopped');
@@ -144,8 +116,7 @@
 
 <footer class="bar">
   <div class="track-info">
-    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div class="artwork-btn" onclick={onexpand}>
+    <button class="artwork-btn" type="button" onclick={onexpand} aria-label="Open now playing">
       {#if radioMode && radioArtwork}
         <img class="artwork" src={radioArtwork} alt="Station art" />
       {:else if artworkSrc}
@@ -153,7 +124,7 @@
       {:else}
         <div class="artwork-placeholder"></div>
       {/if}
-    </div>
+    </button>
     <div class="meta">
       {#if radioMode && radioStation}
         <span class="title">{title || radioStation}</span>

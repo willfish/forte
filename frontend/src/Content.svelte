@@ -9,6 +9,7 @@
   import Settings from './Settings.svelte';
   import RadioView from './RadioView.svelte';
   import SearchResults from './SearchResults.svelte';
+  import { toSource, type SearchResult } from './lib/types';
 
   let currentView = $state<View>(getCurrentView());
   let selectedAlbumId = $state<number | null>(null);
@@ -16,7 +17,7 @@
 
   // Search state.
   let searchQuery = $state('');
-  let searchResults = $state<any[]>([]);
+  let searchResults = $state<SearchResult[]>([]);
   let searching = $state(false);
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let searchInputRef: HTMLInputElement | undefined = $state();
@@ -84,7 +85,7 @@
     debounceTimer = setTimeout(async () => {
       try {
         const results = await LibraryService.Search(value.trim(), 100);
-        searchResults = (results || []).map((r: any) => ({
+        searchResults = (results || []).map((r) => ({
           trackId: r.trackId,
           title: r.title,
           artist: r.artist,
@@ -92,7 +93,7 @@
           genre: r.genre,
           durationMs: r.durationMs,
           filePath: r.filePath,
-          source: r.source || 'local',
+          source: toSource(r.source),
           serverId: r.serverId || '',
         }));
       } catch {
