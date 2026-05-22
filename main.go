@@ -116,6 +116,7 @@ func main() {
 		Title:            "Forte",
 		Width:            1200,
 		Height:           800,
+		Frameless:        true,
 		MinWidth:         700,
 		MinHeight:        600,
 		BackgroundColour: application.NewRGB(27, 38, 54),

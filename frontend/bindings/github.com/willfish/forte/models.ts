@@ -116,6 +116,7 @@ export class AppPreferencesJSON {
     "libraryEnabled": boolean;
     "startLastStation": boolean;
     "autoReconnect": boolean;
+    "showTitlebar": boolean;
 
     /** Creates a new AppPreferencesJSON instance. */
     constructor($$source: Partial<AppPreferencesJSON> = {}) {
@@ -127,6 +128,9 @@ export class AppPreferencesJSON {
         }
         if (!("autoReconnect" in $$source)) {
             this["autoReconnect"] = false;
+        }
+        if (!("showTitlebar" in $$source)) {
+            this["showTitlebar"] = false;
         }
 
         Object.assign(this, $$source);
