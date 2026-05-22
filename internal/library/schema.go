@@ -185,3 +185,38 @@ CREATE TABLE radio_favourites (
 	added_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 `
+
+const migration011 = `
+ALTER TABLE radio_favourites ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
+
+CREATE TABLE radio_custom_stations (
+	station_uuid TEXT PRIMARY KEY,
+	name         TEXT NOT NULL,
+	stream_url   TEXT NOT NULL,
+	favicon_url  TEXT NOT NULL DEFAULT '',
+	tags         TEXT NOT NULL DEFAULT '',
+	created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+	updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE radio_history (
+	station_uuid   TEXT PRIMARY KEY,
+	name           TEXT NOT NULL,
+	stream_url     TEXT NOT NULL,
+	favicon_url    TEXT NOT NULL DEFAULT '',
+	tags           TEXT NOT NULL DEFAULT '',
+	track_title    TEXT NOT NULL DEFAULT '',
+	play_count     INTEGER NOT NULL DEFAULT 0,
+	last_error     TEXT NOT NULL DEFAULT '',
+	last_played_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_radio_history_last_played ON radio_history (last_played_at);
+
+CREATE TABLE app_preferences (
+	id                 INTEGER PRIMARY KEY CHECK (id = 1),
+	library_enabled    INTEGER NOT NULL DEFAULT 0,
+	start_last_station INTEGER NOT NULL DEFAULT 1,
+	auto_reconnect     INTEGER NOT NULL DEFAULT 1
+);
+INSERT INTO app_preferences (id) VALUES (1);
+`

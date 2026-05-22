@@ -86,10 +86,14 @@
           buildInputs = with pkgs; [
             go_1_25
             nodejs_22
+            playwright-driver
             go-task
             golangci-lint
             govulncheck
+            ffmpeg
             pkg-config
+            gtk3
+            webkitgtk_4_1
             gtk4
             webkitgtk_6_0
             mpv
@@ -99,6 +103,9 @@
             export GOPATH="$PWD/.go"
             export PATH="$GOPATH/bin:$PATH"
             export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.mpv ]}:$LD_LIBRARY_PATH"
+            export PLAYWRIGHT_BROWSERS_PATH="${pkgs.playwright-driver.browsers}"
+            export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+            export CHROME_PATH="$(find -L "$PLAYWRIGHT_BROWSERS_PATH" -path '*/chrome-linux*/chrome' -type f | head -n 1)"
           '';
         };
       });

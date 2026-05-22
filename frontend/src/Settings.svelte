@@ -1,5 +1,6 @@
 <script lang="ts">
   import { getPreference, setPreference, onPreferenceChange, type ThemePreference } from './lib/theme';
+  import { setLibraryEnabled } from './lib/stores';
   import { LibraryService } from "../bindings/github.com/willfish/forte";
   import type { ServerConfig } from './lib/types';
 
@@ -10,6 +11,11 @@
 
   // Theme state
   let preference = $state<ThemePreference>(getPreference());
+  let appPreferences = $state({
+    libraryEnabled: false,
+    startLastStation: true,
+    autoReconnect: true,
+  });
 
   $effect(() => {
     return onPreferenceChange((p) => { preference = p; });
@@ -18,6 +24,37 @@
   function handleChange(pref: ThemePreference) {
     setPreference(pref);
     preference = pref;
+  }
+
+  async function loadAppPreferences() {
+    try {
+      const prefs = await LibraryService.GetAppPreferences();
+      appPreferences = {
+        libraryEnabled: Boolean(prefs?.libraryEnabled),
+        startLastStation: Boolean(prefs?.startLastStation),
+        autoReconnect: Boolean(prefs?.autoReconnect),
+      };
+      setLibraryEnabled(appPreferences.libraryEnabled);
+    } catch {
+      setLibraryEnabled(false);
+    }
+  }
+
+  $effect(() => {
+    loadAppPreferences();
+  });
+
+  async function saveAppPreference(key: keyof typeof appPreferences, value: boolean) {
+    const next = { ...appPreferences, [key]: value };
+    appPreferences = next;
+    if (key === 'libraryEnabled') {
+      setLibraryEnabled(value);
+    }
+    try {
+      await LibraryService.SaveAppPreferences(next);
+    } catch {
+      await loadAppPreferences();
+    }
   }
 
   const themeOptions: { value: ThemePreference; label: string; description: string }[] = [
@@ -48,7 +85,11 @@
   }
 
   $effect(() => {
-    loadServers();
+    if (appPreferences.libraryEnabled) {
+      loadServers();
+    } else {
+      servers = [];
+    }
   });
 
   function startAdd() {
@@ -314,6 +355,46 @@
     </div>
   </section>
 
+  <section class="section">
+    <h3>Radio</h3>
+    <div class="preference-list">
+      <label class="preference-row">
+        <span>
+          <span class="option-label">Start last station</span>
+          <span class="option-desc">Resume your most recent radio stream when Forte opens</span>
+        </span>
+        <input
+          type="checkbox"
+          checked={appPreferences.startLastStation}
+          onchange={(e) => saveAppPreference('startLastStation', (e.target as HTMLInputElement).checked)}
+        />
+      </label>
+      <label class="preference-row">
+        <span>
+          <span class="option-label">Reconnect streams</span>
+          <span class="option-desc">Retry radio playback automatically after temporary stream failures</span>
+        </span>
+        <input
+          type="checkbox"
+          checked={appPreferences.autoReconnect}
+          onchange={(e) => saveAppPreference('autoReconnect', (e.target as HTMLInputElement).checked)}
+        />
+      </label>
+      <label class="preference-row">
+        <span>
+          <span class="option-label">Library mode</span>
+          <span class="option-desc">Show local/server library, playlists, and statistics</span>
+        </span>
+        <input
+          type="checkbox"
+          checked={appPreferences.libraryEnabled}
+          onchange={(e) => saveAppPreference('libraryEnabled', (e.target as HTMLInputElement).checked)}
+        />
+      </label>
+    </div>
+  </section>
+
+  {#if appPreferences.libraryEnabled}
   <section class="section servers-section">
     <h3>Servers</h3>
 
@@ -424,6 +505,7 @@
       {/if}
     {/if}
   </section>
+  {/if}
 
   <section class="section">
     <h3>Last.fm</h3>
@@ -575,6 +657,38 @@
   }
 
   .theme-option input {
+    accent-color: var(--accent);
+  }
+
+  .preference-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .preference-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .preference-row:hover {
+    background: var(--bg-hover);
+  }
+
+  .preference-row > span {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .preference-row input {
+    flex-shrink: 0;
     accent-color: var(--accent);
   }
 

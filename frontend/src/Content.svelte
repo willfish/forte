@@ -1,5 +1,14 @@
 <script lang="ts">
-  import { getCurrentView, onViewChange, setCurrentView, setServerStatuses, type View } from './lib/stores';
+  import {
+    getCurrentView,
+    isLibraryEnabled,
+    onLibraryEnabledChange,
+    onViewChange,
+    setCurrentView,
+    setLibraryEnabled,
+    setServerStatuses,
+    type View
+  } from './lib/stores';
   import { LibraryService } from "../bindings/github.com/willfish/forte";
   import AlbumGrid from './AlbumGrid.svelte';
   import AlbumView from './AlbumView.svelte';
@@ -12,6 +21,7 @@
   import { toSource, type SearchResult } from './lib/types';
 
   let currentView = $state<View>(getCurrentView());
+  let libraryEnabled = $state(isLibraryEnabled());
   let selectedAlbumId = $state<number | null>(null);
   let selectedArtistName = $state<string | null>(null);
 
@@ -33,8 +43,31 @@
     });
   });
 
-  // Poll server statuses every 5 seconds.
   $effect(() => {
+    return onLibraryEnabledChange((enabled) => {
+      libraryEnabled = enabled;
+    });
+  });
+
+  $effect(() => {
+    async function loadPreferences() {
+      try {
+        const prefs = await LibraryService.GetAppPreferences();
+        setLibraryEnabled(Boolean(prefs?.libraryEnabled));
+      } catch {
+        setLibraryEnabled(false);
+      }
+    }
+    loadPreferences();
+  });
+
+  // Poll server statuses only when library mode is enabled.
+  $effect(() => {
+    if (!libraryEnabled) {
+      setServerStatuses({});
+      return;
+    }
+
     async function poll() {
       try {
         const statuses = await LibraryService.GetServerStatuses();
@@ -120,7 +153,7 @@
 
   function handleGlobalKeydown(e: KeyboardEvent) {
     // Ctrl+F / Cmd+F focuses the search bar when in library view.
-    if ((e.ctrlKey || e.metaKey) && e.key === 'f' && currentView === 'library') {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f' && currentView === 'library' && libraryEnabled) {
       e.preventDefault();
       searchInputRef?.focus();
     }
@@ -130,7 +163,7 @@
 <svelte:window onkeydown={handleGlobalKeydown} />
 
 <main class="content">
-  {#if currentView === 'library'}
+  {#if currentView === 'library' && libraryEnabled}
     <div class="search-bar">
       <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
         <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
@@ -173,9 +206,11 @@
     {/if}
   {:else if currentView === 'radio'}
     <RadioView />
-  {:else if currentView === 'playlists'}
+  {:else if currentView === 'history'}
+    <RadioView initialTab="history" />
+  {:else if currentView === 'playlists' && libraryEnabled}
     <PlaylistView />
-  {:else if currentView === 'stats'}
+  {:else if currentView === 'stats' && libraryEnabled}
     <StatsView onartist={handleArtistSelect} />
   {:else if currentView === 'settings'}
     <Settings />

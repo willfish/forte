@@ -1,10 +1,22 @@
 <script lang="ts">
-  import { getCurrentView, setCurrentView, onViewChange, type View } from './lib/stores';
+  import {
+    getCurrentView,
+    isLibraryEnabled,
+    onLibraryEnabledChange,
+    onViewChange,
+    setCurrentView,
+    type View
+  } from './lib/stores';
 
   let currentView = $state<View>(getCurrentView());
+  let libraryEnabled = $state(isLibraryEnabled());
 
   $effect(() => {
     return onViewChange((v) => { currentView = v; });
+  });
+
+  $effect(() => {
+    return onLibraryEnabledChange((enabled) => { libraryEnabled = enabled; });
   });
 
   function navigate(view: View) {
@@ -13,18 +25,23 @@
   }
 
   const navItems: { view: View; label: string; icon: string }[] = [
+    { view: 'radio', label: 'Radio', icon: '\u25CE' },
+    { view: 'history', label: 'History', icon: '\u25F7' },
     { view: 'library', label: 'Library', icon: '\u266B' },
     { view: 'playlists', label: 'Playlists', icon: '\u2630' },
-    { view: 'radio', label: 'Radio', icon: '\u25CE' },
     { view: 'stats', label: 'Stats', icon: '\u2584' },
     { view: 'settings', label: 'Settings', icon: '\u2699' },
   ];
+
+  const visibleItems = $derived(navItems.filter(item =>
+    libraryEnabled || !['library', 'playlists', 'stats'].includes(item.view)
+  ));
 </script>
 
 <nav class="sidebar">
   <div class="brand">Forte</div>
   <ul>
-    {#each navItems as item}
+    {#each visibleItems as item}
       <li>
         <button class="nav-btn" class:active={currentView === item.view} onclick={() => navigate(item.view)}>
           <span class="icon">{item.icon}</span>
