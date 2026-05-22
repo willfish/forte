@@ -172,6 +172,8 @@ func sign(params map[string]string, secret string) string {
 	}
 	buf.WriteString(secret)
 
+	// Last.fm API signatures require MD5 over sorted parameters plus the shared secret.
+	// codeql[go/weak-sensitive-data-hashing]
 	return fmt.Sprintf("%x", md5.Sum([]byte(buf.String())))
 }
 
