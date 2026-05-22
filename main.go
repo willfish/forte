@@ -23,6 +23,8 @@ var trayIconIdle []byte
 //go:embed build/tray-playing-32.png
 var trayIconPlaying []byte
 
+const appID = "io.github.willfish.forte"
+
 // setupCrashLog directs Go runtime crash output (SIGSEGV, etc.) to a file
 // so crashes from the installed program can be diagnosed. It also writes
 // /proc/self/maps at startup so library addresses can be resolved from the
@@ -75,6 +77,9 @@ func main() {
 	app := application.New(application.Options{
 		Name:        "Forte",
 		Description: "A modern music player",
+		Linux: application.LinuxOptions{
+			ProgramName: appID,
+		},
 		Services: []application.Service{
 			application.NewService(ps),
 			application.NewService(ls),

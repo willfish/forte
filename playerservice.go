@@ -533,6 +533,14 @@ func (p *PlayerService) PlayAll(paths []string) error {
 
 // Pause pauses the current playback.
 func (p *PlayerService) Pause() {
+	p.radioMu.RLock()
+	isRadio := p.radioMode
+	p.radioMu.RUnlock()
+	if isRadio {
+		p.StopRadio()
+		return
+	}
+
 	if p.engine != nil {
 		p.engine.Pause()
 	}
@@ -553,6 +561,14 @@ func (p *PlayerService) Resume() {
 
 // Stop halts the current playback.
 func (p *PlayerService) Stop() {
+	p.radioMu.RLock()
+	isRadio := p.radioMode
+	p.radioMu.RUnlock()
+	if isRadio {
+		p.StopRadio()
+		return
+	}
+
 	if p.engine != nil {
 		p.engine.Stop()
 	}

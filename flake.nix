@@ -86,12 +86,15 @@
             for size in 16 24 32 48 64 128 256 512; do
               install -d "$out/share/icons/hicolor/''${size}x''${size}/apps"
               magick build/appicon.png -resize "''${size}x''${size}" \
+                "$out/share/icons/hicolor/''${size}x''${size}/apps/io.github.willfish.forte.png"
+              cp "$out/share/icons/hicolor/''${size}x''${size}/apps/io.github.willfish.forte.png" \
                 "$out/share/icons/hicolor/''${size}x''${size}/apps/forte.png"
             done
+            install -Dm644 build/logo.svg $out/share/icons/hicolor/scalable/apps/io.github.willfish.forte.svg
             install -Dm644 build/logo.svg $out/share/icons/hicolor/scalable/apps/forte.svg
             install -Dm644 build/appicon.png $out/share/pixmaps/forte.png
-            install -Dm644 build/linux/forte.desktop $out/share/applications/forte.desktop
-            desktop-file-validate $out/share/applications/forte.desktop
+            install -Dm644 build/linux/forte.desktop $out/share/applications/io.github.willfish.forte.desktop
+            desktop-file-validate $out/share/applications/io.github.willfish.forte.desktop
           '';
 
           preFixup = ''
