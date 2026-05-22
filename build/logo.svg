@@ -1,5 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <rect width="512" height="512" rx="96" fill="#1b2636"/>
-  <path d="M224 128h144v32H256v180c0 39.8-32.2 72-72 72s-72-32.2-72-72 32.2-72 72-72c15.9 0 30.6 5.1 42.5 13.8V128H224z" fill="#e0e0e0"/>
-  <ellipse cx="184" cy="340" rx="60" ry="52" fill="#e0e0e0"/>
+  <text
+    x="256"
+    y="365"
+    text-anchor="middle"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="360"
+    font-style="italic"
+    font-weight="700"
+    fill="#e0e0e0">f</text>
+  <path d="M166 244h198M148 294h198" stroke="#3366aa" stroke-width="22" stroke-linecap="round" opacity="0.72"/>
 </svg>

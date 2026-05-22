@@ -16,7 +16,7 @@
           version = "0.1.0";
           src = ./frontend;
           nodejs = pkgs.nodejs_22;
-          npmDepsHash = "sha256-fnJKJQZEE/WtrkeKSMd6ewIxL4iFI8/yYqElr/niom8=";
+          npmDepsHash = "sha256-U5x+/CNX2I9FqIasFdiRzhg2NqcnHljBBUPfUaLDyi8=";
           buildPhase = ''
             npm run build
           '';
@@ -31,7 +31,7 @@
           version = "0.1.0";
           src = ./.;
           go = pkgs.go_1_25;
-          vendorHash = "sha256-WmqUW1tduVEZV+IuWu81mQke7GDs5tFUPy9LkmZjErM=";
+          vendorHash = "sha256-U5x+/CNX2I9FqIasFdiRzhg2NqcnHljBBUPfUaLDyi8=";
           modBuildPhase = ''
             runHook preBuild
 
@@ -66,6 +66,8 @@
           nativeBuildInputs = with pkgs; [
             pkg-config
             wrapGAppsHook4
+            imagemagick
+            desktop-file-utils
           ];
 
           buildInputs = with pkgs; [
@@ -81,10 +83,15 @@
           '';
 
           postInstall = ''
-            install -Dm644 build/appicon.png $out/share/icons/hicolor/1024x1024/apps/forte.png
+            for size in 16 24 32 48 64 128 256 512; do
+              install -d "$out/share/icons/hicolor/''${size}x''${size}/apps"
+              magick build/appicon.png -resize "''${size}x''${size}" \
+                "$out/share/icons/hicolor/''${size}x''${size}/apps/forte.png"
+            done
             install -Dm644 build/logo.svg $out/share/icons/hicolor/scalable/apps/forte.svg
             install -Dm644 build/appicon.png $out/share/pixmaps/forte.png
             install -Dm644 build/linux/forte.desktop $out/share/applications/forte.desktop
+            desktop-file-validate $out/share/applications/forte.desktop
           '';
 
           preFixup = ''

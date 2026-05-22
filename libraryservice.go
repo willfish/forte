@@ -1049,6 +1049,7 @@ type AppPreferencesJSON struct {
 	LibraryEnabled   bool `json:"libraryEnabled"`
 	StartLastStation bool `json:"startLastStation"`
 	AutoReconnect    bool `json:"autoReconnect"`
+	ShowTitlebar     bool `json:"showTitlebar"`
 }
 
 // GetRadioFavourites returns all saved radio stations.
@@ -1207,6 +1208,7 @@ func (s *LibraryService) GetAppPreferences() (AppPreferencesJSON, error) {
 		LibraryEnabled:   prefs.LibraryEnabled,
 		StartLastStation: prefs.StartLastStation,
 		AutoReconnect:    prefs.AutoReconnect,
+		ShowTitlebar:     prefs.ShowTitlebar,
 	}, nil
 }
 
@@ -1219,6 +1221,7 @@ func (s *LibraryService) SaveAppPreferences(prefs AppPreferencesJSON) error {
 		LibraryEnabled:   prefs.LibraryEnabled,
 		StartLastStation: prefs.StartLastStation,
 		AutoReconnect:    prefs.AutoReconnect,
+		ShowTitlebar:     prefs.ShowTitlebar,
 	})
 }
 

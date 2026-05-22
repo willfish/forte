@@ -5,6 +5,7 @@ let appPreferences = {
   libraryEnabled: false,
   startLastStation: true,
   autoReconnect: true,
+  showTitlebar: false,
 };
 
 let radioFavourites = [
@@ -32,6 +33,26 @@ let playbackStatus = {
   radioStation: "",
   radioArtwork: "",
 };
+
+function stationIcon(label: string, background: string, foreground = "ffffff") {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+    <rect width="96" height="96" rx="12" fill="#${background}"/>
+    <text x="48" y="58" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#${foreground}">${label}</text>
+  </svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+const demoStations = [
+  { uuid: "somafm-missioncontrol", name: "Ishq - Iqqoa", streamUrl: "https://stream.example.com/mission-control", favicon: stationIcon("MC", "1f2937"), country: "SomaFM Mission Control", tags: "ambient,space,electronic", bitrate: 128, codec: "MP3" },
+  { uuid: "st-jazz-fm", name: "Jazz FM", streamUrl: "https://stream.example.com/jazz-fm", favicon: stationIcon("JF", "2563eb"), country: "United Kingdom", tags: "jazz,smooth", bitrate: 128, codec: "MP3" },
+  { uuid: "st-classical-24", name: "Classical 24", streamUrl: "https://stream.example.com/classical", favicon: stationIcon("C24", "7c2d12"), country: "France", tags: "classical,orchestral", bitrate: 320, codec: "MP3" },
+  { uuid: "st-mangoradio", name: "MANGORADIO", streamUrl: "https://stream.example.com/mango", favicon: stationIcon("M", "f59e0b", "111827"), country: "Germany", tags: "music,variety", bitrate: 128, codec: "MP3" },
+  { uuid: "st-radio-paradise", name: "Radio Paradise Main Mix (EU) 320k AAC", streamUrl: "https://stream.example.com/rp", favicon: stationIcon("RP", "f8fafc", "334155"), country: "The United States Of America", tags: "california,eclectic,free,internet", bitrate: 320, codec: "AAC" },
+  { uuid: "st-classic-vinyl", name: "Classic Vinyl HD", streamUrl: "https://stream.example.com/classic-vinyl", favicon: stationIcon("CV", "dc2626"), country: "The United States Of America", tags: "1930,1940,1950,1960", bitrate: 320, codec: "MP3" },
+  { uuid: "st-jazz-underground", name: "Adroit Jazz Underground", streamUrl: "https://stream.example.com/jazz", favicon: stationIcon("JZ", "7c3aed"), country: "The United States Of America", tags: "avant-garde,bebop,big band,bop", bitrate: 320, codec: "MP3" },
+  { uuid: "st-bbc-world", name: "BBC World Service", streamUrl: "https://stream.example.com/bbc", favicon: stationIcon("BBC", "ef4444"), country: "The United Kingdom Of Great Britain And Northern Ireland", tags: "news,talk", bitrate: 56, codec: "MP3" },
+  { uuid: "st-walm-old-time", name: "WALM - Old Time Radio", streamUrl: "https://stream.example.com/walm", favicon: stationIcon("OTR", "22c55e", "052e16"), country: "The United States Of America", tags: "78,78-rpm,classic", bitrate: 64, codec: "MP3" },
+];
 
 function upsertHistory(stationUuid: string, name: string, streamUrl: string, faviconUrl: string, tags: string) {
   const existing = radioHistory.find((h) => h.stationUuid === stationUuid);
@@ -163,26 +184,15 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   }),
 
   // ProxyImageURL
-  1305746552: (url: string) => url ? "data:image/png;base64,iVBOR" : "",
+  1305746552: (url: string) => url || "",
   // SearchRadioStations
-  1619368624: () => [
-    { uuid: "st-1", name: "Jazz FM", streamUrl: "https://stream.example.com/jazz", favicon: "https://img.example.com/jazz.png", country: "United Kingdom", tags: "jazz,smooth", bitrate: 128, codec: "MP3", votes: 42, clicks: 100 },
-    { uuid: "st-2", name: "Rock Radio", streamUrl: "https://stream.example.com/rock", favicon: "https://img.example.com/rock.png", country: "Germany", tags: "rock,indie", bitrate: 256, codec: "AAC", votes: 10, clicks: 50 },
-  ],
+  1619368624: () => demoStations.map((station, index) => ({ ...station, votes: 200 - index * 10, clicks: 500 - index * 20 })),
   // GetTopVotedRadioStations
-  1723581283: () => [
-    { uuid: "st-1", name: "Jazz FM", streamUrl: "https://stream.example.com/jazz", favicon: "https://img.example.com/jazz.png", country: "United Kingdom", tags: "jazz,smooth", bitrate: 128, codec: "MP3", votes: 42, clicks: 100 },
-    { uuid: "st-3", name: "Classical 24", streamUrl: "https://stream.example.com/classical", favicon: "https://img.example.com/classical.png", country: "France", tags: "classical", bitrate: 320, codec: "MP3", votes: 200, clicks: 500 },
-  ],
+  1723581283: () => demoStations.map((station, index) => ({ ...station, votes: 200 - index * 10, clicks: 500 - index * 20 })),
   // GetTopClickedRadioStations
-  46869912: () => [
-    { uuid: "st-3", name: "Classical 24", streamUrl: "https://stream.example.com/classical", favicon: "https://img.example.com/classical.png", country: "France", tags: "classical", bitrate: 320, codec: "MP3", votes: 200, clicks: 500 },
-  ],
+  46869912: () => demoStations.map((station, index) => ({ ...station, votes: 200 - index * 10, clicks: 500 - index * 20 })),
   // SearchRadioStationsFiltered
-  2804279923: () => [
-    { uuid: "st-1", name: "Jazz FM", streamUrl: "https://stream.example.com/jazz", favicon: "https://img.example.com/jazz.png", country: "United Kingdom", tags: "jazz,smooth", bitrate: 128, codec: "MP3", votes: 42, clicks: 100 },
-    { uuid: "st-3", name: "Classical 24", streamUrl: "https://stream.example.com/classical", favicon: "https://img.example.com/classical.png", country: "France", tags: "classical", bitrate: 320, codec: "MP3", votes: 200, clicks: 500 },
-  ],
+  2804279923: () => demoStations.map((station, index) => ({ ...station, votes: 200 - index * 10, clicks: 500 - index * 20 })),
   // GetRadioStationsByTag
   3897998615: () => [],
   // GetRadioStationsByCountry
@@ -249,6 +259,19 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   // PlayRadioStation
   3331506535: (stationUuid: string, name: string, streamUrl: string, artworkUrl: string, tags: string) => {
     upsertHistory(stationUuid, name, streamUrl, artworkUrl, tags);
+    if (stationUuid === "somafm-missioncontrol") {
+      playbackStatus = {
+        ...playbackStatus,
+        state: "playing",
+        title: name,
+        artist: "SomaFM Mission Control (128k MP3)",
+        album: "",
+        mediaPath: streamUrl,
+        radioMode: true,
+        radioStation: "SomaFM Mission Control (128k MP3)",
+        radioArtwork: artworkUrl,
+      };
+    }
   },
   // StopRadio
   3776601259: () => undefined,
@@ -368,10 +391,16 @@ export const Call = {
 
 export const CancellablePromise = MockCancellablePromise;
 
+export const Window = {
+  Minimise: () => MockCancellablePromise.resolve(undefined),
+  ToggleMaximise: () => MockCancellablePromise.resolve(undefined),
+  Close: () => MockCancellablePromise.resolve(undefined),
+};
+
 export const Create = {
   Array(createFn: (source: any) => any) {
     return (arr: any[]) => (arr ?? []).map(createFn);
   },
 };
 
-export default { Call, CancellablePromise, Create };
+export default { Call, CancellablePromise, Create, Window };
