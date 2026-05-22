@@ -18,12 +18,12 @@
   },
   "devDependencies": {
     "@lucide/svelte": "1.16.0",
-    "@playwright/test": "1.58.2",
+    "@playwright/test": "1.60.0",
     "@sveltejs/vite-plugin-svelte": "5.1.1",
     "@tsconfig/svelte": "5.0.8",
     "svelte": "5.55.9",
-    "svelte-check": "4.4.4",
-    "typescript": "5.9.3",
+    "svelte-check": "4.4.8",
+    "typescript": "6.0.3",
     "vite": "6.4.2"
   }
 }
