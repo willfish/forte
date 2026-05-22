@@ -82,6 +82,8 @@
 
           postInstall = ''
             install -Dm644 build/appicon.png $out/share/icons/hicolor/1024x1024/apps/forte.png
+            install -Dm644 build/logo.svg $out/share/icons/hicolor/scalable/apps/forte.svg
+            install -Dm644 build/appicon.png $out/share/pixmaps/forte.png
             install -Dm644 build/linux/forte.desktop $out/share/applications/forte.desktop
           '';
 
