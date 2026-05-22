@@ -12,7 +12,7 @@
     "test:e2e": "npx playwright test"
   },
   "dependencies": {
-    "@wailsio/runtime": "latest"
+    "@wailsio/runtime": "3.0.0-alpha.79"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

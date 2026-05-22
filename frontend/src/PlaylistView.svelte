@@ -1,34 +1,27 @@
 <script lang="ts">
   import { LibraryService, PlayerService } from "../bindings/github.com/willfish/forte";
+  import type { QueueTrack } from './lib/types';
 
   type PlaylistSummary = { id: number; name: string };
-  type Track = {
-    trackId: number;
-    title: string;
-    artist: string;
-    album: string;
-    durationMs: number;
-    filePath: string;
-    position: number;
-  };
+  type PlaylistTrack = QueueTrack & { position: number };
 
   let playlists = $state<PlaylistSummary[]>([]);
   let selectedId = $state<number | null>(null);
   let selectedName = $state('');
-  let tracks = $state<Track[]>([]);
+  let tracks = $state<PlaylistTrack[]>([]);
   let newName = $state('');
   let editingId = $state<number | null>(null);
   let editName = $state('');
 
   async function loadPlaylists() {
-    playlists = ((await LibraryService.GetPlaylists()) || []).map((p: any) => ({
+    playlists = ((await LibraryService.GetPlaylists()) || []).map((p: PlaylistSummary) => ({
       id: p.id,
       name: p.name,
     }));
   }
 
   async function loadTracks(id: number) {
-    tracks = ((await LibraryService.GetPlaylistTracks(id)) || []).map((t: any) => ({
+    tracks = ((await LibraryService.GetPlaylistTracks(id)) || []).map((t: PlaylistTrack) => ({
       trackId: t.trackId,
       title: t.title,
       artist: t.artist,
@@ -89,7 +82,7 @@
   }
 
   async function playFromTrack(index: number) {
-    const queueTracks = tracks.map(t => ({
+    const queueTracks: QueueTrack[] = tracks.map(t => ({
       trackId: t.trackId,
       title: t.title,
       artist: t.artist,

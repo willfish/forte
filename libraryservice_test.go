@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -412,11 +413,25 @@ func TestServerServiceCRUD(t *testing.T) {
 	if servers[0].ID == "" {
 		t.Error("expected non-empty UUID")
 	}
+	if servers[0].Password != "" {
+		t.Error("GetServers should not return stored password")
+	}
+	if !servers[0].HasPassword {
+		t.Error("expected HasPassword = true")
+	}
 
 	// Update.
+	id := servers[0].ID
 	servers[0].Name = "Renamed"
 	if err := s.UpdateServer(servers[0]); err != nil {
 		t.Fatalf("UpdateServer: %v", err)
+	}
+	stored, err := s.db.GetServer(id)
+	if err != nil {
+		t.Fatalf("GetServer: %v", err)
+	}
+	if stored.Password != "pass" {
+		t.Errorf("stored password = %q, want preserved password", stored.Password)
 	}
 	servers, _ = s.GetServers()
 	if servers[0].Name != "Renamed" {
@@ -711,8 +726,11 @@ func TestServiceShutdown(t *testing.T) {
 
 func TestServiceShutdownWithStopSync(t *testing.T) {
 	s := openTestService(t)
-	s.stopSync = make(chan struct{})
-	// Should close the channel without blocking.
+	_, cancel := context.WithCancel(context.Background())
+	s.syncCancel = cancel
+	s.syncDone = make(chan struct{})
+	close(s.syncDone)
+	// Should cancel sync and wait for the completed goroutine without blocking.
 	if err := s.ServiceShutdown(); err != nil {
 		t.Fatalf("ServiceShutdown: %v", err)
 	}

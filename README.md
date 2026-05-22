@@ -122,7 +122,7 @@ This creates 23 albums, 236 tracks, 3 playlists, and play history. Safe to run m
 task dev
 
 # Run Go tests
-go test -tags nocgo ./...
+nix develop --command go test -tags 'nocgo gtk4' ./...
 
 # Run frontend type checking
 cd frontend && npm run check

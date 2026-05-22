@@ -66,18 +66,14 @@ func SyncServer(ctx context.Context, db *DB, srv Server) error {
 
 			seenAlbumRemoteIDs[album.ID] = true
 
-			if err := syncAlbum(ctx, db, provider, srv, album); err != nil {
+			trackFilePaths, err := syncAlbum(ctx, db, provider, srv, album)
+			if err != nil {
 				slog.Warn("sync album failed", "album", album.Title, "err", err)
 				continue
 			}
 
-			// Track all file_paths for this album's tracks.
-			albumDetail, tracks, err := provider.GetAlbum(album.ID)
-			_ = albumDetail
-			if err == nil {
-				for _, t := range tracks {
-					seenTrackFilePaths[serverFilePath(srv.ID, t.ID)] = true
-				}
+			for _, path := range trackFilePaths {
+				seenTrackFilePaths[path] = true
 			}
 		}
 
@@ -94,26 +90,27 @@ func SyncServer(ctx context.Context, db *DB, srv Server) error {
 	return nil
 }
 
-func syncAlbum(ctx context.Context, db *DB, provider streaming.Provider, srv Server, album streaming.Album) error {
+func syncAlbum(ctx context.Context, db *DB, provider streaming.Provider, srv Server, album streaming.Album) ([]string, error) {
 	_, tracks, err := provider.GetAlbum(album.ID)
 	if err != nil {
-		return fmt.Errorf("get album detail: %w", err)
+		return nil, fmt.Errorf("get album detail: %w", err)
 	}
+	trackFilePaths := make([]string, 0, len(tracks))
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
+		return nil, fmt.Errorf("begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
 	artistID, err := upsertArtist(ctx, tx, album.Artist)
 	if err != nil {
-		return fmt.Errorf("upsert artist: %w", err)
+		return nil, fmt.Errorf("upsert artist: %w", err)
 	}
 
 	albumID, err := upsertAlbum(ctx, tx, artistID, album.Title, album.Year, srv.ID, album.ID)
 	if err != nil {
-		return fmt.Errorf("upsert album: %w", err)
+		return nil, fmt.Errorf("upsert album: %w", err)
 	}
 
 	// Update track count.
@@ -123,6 +120,7 @@ func syncAlbum(ctx context.Context, db *DB, provider streaming.Provider, srv Ser
 
 	for _, t := range tracks {
 		filePath := serverFilePath(srv.ID, t.ID)
+		trackFilePaths = append(trackFilePaths, filePath)
 
 		// Upsert genre if present.
 		if t.Genre != "" {
@@ -161,7 +159,7 @@ func syncAlbum(ctx context.Context, db *DB, provider streaming.Provider, srv Ser
 	}
 
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit: %w", err)
+		return nil, fmt.Errorf("commit: %w", err)
 	}
 
 	// Fetch and store artwork outside the transaction.
@@ -176,7 +174,7 @@ func syncAlbum(ctx context.Context, db *DB, provider streaming.Provider, srv Ser
 		}
 	}
 
-	return nil
+	return trackFilePaths, nil
 }
 
 func reconcile(ctx context.Context, db *DB, serverID string, seenAlbums map[string]bool, seenTracks map[string]bool) error {

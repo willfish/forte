@@ -1,15 +1,7 @@
 <script lang="ts">
   import { fly, fade } from 'svelte/transition';
   import { PlayerService } from "../bindings/github.com/willfish/forte";
-
-  type QueueTrack = {
-    trackId: number;
-    title: string;
-    artist: string;
-    album: string;
-    durationMs: number;
-    filePath: string;
-  };
+  import type { QueueTrack } from './lib/types';
 
   const { open, onclose }: { open: boolean; onclose: () => void } = $props();
 
@@ -19,7 +11,7 @@
   let listEl: HTMLDivElement | undefined = $state();
 
   async function refresh() {
-    tracks = ((await PlayerService.GetQueue()) || []).map((t: any) => ({
+    tracks = ((await PlayerService.GetQueue()) || []).map((t: QueueTrack) => ({
       trackId: t.trackId,
       title: t.title,
       artist: t.artist,
@@ -94,8 +86,7 @@
 </script>
 
 {#if open}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="overlay" onclick={onclose} transition:fade={{ duration: 150 }}></div>
+  <button class="overlay" type="button" aria-label="Close queue" onclick={onclose} transition:fade={{ duration: 150 }}></button>
   <aside class="panel" aria-label="Play queue" transition:fly={{ x: 350, duration: 200 }}>
     <div class="panel-header">
       <h3>Queue</h3>

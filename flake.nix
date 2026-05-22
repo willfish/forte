@@ -15,7 +15,7 @@
           pname = "forte-frontend";
           version = "0.1.0";
           src = ./frontend;
-          npmDepsHash = "sha256-QaeA7Z17kghQMTHWY9rqahO34hG7K4ogrPEfRohucMo=";
+          npmDepsHash = "sha256-zCzHDKFSowfaPyKi2fUEvXkpotx0koK30OjQWBZ/RX8=";
           buildPhase = ''
             npm run build
           '';
