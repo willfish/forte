@@ -16,7 +16,7 @@
           version = "0.1.0";
           src = ./frontend;
           nodejs = pkgs.nodejs_22;
-          npmDepsHash = "sha256-TWuww6q2PVFmoDqjkgGw67ZUometknyPtBOLARdcEfU=";
+          npmDepsHash = "sha256-7w3PrVtvOrmu5TWnUoSOMvZOs8bsTLeOEztwED9wc6k=";
           buildPhase = ''
             npm run build
           '';
@@ -31,7 +31,7 @@
           version = "0.1.0";
           src = ./.;
           go = pkgs.go_1_25;
-          vendorHash = "sha256-jzLbGazcgpDCT6bjqfnwVcZWs4e3201mdOeKVtPMhlE=";
+          vendorHash = "sha256-7w3PrVtvOrmu5TWnUoSOMvZOs8bsTLeOEztwED9wc6k=";
           modBuildPhase = ''
             runHook preBuild
 
