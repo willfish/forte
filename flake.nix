@@ -29,7 +29,7 @@
           pname = "forte";
           version = "0.1.0";
           src = ./.;
-          vendorHash = "sha256-lt3oUwxqMr+XuRT42FUsFB3plGfd0UME2/VkCLnkB/U=";
+          vendorHash = "sha256-ZaGM6mtQHojsnXJmyEzMPVF5dmt29kUkfJx2wQmOSDw=";
           tags = [ "production" "nocgo" "gtk4" ];
           ldflags = [ "-s" "-w" ];
           subPackages = [ "." ];
