@@ -18,13 +18,7 @@ A desktop music player for Linux built with Go and Wails. Plays local files, str
 
 ## Demo
 
-![Forte radio view](docs/demo.png)
-
-Regenerate the README screenshot from the mocked frontend:
-
-```sh
-task demo-screenshot
-```
+![Forte radio playback](docs/demo.png)
 
 ## Architecture
 

@@ -38,8 +38,3 @@ tasks:
     summary: Seeds the database with fixture data for screenshots
     cmds:
       - go run -tags nocgo ./cmd/demo
-
-  demo-screenshot:
-    summary: Generates the README demo screenshot from the mocked frontend
-    cmds:
-      - cd frontend && npm run demo:screenshot

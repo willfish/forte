@@ -10,8 +10,7 @@
     "build": "vite build --mode production",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "test:e2e": "npx playwright test",
-    "demo:screenshot": "node scripts/generate-demo.mjs"
+    "test:e2e": "npx playwright test"
   },
   "dependencies": {
     "@wailsio/runtime": "3.0.0-alpha.79"
