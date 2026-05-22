@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,35 +52,44 @@ func (s *LibraryService) ServiceStartup(_ context.Context, _ application.Service
 	}
 	s.db = db
 
+	prefs, err := db.GetAppPreferences()
+	if err != nil {
+		return fmt.Errorf("load preferences: %w", err)
+	}
+
 	// Start health monitor to track server connectivity.
 	s.health = library.NewHealthMonitor(db)
-	s.health.Start()
+	if prefs.LibraryEnabled {
+		s.health.Start()
+	}
 
-	// Start background server sync: immediate + every 15 minutes.
-	syncCtx, cancelSync := context.WithCancel(context.Background())
-	s.syncCancel = cancelSync
-	s.syncDone = make(chan struct{})
-	go func() {
-		defer close(s.syncDone)
+	if prefs.LibraryEnabled {
+		// Start background server sync: immediate + every 15 minutes.
+		syncCtx, cancelSync := context.WithCancel(context.Background())
+		s.syncCancel = cancelSync
+		s.syncDone = make(chan struct{})
+		go func() {
+			defer close(s.syncDone)
 
-		// Initial sync on startup.
-		if err := library.SyncAllServers(syncCtx, s.db); err != nil && syncCtx.Err() == nil {
-			log.Printf("server sync: %v", err)
-		}
-
-		ticker := time.NewTicker(15 * time.Minute)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				if err := library.SyncAllServers(syncCtx, s.db); err != nil && syncCtx.Err() == nil {
-					log.Printf("server sync: %v", err)
-				}
-			case <-syncCtx.Done():
-				return
+			// Initial sync on startup.
+			if err := library.SyncAllServers(syncCtx, s.db); err != nil && syncCtx.Err() == nil {
+				log.Printf("server sync: %v", err)
 			}
-		}
-	}()
+
+			ticker := time.NewTicker(15 * time.Minute)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					if err := library.SyncAllServers(syncCtx, s.db); err != nil && syncCtx.Err() == nil {
+						log.Printf("server sync: %v", err)
+					}
+				case <-syncCtx.Done():
+					return
+				}
+			}
+		}()
+	}
 
 	return nil
 }
@@ -1007,6 +1017,38 @@ type RadioFavouriteJSON struct {
 	FaviconURL  string `json:"faviconUrl"`
 	Tags        string `json:"tags"`
 	AddedAt     string `json:"addedAt"`
+	Pinned      bool   `json:"pinned"`
+}
+
+// RadioHistoryJSON is the JSON-friendly radio history type exposed to the frontend.
+type RadioHistoryJSON struct {
+	StationUUID  string `json:"stationUuid"`
+	Name         string `json:"name"`
+	StreamURL    string `json:"streamUrl"`
+	FaviconURL   string `json:"faviconUrl"`
+	Tags         string `json:"tags"`
+	TrackTitle   string `json:"trackTitle"`
+	PlayCount    int    `json:"playCount"`
+	LastError    string `json:"lastError"`
+	LastPlayedAt string `json:"lastPlayedAt"`
+}
+
+// RadioCustomStationJSON is the JSON-friendly custom station type exposed to the frontend.
+type RadioCustomStationJSON struct {
+	StationUUID string `json:"stationUuid"`
+	Name        string `json:"name"`
+	StreamURL   string `json:"streamUrl"`
+	FaviconURL  string `json:"faviconUrl"`
+	Tags        string `json:"tags"`
+	CreatedAt   string `json:"createdAt"`
+	UpdatedAt   string `json:"updatedAt"`
+}
+
+// AppPreferencesJSON is the JSON-friendly app preference type exposed to the frontend.
+type AppPreferencesJSON struct {
+	LibraryEnabled   bool `json:"libraryEnabled"`
+	StartLastStation bool `json:"startLastStation"`
+	AutoReconnect    bool `json:"autoReconnect"`
 }
 
 // GetRadioFavourites returns all saved radio stations.
@@ -1027,6 +1069,7 @@ func (s *LibraryService) GetRadioFavourites() ([]RadioFavouriteJSON, error) {
 			FaviconURL:  f.FaviconURL,
 			Tags:        f.Tags,
 			AddedAt:     f.AddedAt,
+			Pinned:      f.Pinned,
 		}
 	}
 	return result, nil
@@ -1054,12 +1097,154 @@ func (s *LibraryService) RemoveRadioFavourite(stationUUID string) error {
 	return s.db.RemoveRadioFavourite(stationUUID)
 }
 
+// SetRadioFavouritePinned pins or unpins a favourite station.
+func (s *LibraryService) SetRadioFavouritePinned(stationUUID string, pinned bool) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	return s.db.SetRadioFavouritePinned(stationUUID, pinned)
+}
+
 // IsRadioFavourite checks if a station is in favourites.
 func (s *LibraryService) IsRadioFavourite(stationUUID string) (bool, error) {
 	if s.db == nil {
 		return false, fmt.Errorf("library not initialised")
 	}
 	return s.db.IsRadioFavourite(stationUUID)
+}
+
+// AddCustomRadioStation saves a user-defined radio station.
+func (s *LibraryService) AddCustomRadioStation(name, streamURL, faviconURL, tags string) (RadioCustomStationJSON, error) {
+	if s.db == nil {
+		return RadioCustomStationJSON{}, fmt.Errorf("library not initialised")
+	}
+	if strings.TrimSpace(name) == "" {
+		return RadioCustomStationJSON{}, fmt.Errorf("station name is required")
+	}
+	if err := validateStreamURL(streamURL); err != nil {
+		return RadioCustomStationJSON{}, err
+	}
+	station, err := s.db.AddCustomRadioStation(library.RadioCustomStation{
+		Name:       strings.TrimSpace(name),
+		StreamURL:  strings.TrimSpace(streamURL),
+		FaviconURL: strings.TrimSpace(faviconURL),
+		Tags:       strings.TrimSpace(tags),
+	})
+	if err != nil {
+		return RadioCustomStationJSON{}, err
+	}
+	return customStationToJSON(station), nil
+}
+
+// DeleteCustomRadioStation removes a user-defined radio station.
+func (s *LibraryService) DeleteCustomRadioStation(stationUUID string) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	return s.db.DeleteCustomRadioStation(stationUUID)
+}
+
+// GetCustomRadioStations returns user-defined radio stations.
+func (s *LibraryService) GetCustomRadioStations() ([]RadioCustomStationJSON, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("library not initialised")
+	}
+	stations, err := s.db.GetCustomRadioStations()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]RadioCustomStationJSON, len(stations))
+	for i, station := range stations {
+		result[i] = customStationToJSON(station)
+	}
+	return result, nil
+}
+
+// GetRadioHistory returns recently played radio stations.
+func (s *LibraryService) GetRadioHistory(limit int) ([]RadioHistoryJSON, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("library not initialised")
+	}
+	entries, err := s.db.GetRadioHistory(limit)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]RadioHistoryJSON, len(entries))
+	for i, entry := range entries {
+		result[i] = RadioHistoryJSON{
+			StationUUID:  entry.StationUUID,
+			Name:         entry.Name,
+			StreamURL:    entry.StreamURL,
+			FaviconURL:   entry.FaviconURL,
+			Tags:         entry.Tags,
+			TrackTitle:   entry.TrackTitle,
+			PlayCount:    entry.PlayCount,
+			LastError:    entry.LastError,
+			LastPlayedAt: entry.LastPlayedAt,
+		}
+	}
+	return result, nil
+}
+
+// ClearRadioHistory removes all radio playback history.
+func (s *LibraryService) ClearRadioHistory() error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	return s.db.ClearRadioHistory()
+}
+
+// GetAppPreferences returns product-level preferences.
+func (s *LibraryService) GetAppPreferences() (AppPreferencesJSON, error) {
+	if s.db == nil {
+		return AppPreferencesJSON{}, fmt.Errorf("library not initialised")
+	}
+	prefs, err := s.db.GetAppPreferences()
+	if err != nil {
+		return AppPreferencesJSON{}, err
+	}
+	return AppPreferencesJSON{
+		LibraryEnabled:   prefs.LibraryEnabled,
+		StartLastStation: prefs.StartLastStation,
+		AutoReconnect:    prefs.AutoReconnect,
+	}, nil
+}
+
+// SaveAppPreferences stores product-level preferences.
+func (s *LibraryService) SaveAppPreferences(prefs AppPreferencesJSON) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	return s.db.SaveAppPreferences(library.AppPreferences{
+		LibraryEnabled:   prefs.LibraryEnabled,
+		StartLastStation: prefs.StartLastStation,
+		AutoReconnect:    prefs.AutoReconnect,
+	})
+}
+
+func customStationToJSON(station library.RadioCustomStation) RadioCustomStationJSON {
+	return RadioCustomStationJSON{
+		StationUUID: station.StationUUID,
+		Name:        station.Name,
+		StreamURL:   station.StreamURL,
+		FaviconURL:  station.FaviconURL,
+		Tags:        station.Tags,
+		CreatedAt:   station.CreatedAt,
+		UpdatedAt:   station.UpdatedAt,
+	}
+}
+
+func validateStreamURL(raw string) error {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return fmt.Errorf("invalid stream URL")
+	}
+	switch u.Scheme {
+	case "http", "https":
+		return nil
+	default:
+		return fmt.Errorf("stream URL must use http or https")
+	}
 }
 
 // imageProxyCache caches proxied image data URIs keyed by URL.

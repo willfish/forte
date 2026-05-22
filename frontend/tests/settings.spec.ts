@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { enableLibraryMode } from "./helpers";
 
 test.describe("Settings", () => {
   test.beforeEach(async ({ page }) => {
@@ -13,11 +14,13 @@ test.describe("Settings", () => {
   });
 
   test("shows servers section", async ({ page }) => {
+    await enableLibraryMode(page);
     await expect(page.getByRole("heading", { name: "Servers" })).toBeVisible();
     await expect(page.getByText("No servers configured")).toBeVisible();
   });
 
   test("add server button opens form", async ({ page }) => {
+    await enableLibraryMode(page);
     await page.getByRole("button", { name: "Add server" }).click();
     await expect(page.locator("#srv-name")).toBeVisible();
     await expect(page.locator("#srv-url")).toBeVisible();
@@ -27,6 +30,7 @@ test.describe("Settings", () => {
   });
 
   test("cancel closes server form", async ({ page }) => {
+    await enableLibraryMode(page);
     await page.getByRole("button", { name: "Add server" }).click();
     await page.getByRole("button", { name: "Cancel" }).click();
     await expect(page.getByText("No servers configured")).toBeVisible();

@@ -1,6 +1,59 @@
 // Mock @wailsio/runtime for Playwright e2e tests.
 // Maps Wails Call.ByID numeric identifiers to fixture responses.
 
+let appPreferences = {
+  libraryEnabled: false,
+  startLastStation: true,
+  autoReconnect: true,
+};
+
+let radioFavourites = [
+  { stationUuid: "st-1", name: "Jazz FM", streamUrl: "https://stream.example.com/jazz", faviconUrl: "", tags: "jazz,smooth", addedAt: "2024-01-01 00:00:00", pinned: false },
+];
+
+let customStations: any[] = [];
+
+let radioHistory = [
+  { stationUuid: "st-3", name: "Classical 24", streamUrl: "https://stream.example.com/classical", faviconUrl: "https://img.example.com/classical.png", tags: "classical", lastTitle: "Morning Concert", lastError: "", playCount: 3, lastPlayedAt: "2024-01-02 09:00:00" },
+];
+
+let playbackStatus = {
+  state: "stopped",
+  position: 0,
+  duration: 0,
+  volume: 80,
+  title: "",
+  artist: "",
+  album: "",
+  shuffle: false,
+  repeat: "off",
+  mediaPath: "",
+  radioMode: false,
+  radioStation: "",
+  radioArtwork: "",
+};
+
+function upsertHistory(stationUuid: string, name: string, streamUrl: string, faviconUrl: string, tags: string) {
+  const existing = radioHistory.find((h) => h.stationUuid === stationUuid);
+  if (existing) {
+    existing.playCount += 1;
+    existing.lastPlayedAt = "2024-01-03 10:00:00";
+    existing.lastError = "";
+    return;
+  }
+  radioHistory.unshift({
+    stationUuid,
+    name,
+    streamUrl,
+    faviconUrl,
+    tags,
+    lastTitle: "",
+    lastError: "",
+    playCount: 1,
+    lastPlayedAt: "2024-01-03 10:00:00",
+  });
+}
+
 const fixtures: Record<number, (...args: any[]) => any> = {
   // --- LibraryService ---
   // GetAlbums
@@ -135,21 +188,68 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   // GetRadioStationsByCountry
   3988982917: () => [],
   // GetRadioFavourites
-  590575721: () => [
-    { stationUuid: "st-1", name: "Jazz FM", streamUrl: "https://stream.example.com/jazz", faviconUrl: "", tags: "jazz,smooth", addedAt: "2024-01-01 00:00:00" },
-  ],
+  590575721: () => radioFavourites,
   // AddRadioFavourite
-  3744144887: () => undefined,
+  3744144887: (stationUuid: string, name: string, streamUrl: string, faviconUrl: string, tags: string) => {
+    if (!radioFavourites.some((f) => f.stationUuid === stationUuid)) {
+      radioFavourites.push({ stationUuid, name, streamUrl, faviconUrl, tags, addedAt: "2024-01-03 10:00:00", pinned: false });
+    }
+  },
   // RemoveRadioFavourite
-  876184048: () => undefined,
+  876184048: (stationUuid: string) => {
+    radioFavourites = radioFavourites.filter((f) => f.stationUuid !== stationUuid);
+  },
+  // SetRadioFavouritePinned
+  2949163422: (stationUuid: string, pinned: boolean) => {
+    radioFavourites = radioFavourites
+      .map((f) => f.stationUuid === stationUuid ? { ...f, pinned } : f)
+      .sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.name.localeCompare(b.name));
+  },
   // IsRadioFavourite
-  329793224: () => false,
+  329793224: (stationUuid: string) => radioFavourites.some((f) => f.stationUuid === stationUuid),
+  // GetCustomRadioStations
+  2495430549: () => customStations,
+  // AddCustomRadioStation
+  3781401643: (name: string, streamUrl: string, faviconUrl: string, tags: string) => {
+    const station = {
+      stationUuid: `custom-${customStations.length + 1}`,
+      name,
+      streamUrl,
+      faviconUrl,
+      tags,
+      createdAt: "2024-01-03 10:00:00",
+    };
+    customStations.push(station);
+    return station;
+  },
+  // DeleteCustomRadioStation
+  3260428599: (stationUuid: string) => {
+    customStations = customStations.filter((s) => s.stationUuid !== stationUuid);
+  },
+  // GetRadioHistory
+  3857005579: () => radioHistory,
+  // ClearRadioHistory
+  2733979162: () => {
+    radioHistory = [];
+  },
+  // GetAppPreferences
+  3910505449: () => appPreferences,
+  // SaveAppPreferences
+  1128588116: (prefs: typeof appPreferences) => {
+    appPreferences = { ...appPreferences, ...prefs };
+  },
 
   // --- PlayerService ---
+  // GetPlaybackStatus
+  958915679: () => playbackStatus,
   // State
-  2570357237: () => "stopped",
+  2570357237: () => playbackStatus.state,
   // PlayRadio
   1236378929: () => undefined,
+  // PlayRadioStation
+  3331506535: (stationUuid: string, name: string, streamUrl: string, artworkUrl: string, tags: string) => {
+    upsertHistory(stationUuid, name, streamUrl, artworkUrl, tags);
+  },
   // StopRadio
   3776601259: () => undefined,
   // IsRadioMode
@@ -165,7 +265,9 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   // Resume
   4192344979: () => undefined,
   // Stop
-  2311398648: () => undefined,
+  2311398648: () => {
+    playbackStatus = { ...playbackStatus, state: "stopped", title: "", artist: "", album: "", mediaPath: "" };
+  },
   // Seek
   1479346536: () => undefined,
   // Position
@@ -189,13 +291,13 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   // Previous
   2487521925: () => undefined,
   // MediaTitle
-  3116228434: () => "",
+  3116228434: () => playbackStatus.title,
   // MediaArtist
-  3929664599: () => "",
+  3929664599: () => playbackStatus.artist,
   // MediaAlbum
-  3994078579: () => "",
+  3994078579: () => playbackStatus.album,
   // MediaPath
-  3316771859: () => "",
+  3316771859: () => playbackStatus.mediaPath,
   // Artwork
   468839008: () => "",
   // Enqueue
@@ -203,7 +305,24 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   // PlayAll
   3674799417: () => undefined,
   // PlayQueue
-  3857677157: () => undefined,
+  3857677157: (tracks: any[], startAt: number) => {
+    const track = tracks[startAt] || tracks[0];
+    if (track) {
+      playbackStatus = {
+        ...playbackStatus,
+        state: "playing",
+        position: 0,
+        duration: Math.floor((track.durationMs || 0) / 1000),
+        title: track.title || "",
+        artist: track.artist || "",
+        album: track.album || "",
+        mediaPath: track.filePath || "",
+        radioMode: false,
+        radioStation: "",
+        radioArtwork: "",
+      };
+    }
+  },
   // GetQueue
   1525514291: () => [],
   // GetQueuePosition
