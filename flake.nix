@@ -31,7 +31,7 @@
           version = "0.1.0";
           src = ./.;
           go = pkgs.go_1_25;
-          vendorHash = "sha256-U5x+/CNX2I9FqIasFdiRzhg2NqcnHljBBUPfUaLDyi8=";
+          vendorHash = "sha256-WmqUW1tduVEZV+IuWu81mQke7GDs5tFUPy9LkmZjErM=";
           modBuildPhase = ''
             runHook preBuild
 

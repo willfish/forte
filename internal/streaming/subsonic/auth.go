@@ -18,6 +18,8 @@ func generateSalt(length int) (string, error) {
 
 // generateToken computes the Subsonic authentication token: md5(password + salt).
 func generateToken(password, salt string) string {
+	// Subsonic token authentication requires MD5(password + salt).
+	// codeql[go/weak-sensitive-data-hashing]
 	sum := md5.Sum([]byte(password + salt))
 	return hex.EncodeToString(sum[:])
 }
