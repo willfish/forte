@@ -31,7 +31,33 @@
           version = "0.1.0";
           src = ./.;
           go = pkgs.go_1_25;
-          vendorHash = "sha256-l/iMbtl+O1X4N8Wdbn1ohNd9AIgs4kyyeqGPZxGCfhE=";
+          vendorHash = "sha256-jzLbGazcgpDCT6bjqfnwVcZWs4e3201mdOeKVtPMhlE=";
+          modBuildPhase = ''
+            runHook preBuild
+
+            if [ -d vendor ]; then
+              echo "vendor folder exists, please set 'vendorHash = null;' in your expression"
+              exit 10
+            fi
+
+            export GIT_SSL_CAINFO=$NIX_SSL_CERT_FILE
+            go mod download
+
+            webview2Loader="$GOPATH/pkg/mod/github.com/wailsapp/wails/webview2@v1.0.24/webviewloader"
+            chmod -R u+w "$GOPATH/pkg/mod/github.com/wailsapp/wails/webview2@v1.0.24"
+            mkdir -p "$webview2Loader/x86" "$webview2Loader/x64" "$webview2Loader/arm64"
+            : > "$webview2Loader/x86/WebView2Loader.dll"
+            : > "$webview2Loader/x64/WebView2Loader.dll"
+            : > "$webview2Loader/arm64/WebView2Loader.dll"
+
+            if (( "''${NIX_DEBUG:-0}" >= 1 )); then
+              goModVendorFlags+=(-v)
+            fi
+            go mod vendor "''${goModVendorFlags[@]}"
+
+            mkdir -p vendor
+            runHook postBuild
+          '';
           tags = [ "production" "nocgo" "gtk4" ];
           ldflags = [ "-s" "-w" ];
           subPackages = [ "." ];
