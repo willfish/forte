@@ -20,9 +20,9 @@ contents:
   - src: "./bin/forte"
     dst: "/usr/local/bin/forte"
   - src: "./build/appicon.png"
-    dst: "/usr/share/icons/hicolor/128x128/apps/forte.png"
+    dst: "/usr/share/icons/hicolor/128x128/apps/io.github.willfish.forte.png"
   - src: "./build/linux/forte.desktop"
-    dst: "/usr/share/applications/forte.desktop"
+    dst: "/usr/share/applications/io.github.willfish.forte.desktop"
 
 # Default dependencies for Debian 12/Ubuntu 22.04+ with WebKit 4.1
 depends:

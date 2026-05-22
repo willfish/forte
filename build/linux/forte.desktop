@@ -1,10 +1,11 @@
 [Desktop Entry]
 Type=Application
-Name=forte
+Name=Forte
 Exec=forte
-Icon=forte
+Icon=io.github.willfish.forte
 Categories=AudioVideo;Audio;Music;Player;
 Terminal=false
-Keywords=wails
+Keywords=music;audio;player;radio;
 Version=1.0
 StartupNotify=false
+StartupWMClass=io.github.willfish.forte

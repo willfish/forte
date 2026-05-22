@@ -1,13 +1,13 @@
 [Desktop Entry]
 Version=1.0
-Name=My Product
-Comment=A forte application
+Name=Forte
+Comment=A modern music player
 # The Exec line includes %u to pass the URL to the application
-Exec=/usr/local/bin/forte %u
+Exec=forte %u
 Terminal=false
 Type=Application
-Icon=forte
-Categories=Utility;
-StartupWMClass=forte
+Icon=io.github.willfish.forte
+Categories=AudioVideo;Audio;Music;Player;
+StartupWMClass=io.github.willfish.forte
 
  
