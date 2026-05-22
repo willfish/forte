@@ -150,3 +150,12 @@ body {
 body {
     min-width: 700px;
 }
+
+svg.forte-icon {
+    display: block;
+    flex-shrink: 0;
+}
+
+svg.forte-icon.filled {
+    fill: currentColor;
+}

@@ -46,6 +46,7 @@ type AppPreferences struct {
 	LibraryEnabled   bool
 	StartLastStation bool
 	AutoReconnect    bool
+	ShowTitlebar     bool
 }
 
 // AddRadioFavourite saves a radio station to favourites.
@@ -252,11 +253,11 @@ func (db *DB) ClearRadioHistory() error {
 
 // GetAppPreferences returns product-level preferences.
 func (db *DB) GetAppPreferences() (AppPreferences, error) {
-	var libraryEnabled, startLastStation, autoReconnect int
+	var libraryEnabled, startLastStation, autoReconnect, showTitlebar int
 	err := db.QueryRow(
-		`SELECT library_enabled, start_last_station, auto_reconnect
+		`SELECT library_enabled, start_last_station, auto_reconnect, show_titlebar
 		 FROM app_preferences WHERE id = 1`,
-	).Scan(&libraryEnabled, &startLastStation, &autoReconnect)
+	).Scan(&libraryEnabled, &startLastStation, &autoReconnect, &showTitlebar)
 	if err != nil {
 		return AppPreferences{}, fmt.Errorf("get app preferences: %w", err)
 	}
@@ -264,19 +265,21 @@ func (db *DB) GetAppPreferences() (AppPreferences, error) {
 		LibraryEnabled:   libraryEnabled != 0,
 		StartLastStation: startLastStation != 0,
 		AutoReconnect:    autoReconnect != 0,
+		ShowTitlebar:     showTitlebar != 0,
 	}, nil
 }
 
 // SaveAppPreferences stores product-level preferences.
 func (db *DB) SaveAppPreferences(p AppPreferences) error {
 	_, err := db.Exec(
-		`INSERT INTO app_preferences (id, library_enabled, start_last_station, auto_reconnect)
-		 VALUES (1, ?, ?, ?)
+		`INSERT INTO app_preferences (id, library_enabled, start_last_station, auto_reconnect, show_titlebar)
+		 VALUES (1, ?, ?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET
 			library_enabled = excluded.library_enabled,
 			start_last_station = excluded.start_last_station,
-			auto_reconnect = excluded.auto_reconnect`,
-		boolToInt(p.LibraryEnabled), boolToInt(p.StartLastStation), boolToInt(p.AutoReconnect),
+			auto_reconnect = excluded.auto_reconnect,
+			show_titlebar = excluded.show_titlebar`,
+		boolToInt(p.LibraryEnabled), boolToInt(p.StartLastStation), boolToInt(p.AutoReconnect), boolToInt(p.ShowTitlebar),
 	)
 	if err != nil {
 		return fmt.Errorf("save app preferences: %w", err)

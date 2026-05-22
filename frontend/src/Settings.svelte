@@ -1,6 +1,6 @@
 <script lang="ts">
   import { getPreference, setPreference, onPreferenceChange, type ThemePreference } from './lib/theme';
-  import { setLibraryEnabled } from './lib/stores';
+  import { setLibraryEnabled, setTitlebarEnabled } from './lib/stores';
   import { LibraryService } from "../bindings/github.com/willfish/forte";
   import type { ServerConfig } from './lib/types';
 
@@ -15,6 +15,7 @@
     libraryEnabled: false,
     startLastStation: true,
     autoReconnect: true,
+    showTitlebar: false,
   });
 
   $effect(() => {
@@ -33,10 +34,13 @@
         libraryEnabled: Boolean(prefs?.libraryEnabled),
         startLastStation: Boolean(prefs?.startLastStation),
         autoReconnect: Boolean(prefs?.autoReconnect),
+        showTitlebar: Boolean(prefs?.showTitlebar),
       };
       setLibraryEnabled(appPreferences.libraryEnabled);
+      setTitlebarEnabled(appPreferences.showTitlebar);
     } catch {
       setLibraryEnabled(false);
+      setTitlebarEnabled(false);
     }
   }
 
@@ -49,6 +53,9 @@
     appPreferences = next;
     if (key === 'libraryEnabled') {
       setLibraryEnabled(value);
+    }
+    if (key === 'showTitlebar') {
+      setTitlebarEnabled(value);
     }
     try {
       await LibraryService.SaveAppPreferences(next);
@@ -356,8 +363,19 @@
   </section>
 
   <section class="section">
-    <h3>Radio</h3>
+    <h3>Application</h3>
     <div class="preference-list">
+      <label class="preference-row">
+        <span>
+          <span class="option-label">Show title bar</span>
+          <span class="option-desc">Use Forte's compact window bar when your desktop does not provide one</span>
+        </span>
+        <input
+          type="checkbox"
+          checked={appPreferences.showTitlebar}
+          onchange={(e) => saveAppPreference('showTitlebar', (e.target as HTMLInputElement).checked)}
+        />
+      </label>
       <label class="preference-row">
         <span>
           <span class="option-label">Start last station</span>

@@ -7,6 +7,9 @@
     setCurrentView,
     type View
   } from './lib/stores';
+  import ForteMark from './ForteMark.svelte';
+  import Icon from './lib/Icon.svelte';
+  import type { IconName } from './lib/icons';
 
   let currentView = $state<View>(getCurrentView());
   let libraryEnabled = $state(isLibraryEnabled());
@@ -24,12 +27,12 @@
     currentView = view;
   }
 
-  const navItems: { view: View; label: string; icon: string }[] = [
-    { view: 'radio', label: 'Radio', icon: '\u25CE' },
-    { view: 'library', label: 'Library', icon: '\u266B' },
-    { view: 'playlists', label: 'Playlists', icon: '\u2630' },
-    { view: 'stats', label: 'Stats', icon: '\u2584' },
-    { view: 'settings', label: 'Settings', icon: '\u2699' },
+  const navItems: { view: View; label: string; icon: IconName }[] = [
+    { view: 'radio', label: 'Radio', icon: 'radio' },
+    { view: 'library', label: 'Library', icon: 'library' },
+    { view: 'playlists', label: 'Playlists', icon: 'playlists' },
+    { view: 'stats', label: 'Stats', icon: 'stats' },
+    { view: 'settings', label: 'Settings', icon: 'settings' },
   ];
 
   const visibleItems = $derived(navItems.filter(item =>
@@ -38,12 +41,15 @@
 </script>
 
 <nav class="sidebar">
-  <div class="brand">Forte</div>
+  <div class="brand">
+    <ForteMark class="brand-mark" size={24} />
+    <span class="brand-text">Forte</span>
+  </div>
   <ul>
     {#each visibleItems as item}
       <li>
         <button class="nav-btn" class:active={currentView === item.view} onclick={() => navigate(item.view)}>
-          <span class="icon">{item.icon}</span>
+          <Icon class="icon" name={item.icon} size={16} />
           <span class="label">{item.label}</span>
         </button>
       </li>
@@ -60,12 +66,19 @@
   }
 
   .brand {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
     padding: 1.25rem 1rem;
     font-size: 1.1rem;
     font-weight: 700;
     letter-spacing: 0.04em;
     color: var(--text-primary);
     border-bottom: 1px solid var(--border);
+  }
+
+  :global(.brand-mark) {
+    flex-shrink: 0;
   }
 
   ul {
@@ -104,12 +117,6 @@
     color: var(--accent);
   }
 
-  .icon {
-    font-size: 1.1rem;
-    width: 1.25rem;
-    text-align: center;
-    flex-shrink: 0;
-  }
 
   .label {
     overflow: hidden;
@@ -118,14 +125,12 @@
 
   @media (max-width: 900px) {
     .brand {
-      text-align: center;
+      justify-content: center;
       padding: 1.25rem 0.25rem;
-      font-size: 0;
     }
 
-    .brand::after {
-      content: 'F';
-      font-size: 1.1rem;
+    .brand-text {
+      display: none;
     }
 
     li {

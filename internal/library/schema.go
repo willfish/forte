@@ -220,3 +220,7 @@ CREATE TABLE app_preferences (
 );
 INSERT INTO app_preferences (id) VALUES (1);
 `
+
+const migration012 = `
+ALTER TABLE app_preferences ADD COLUMN show_titlebar INTEGER NOT NULL DEFAULT 0;
+`

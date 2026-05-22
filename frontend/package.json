@@ -10,12 +10,14 @@
     "build": "vite build --mode production",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "test:e2e": "npx playwright test"
+    "test:e2e": "npx playwright test",
+    "demo:screenshot": "node scripts/generate-demo.mjs"
   },
   "dependencies": {
     "@wailsio/runtime": "3.0.0-alpha.79"
   },
   "devDependencies": {
+    "@lucide/svelte": "1.16.0",
     "@playwright/test": "1.58.2",
     "@sveltejs/vite-plugin-svelte": "5.1.1",
     "@tsconfig/svelte": "5.0.8",

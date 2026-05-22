@@ -16,6 +16,8 @@ const _statusListeners: Array<(statuses: Record<string, boolean>) => void> = [];
 
 let _libraryEnabled = false;
 const _libraryPreferenceListeners: Array<(enabled: boolean) => void> = [];
+let _titlebarEnabled = false;
+const _titlebarPreferenceListeners: Array<(enabled: boolean) => void> = [];
 
 export function getCurrentView(): View {
   return _currentView;
@@ -83,5 +85,24 @@ export function onLibraryEnabledChange(fn: (enabled: boolean) => void): () => vo
   return () => {
     const idx = _libraryPreferenceListeners.indexOf(fn);
     if (idx >= 0) _libraryPreferenceListeners.splice(idx, 1);
+  };
+}
+
+export function isTitlebarEnabled(): boolean {
+  return _titlebarEnabled;
+}
+
+export function setTitlebarEnabled(enabled: boolean) {
+  _titlebarEnabled = enabled;
+  for (const fn of _titlebarPreferenceListeners) {
+    fn(enabled);
+  }
+}
+
+export function onTitlebarEnabledChange(fn: (enabled: boolean) => void): () => void {
+  _titlebarPreferenceListeners.push(fn);
+  return () => {
+    const idx = _titlebarPreferenceListeners.indexOf(fn);
+    if (idx >= 0) _titlebarPreferenceListeners.splice(idx, 1);
   };
 }
