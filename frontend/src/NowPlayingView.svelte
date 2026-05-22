@@ -1,5 +1,7 @@
 <script lang="ts">
   import { PlayerService } from "../bindings/github.com/willfish/forte";
+  import { onPlaybackStatusChange, refreshPlaybackStatus } from './lib/playback';
+  import type { PlaybackStatus, RepeatMode } from './lib/types';
 
   const { onclose }: { onclose: () => void } = $props();
 
@@ -11,57 +13,29 @@
   let album = $state('');
   let artworkSrc = $state('');
   let shuffleOn = $state(false);
-  let repeatMode = $state('off');
+  let repeatMode = $state<RepeatMode>('off');
   let radioMode = $state(false);
   let radioStation = $state('');
   let radioArtwork = $state('');
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
-
-  function startPolling() {
-    if (pollTimer) return;
-    pollTimer = setInterval(async () => {
-      const s = await PlayerService.GetPlaybackStatus();
-      playbackState = s.state;
-      position = s.position;
-      duration = s.duration;
-      title = s.title;
-      artist = s.artist;
-      album = s.album;
-      shuffleOn = s.shuffle;
-      repeatMode = s.repeat;
-      radioMode = s.radioMode;
-      radioStation = s.radioStation;
-      radioArtwork = s.radioArtwork;
-    }, 250);
-  }
-
-  function stopPolling() {
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
-  }
-
-  let lastArtworkKey = '';
-  async function refreshArtwork() {
-    const key = title + '|' + artist;
-    if (key === lastArtworkKey) return;
-    lastArtworkKey = key;
-    if (playbackState === 'stopped' || !title) {
-      artworkSrc = '';
-      return;
-    }
-    artworkSrc = await PlayerService.Artwork();
-  }
 
   $effect(() => {
-    startPolling();
-    const artworkTimer = setInterval(refreshArtwork, 1000);
-    return () => {
-      stopPolling();
-      clearInterval(artworkTimer);
-    };
+    return onPlaybackStatusChange(applyStatus);
   });
+
+  function applyStatus(s: PlaybackStatus) {
+    playbackState = s.state;
+    position = s.position;
+    duration = s.duration;
+    title = s.title;
+    artist = s.artist;
+    album = s.album;
+    artworkSrc = s.artworkSrc;
+    shuffleOn = s.shuffle;
+    repeatMode = s.repeat;
+    radioMode = s.radioMode;
+    radioStation = s.radioStation;
+    radioArtwork = s.radioArtwork;
+  }
 
   function formatTime(seconds: number): string {
     const m = Math.floor(seconds / 60);
@@ -79,12 +53,12 @@
 
   async function previous() {
     await PlayerService.Previous();
-    lastArtworkKey = '';
+    await refreshPlaybackStatus();
   }
 
   async function next() {
     await PlayerService.Next();
-    lastArtworkKey = '';
+    await refreshPlaybackStatus();
   }
 
   async function handleSeek(e: Event) {
@@ -94,13 +68,13 @@
 
   async function toggleShuffle() {
     await PlayerService.SetShuffle(!shuffleOn);
-    shuffleOn = !shuffleOn;
+    await refreshPlaybackStatus();
   }
 
   async function cycleRepeat() {
-    const n = repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
+    const n: RepeatMode = repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
     await PlayerService.SetRepeat(n);
-    repeatMode = n;
+    await refreshPlaybackStatus();
   }
 
   const isStopped = $derived(playbackState === 'stopped');
@@ -116,12 +90,11 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="npv-backdrop" onclick={handleBackgroundClick}>
+<div class="npv-backdrop" role="presentation" onclick={handleBackgroundClick}>
   {#if displayArt}
     <img class="npv-bg" src={displayArt} alt="" aria-hidden="true" />
   {/if}
-  <div class="npv-content">
+  <div class="npv-content" role="dialog" aria-modal="true">
     <button class="npv-close" onclick={onclose} aria-label="Close">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
         <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>

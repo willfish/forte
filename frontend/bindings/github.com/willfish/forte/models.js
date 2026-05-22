@@ -958,6 +958,13 @@ export class ServerConfig {
              */
             this["password"] = "";
         }
+        if (!("hasPassword" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasPassword"] = false;
+        }
 
         Object.assign(this, $$source);
     }

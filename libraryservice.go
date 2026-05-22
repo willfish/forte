@@ -27,9 +27,10 @@ import (
 
 // LibraryService exposes the music library to the frontend.
 type LibraryService struct {
-	db       *library.DB
-	health   *library.HealthMonitor
-	stopSync chan struct{}
+	db         *library.DB
+	health     *library.HealthMonitor
+	syncCancel context.CancelFunc
+	syncDone   chan struct{}
 }
 
 // ServiceStartup opens the library database when the application starts.
@@ -55,10 +56,14 @@ func (s *LibraryService) ServiceStartup(_ context.Context, _ application.Service
 	s.health.Start()
 
 	// Start background server sync: immediate + every 15 minutes.
-	s.stopSync = make(chan struct{})
+	syncCtx, cancelSync := context.WithCancel(context.Background())
+	s.syncCancel = cancelSync
+	s.syncDone = make(chan struct{})
 	go func() {
+		defer close(s.syncDone)
+
 		// Initial sync on startup.
-		if err := library.SyncAllServers(context.Background(), s.db); err != nil {
+		if err := library.SyncAllServers(syncCtx, s.db); err != nil && syncCtx.Err() == nil {
 			log.Printf("server sync: %v", err)
 		}
 
@@ -67,10 +72,10 @@ func (s *LibraryService) ServiceStartup(_ context.Context, _ application.Service
 		for {
 			select {
 			case <-ticker.C:
-				if err := library.SyncAllServers(context.Background(), s.db); err != nil {
+				if err := library.SyncAllServers(syncCtx, s.db); err != nil && syncCtx.Err() == nil {
 					log.Printf("server sync: %v", err)
 				}
-			case <-s.stopSync:
+			case <-syncCtx.Done():
 				return
 			}
 		}
@@ -81,8 +86,11 @@ func (s *LibraryService) ServiceStartup(_ context.Context, _ application.Service
 
 // ServiceShutdown closes the library database when the application exits.
 func (s *LibraryService) ServiceShutdown() error {
-	if s.stopSync != nil {
-		close(s.stopSync)
+	if s.syncCancel != nil {
+		s.syncCancel()
+	}
+	if s.syncDone != nil {
+		<-s.syncDone
 	}
 	if s.health != nil {
 		s.health.Stop()
@@ -346,12 +354,13 @@ func (s *LibraryService) MoveTrackInPlaylist(playlistID int64, fromPos, toPos in
 
 // ServerConfig is the JSON-friendly server configuration type exposed to the frontend.
 type ServerConfig struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Type     string `json:"type"`
-	URL      string `json:"url"`
-	Username string `json:"username"`
-	Password string `json:"password"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Type        string `json:"type"`
+	URL         string `json:"url"`
+	Username    string `json:"username"`
+	Password    string `json:"password,omitempty"`
+	HasPassword bool   `json:"hasPassword"`
 }
 
 // GetServers returns all configured streaming servers.
@@ -366,12 +375,12 @@ func (s *LibraryService) GetServers() ([]ServerConfig, error) {
 	result := make([]ServerConfig, len(servers))
 	for i, srv := range servers {
 		result[i] = ServerConfig{
-			ID:       srv.ID,
-			Name:     srv.Name,
-			Type:     srv.Type,
-			URL:      srv.URL,
-			Username: srv.Username,
-			Password: srv.Password,
+			ID:          srv.ID,
+			Name:        srv.Name,
+			Type:        srv.Type,
+			URL:         srv.URL,
+			Username:    srv.Username,
+			HasPassword: srv.Password != "",
 		}
 	}
 	return result, nil
@@ -401,13 +410,21 @@ func (s *LibraryService) UpdateServer(cfg ServerConfig) error {
 	if s.db == nil {
 		return fmt.Errorf("library not initialised")
 	}
+	password := cfg.Password
+	if password == "" {
+		existing, err := s.db.GetServer(cfg.ID)
+		if err != nil {
+			return err
+		}
+		password = existing.Password
+	}
 	return s.db.UpdateServer(library.Server{
 		ID:       cfg.ID,
 		Name:     cfg.Name,
 		Type:     cfg.Type,
 		URL:      cfg.URL,
 		Username: cfg.Username,
-		Password: cfg.Password,
+		Password: password,
 	})
 }
 
@@ -753,7 +770,7 @@ func toStatJSON(entries []library.StatEntry) []StatEntryJSON {
 
 // SimilarArtistJSON is the JSON-friendly similar artist type exposed to the frontend.
 type SimilarArtistJSON struct {
-	Name     string `json:"name"`
+	Name      string `json:"name"`
 	InLibrary bool   `json:"inLibrary"`
 }
 
@@ -843,7 +860,7 @@ func (s *LibraryService) GetArtistInfo(artistName string) (ArtistInfoJSON, error
 	for i, sim := range meta.Similar {
 		_, lookupErr := s.db.GetArtistByName(sim.Name)
 		similar[i] = SimilarArtistJSON{
-			Name:     sim.Name,
+			Name:      sim.Name,
 			InLibrary: lookupErr == nil,
 		}
 	}

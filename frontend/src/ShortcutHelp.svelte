@@ -4,9 +4,8 @@
   let { onclose }: { onclose: () => void } = $props();
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div class="overlay" onclick={onclose} role="presentation">
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div class="panel" onclick={(e) => e.stopPropagation()} role="dialog" aria-label="Keyboard shortcuts" tabindex="-1">
     <div class="header">
       <h2>Keyboard Shortcuts</h2>

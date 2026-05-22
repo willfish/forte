@@ -1,6 +1,12 @@
 <script lang="ts">
   import { getPreference, setPreference, onPreferenceChange, type ThemePreference } from './lib/theme';
   import { LibraryService } from "../bindings/github.com/willfish/forte";
+  import type { ServerConfig } from './lib/types';
+
+  type ServerResponse = Omit<ServerConfig, 'password' | 'hasPassword'> & {
+    password?: string;
+    hasPassword?: boolean;
+  };
 
   // Theme state
   let preference = $state<ThemePreference>(getPreference());
@@ -21,15 +27,6 @@
   ];
 
   // Server state
-  type ServerConfig = {
-    id: string;
-    name: string;
-    type: string;
-    url: string;
-    username: string;
-    password: string;
-  };
-
   let servers = $state<ServerConfig[]>([]);
   let editing = $state<ServerConfig | null>(null);
   let testing = $state(false);
@@ -39,13 +36,14 @@
   let syncResult = $state<{ ok: boolean; message: string } | null>(null);
 
   async function loadServers() {
-    servers = ((await LibraryService.GetServers()) || []).map((s: any) => ({
+    servers = ((await LibraryService.GetServers()) || []).map((s: ServerResponse) => ({
       id: s.id,
       name: s.name,
       type: s.type,
       url: s.url,
       username: s.username,
-      password: s.password,
+      password: '',
+      hasPassword: s.hasPassword ?? false,
     }));
   }
 
@@ -54,13 +52,13 @@
   });
 
   function startAdd() {
-    editing = { id: '', name: '', type: 'subsonic', url: '', username: '', password: '' };
+    editing = { id: '', name: '', type: 'subsonic', url: '', username: '', password: '', hasPassword: false };
     testResult = null;
     showPassword = false;
   }
 
   function startEdit(srv: ServerConfig) {
-    editing = { ...srv };
+    editing = { ...srv, password: '' };
     testResult = null;
     showPassword = false;
   }
@@ -355,9 +353,9 @@
           <label for="srv-pass">Password</label>
           <div class="password-field">
             {#if showPassword}
-              <input id="srv-pass" type="text" bind:value={editing.password} />
+              <input id="srv-pass" type="text" bind:value={editing.password} placeholder={editing.id && editing.hasPassword ? 'Leave blank to keep existing password' : ''} />
             {:else}
-              <input id="srv-pass" type="password" bind:value={editing.password} />
+              <input id="srv-pass" type="password" bind:value={editing.password} placeholder={editing.id && editing.hasPassword ? 'Leave blank to keep existing password' : ''} />
             {/if}
             <button class="toggle-pw" type="button" onclick={() => { showPassword = !showPassword; }}>
               {showPassword ? 'Hide' : 'Show'}
