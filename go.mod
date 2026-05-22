@@ -3,7 +3,7 @@ module github.com/willfish/forte
 go 1.25.0
 
 require (
-	github.com/fsnotify/fsnotify v1.9.0
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/gen2brain/go-mpv v0.2.3
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
