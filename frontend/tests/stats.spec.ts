@@ -1,8 +1,9 @@
 import { test, expect } from "@playwright/test";
+import { enableLibraryMode } from "./helpers";
 
 test.describe("Stats view", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
+    await enableLibraryMode(page);
     await page.getByRole("button", { name: "Stats" }).click();
   });
 

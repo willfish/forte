@@ -21,15 +21,49 @@
     faviconUrl: string;
     tags: string;
     addedAt: string;
+    pinned: boolean;
   };
 
-  let tab = $state<'featured' | 'favourites'>('featured');
+  type CustomStation = {
+    stationUuid: string;
+    name: string;
+    streamUrl: string;
+    faviconUrl: string;
+    tags: string;
+    createdAt: string;
+  };
+
+  type HistoryEntry = {
+    stationUuid: string;
+    name: string;
+    streamUrl: string;
+    faviconUrl: string;
+    tags: string;
+    lastTitle: string;
+    lastError: string;
+    playCount: number;
+    lastPlayedAt: string;
+  };
+
+  const {
+    initialTab = 'featured',
+  }: { initialTab?: 'featured' | 'favourites' | 'custom' | 'history' } = $props();
+
+  let tab = $state<'featured' | 'favourites' | 'custom' | 'history'>('featured');
   let searchQuery = $state('');
   let stations = $state<Station[]>([]);
   let favourites = $state<Favourite[]>([]);
+  let customStations = $state<CustomStation[]>([]);
+  let history = $state<HistoryEntry[]>([]);
   let favouriteUuids = $state<Set<string>>(new Set());
   let loading = $state(false);
+  let customSaving = $state(false);
+  let customError = $state('');
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let customName = $state('');
+  let customStreamUrl = $state('');
+  let customFaviconUrl = $state('');
+  let customTags = $state('');
 
   // Active filters.
   let activeTag = $state('');
@@ -96,12 +130,10 @@
     activeCountry !== '' || activeCodec !== ''
   );
 
-  // Proxy favicons and filter out stations with broken/missing artwork.
-  // Over-fetches then slices to `limit` after filtering.
+  // Proxy favicons without hiding stations that do not publish artwork.
   async function proxyAndFilter(raw: Station[], limit: number): Promise<Station[]> {
-    const withUrl = raw.filter(s => s.favicon !== '');
-    const validUrls = await proxyStationIcons(withUrl.map(s => s.favicon));
-    return withUrl.filter(s => validUrls.has(s.favicon)).slice(0, limit);
+    await proxyStationIcons(raw.map(s => s.favicon));
+    return raw.slice(0, limit);
   }
 
   async function loadFeatured() {
@@ -185,12 +217,50 @@
         faviconUrl: f.faviconUrl,
         tags: f.tags,
         addedAt: f.addedAt,
+        pinned: Boolean(f.pinned),
       }));
       favouriteUuids = new Set(favourites.map(f => f.stationUuid));
       await proxyStationIcons(favourites.map(f => f.faviconUrl));
     } catch {
       favourites = [];
       favouriteUuids = new Set();
+    }
+  }
+
+  async function loadCustomStations() {
+    try {
+      const result = await LibraryService.GetCustomRadioStations();
+      customStations = (result || []).map((s: any) => ({
+        stationUuid: s.stationUuid,
+        name: s.name,
+        streamUrl: s.streamUrl,
+        faviconUrl: s.faviconUrl,
+        tags: s.tags,
+        createdAt: s.createdAt,
+      }));
+      await proxyStationIcons(customStations.map(s => s.faviconUrl));
+    } catch {
+      customStations = [];
+    }
+  }
+
+  async function loadHistory() {
+    try {
+      const result = await LibraryService.GetRadioHistory(50);
+      history = (result || []).map((h: any) => ({
+        stationUuid: h.stationUuid,
+        name: h.name,
+        streamUrl: h.streamUrl,
+        faviconUrl: h.faviconUrl,
+        tags: h.tags,
+        lastTitle: h.lastTitle,
+        lastError: h.lastError,
+        playCount: h.playCount,
+        lastPlayedAt: h.lastPlayedAt,
+      }));
+      await proxyStationIcons(history.map(h => h.faviconUrl));
+    } catch {
+      history = [];
     }
   }
 
@@ -303,11 +373,12 @@
     }
   }
 
-  async function playStation(name: string, url: string, favicon: string) {
+  async function playStation(stationUuid: string, name: string, url: string, favicon: string, tags: string) {
     try {
       // Proxy artwork so the webview can display it.
       const art = favicon ? await LibraryService.ProxyImageURL(favicon) : '';
-      await PlayerService.PlayRadio(name, url, art);
+      await PlayerService.PlayRadioStation(stationUuid, name, url, art, tags);
+      await loadHistory();
     } catch {
       // ignore play errors
     }
@@ -342,6 +413,54 @@
     } catch { /* ignore */ }
   }
 
+  async function togglePinned(fav: Favourite) {
+    try {
+      await LibraryService.SetRadioFavouritePinned(fav.stationUuid, !fav.pinned);
+      await loadFavourites();
+    } catch { /* ignore */ }
+  }
+
+  async function saveCustomStation() {
+    customError = '';
+    const name = customName.trim();
+    const streamUrl = customStreamUrl.trim();
+    if (!name || !streamUrl) return;
+
+    customSaving = true;
+    try {
+      const saved = await LibraryService.AddCustomRadioStation(
+        name,
+        streamUrl,
+        customFaviconUrl.trim(),
+        customTags.trim()
+      );
+      customName = '';
+      customStreamUrl = '';
+      customFaviconUrl = '';
+      customTags = '';
+      await loadCustomStations();
+      await playStation(saved.stationUuid, saved.name, saved.streamUrl, saved.faviconUrl, saved.tags);
+    } catch (err: any) {
+      customError = err?.message || String(err);
+    } finally {
+      customSaving = false;
+    }
+  }
+
+  async function deleteCustomStation(uuid: string) {
+    try {
+      await LibraryService.DeleteCustomRadioStation(uuid);
+      await loadCustomStations();
+    } catch { /* ignore */ }
+  }
+
+  async function clearHistory() {
+    try {
+      await LibraryService.ClearRadioHistory();
+      history = [];
+    } catch { /* ignore */ }
+  }
+
   function formatTags(tags: string): string[] {
     if (!tags) return [];
     return tags.split(',').map(t => t.trim()).filter(Boolean).slice(0, 4);
@@ -351,6 +470,12 @@
   $effect(() => {
     loadFeatured();
     loadFavourites();
+    loadCustomStations();
+    loadHistory();
+  });
+
+  $effect(() => {
+    tab = initialTab;
   });
 </script>
 
@@ -364,6 +489,12 @@
     <button class="tab" class:active={tab === 'favourites'} onclick={() => tab = 'favourites'}>
       Favourites ({favourites.length})
     </button>
+    <button class="tab" class:active={tab === 'custom'} onclick={() => tab = 'custom'}>
+      Custom ({customStations.length})
+    </button>
+    <button class="tab" class:active={tab === 'history'} onclick={() => tab = 'history'}>
+      History
+    </button>
   </div>
 
   {#if tab === 'featured'}
@@ -374,7 +505,7 @@
       <input
         type="text"
         class="search-input"
-        placeholder="Search stations by name or genre..."
+        placeholder="Search stations by name..."
         value={searchQuery}
         oninput={handleSearchInput}
       />
@@ -451,7 +582,7 @@
       <div class="station-list">
         {#each stations as station (station.uuid)}
           <div class="station-card">
-            <button class="station-play" onclick={() => playStation(station.name, station.streamUrl, station.favicon)} aria-label="Play {station.name}">
+            <button class="station-play" onclick={() => playStation(station.uuid, station.name, station.streamUrl, station.favicon, station.tags)} aria-label="Play {station.name}">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                 <path d="M8 5v14l11-7z"/>
               </svg>
@@ -503,14 +634,14 @@
         {/each}
       </div>
     {/if}
-  {:else}
+  {:else if tab === 'favourites'}
     {#if favourites.length === 0}
       <div class="empty">No favourite stations yet. Browse and add some!</div>
     {:else}
       <div class="station-list">
         {#each favourites as fav (fav.stationUuid)}
           <div class="station-card">
-            <button class="station-play" onclick={() => playStation(fav.name, fav.streamUrl, fav.faviconUrl)} aria-label="Play {fav.name}">
+            <button class="station-play" onclick={() => playStation(fav.stationUuid, fav.name, fav.streamUrl, fav.faviconUrl, fav.tags)} aria-label="Play {fav.name}">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                 <path d="M8 5v14l11-7z"/>
               </svg>
@@ -526,6 +657,9 @@
             {/if}
             <div class="station-info">
               <div class="station-name">{fav.name}</div>
+              {#if fav.pinned}
+                <div class="station-meta"><span>Pinned</span></div>
+              {/if}
               {#if formatTags(fav.tags).length > 0}
                 <div class="station-tags">
                   {#each formatTags(fav.tags) as tag}
@@ -535,6 +669,16 @@
               {/if}
             </div>
             <button
+              class="pin-btn"
+              class:active={fav.pinned}
+              onclick={() => togglePinned(fav)}
+              aria-label={fav.pinned ? 'Unpin favourite' : 'Pin favourite'}
+            >
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor">
+                <path d="M16 3l5 5-4 1-4 4v6l-2 2-2-2v-6L5 9 1 8l5-5h10z"/>
+              </svg>
+            </button>
+            <button
               class="fav-btn active"
               onclick={() => removeFavourite(fav.stationUuid)}
               aria-label="Remove from favourites"
@@ -543,6 +687,110 @@
                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
               </svg>
             </button>
+          </div>
+        {/each}
+      </div>
+    {/if}
+  {:else if tab === 'custom'}
+    <div class="custom-form">
+      <div class="form-row">
+        <input type="text" bind:value={customName} placeholder="Station name" aria-label="Station name" />
+        <input type="url" bind:value={customStreamUrl} placeholder="Stream URL" aria-label="Stream URL" />
+      </div>
+      <div class="form-row">
+        <input type="url" bind:value={customFaviconUrl} placeholder="Artwork URL" aria-label="Artwork URL" />
+        <input type="text" bind:value={customTags} placeholder="Tags" aria-label="Tags" />
+      </div>
+      <div class="form-actions">
+        <button class="primary-btn" onclick={saveCustomStation} disabled={customSaving || !customName.trim() || !customStreamUrl.trim()}>
+          {customSaving ? 'Saving...' : 'Add Station'}
+        </button>
+        {#if customError}
+          <span class="form-error">{customError}</span>
+        {/if}
+      </div>
+    </div>
+
+    {#if customStations.length === 0}
+      <div class="empty">No custom stations yet.</div>
+    {:else}
+      <div class="station-list">
+        {#each customStations as station (station.stationUuid)}
+          <div class="station-card">
+            <button class="station-play" onclick={() => playStation(station.stationUuid, station.name, station.streamUrl, station.faviconUrl, station.tags)} aria-label="Play {station.name}">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+            </button>
+            {#if resolvedIcon(station.faviconUrl)}
+              <img class="station-icon" src={resolvedIcon(station.faviconUrl)} alt="" />
+            {:else}
+              <div class="station-icon placeholder">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M3.24 6.15C2.51 6.43 2 7.17 2 8v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8c0-.83-.49-1.57-1.24-1.85L12 2 3.24 6.15zM12 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"/>
+                </svg>
+              </div>
+            {/if}
+            <div class="station-info">
+              <div class="station-name">{station.name}</div>
+              {#if formatTags(station.tags).length > 0}
+                <div class="station-tags">
+                  {#each formatTags(station.tags) as tag}
+                    <span class="tag">{tag}</span>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+            <button class="fav-btn" onclick={() => deleteCustomStation(station.stationUuid)} aria-label="Delete custom station">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+              </svg>
+            </button>
+          </div>
+        {/each}
+      </div>
+    {/if}
+  {:else if tab === 'history'}
+    {#if history.length > 0}
+      <div class="history-actions">
+        <button class="secondary-btn" onclick={clearHistory}>Clear History</button>
+      </div>
+    {/if}
+    {#if history.length === 0}
+      <div class="empty">No radio history yet.</div>
+    {:else}
+      <div class="station-list">
+        {#each history as item (item.stationUuid)}
+          <div class="station-card">
+            <button class="station-play" onclick={() => playStation(item.stationUuid, item.name, item.streamUrl, item.faviconUrl, item.tags)} aria-label="Play {item.name}">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+            </button>
+            {#if resolvedIcon(item.faviconUrl)}
+              <img class="station-icon" src={resolvedIcon(item.faviconUrl)} alt="" />
+            {:else}
+              <div class="station-icon placeholder">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M3.24 6.15C2.51 6.43 2 7.17 2 8v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8c0-.83-.49-1.57-1.24-1.85L12 2 3.24 6.15zM12 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"/>
+                </svg>
+              </div>
+            {/if}
+            <div class="station-info">
+              <div class="station-name">{item.name}</div>
+              <div class="station-meta">
+                <span>Played {item.playCount} {item.playCount === 1 ? 'time' : 'times'}</span>
+                {#if item.lastTitle}<span>{item.lastTitle}</span>{/if}
+                {#if item.lastError}<span class="station-error">{item.lastError}</span>{/if}
+              </div>
+              {#if formatTags(item.tags).length > 0}
+                <div class="station-tags">
+                  {#each formatTags(item.tags) as tag}
+                    <span class="tag">{tag}</span>
+                  {/each}
+                </div>
+              {/if}
+            </div>
           </div>
         {/each}
       </div>
@@ -783,6 +1031,11 @@
     font-size: 0.8rem;
     color: var(--text-secondary);
     margin-top: 0.1rem;
+    flex-wrap: wrap;
+  }
+
+  .station-error {
+    color: var(--error);
   }
 
   .station-tags {
@@ -833,6 +1086,96 @@
     color: var(--error);
   }
 
+  .pin-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .pin-btn:hover,
+  .pin-btn.active {
+    color: var(--accent);
+  }
+
+  .custom-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .form-row input {
+    min-width: 0;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+  }
+
+  .form-row input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .form-actions,
+  .history-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .primary-btn,
+  .secondary-btn {
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 0.45rem 0.8rem;
+  }
+
+  .primary-btn {
+    border: none;
+    background: var(--accent);
+    color: white;
+  }
+
+  .primary-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .secondary-btn {
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+  }
+
+  .secondary-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+  }
+
+  .form-error {
+    color: var(--error);
+    font-size: 0.8rem;
+  }
+
   .empty {
     display: flex;
     align-items: center;
@@ -840,5 +1183,11 @@
     padding: 3rem;
     color: var(--text-secondary);
     font-size: 0.9rem;
+  }
+
+  @media (max-width: 640px) {
+    .form-row {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

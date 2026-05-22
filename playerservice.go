@@ -32,7 +32,7 @@ type PlayerService struct {
 	mpris          *system.MPRIS
 	notifier       *system.Notifier
 	toasts         *player.Notifications
-	isServerOnline func(string) bool         // set by main.go to check server health
+	isServerOnline func(string) bool          // set by main.go to check server health
 	onTrayUpdate   func(title, artist string) // set by main.go for tooltip updates
 	manualSkip     int32                      // atomic: set before explicit Next/Previous to suppress auto-advance
 	stopSave       chan struct{}
@@ -45,14 +45,17 @@ type PlayerService struct {
 	scrobbled       bool
 
 	// Radio mode state (protected by radioMu).
-	radioMu         sync.RWMutex
-	radioMode       bool
-	radioName       string
-	radioStreamURL  string
-	radioArtworkURL string
-	radioLastTitle  string // last ICY stream title, for change detection
-	savedQueue      []player.QueueTrack
-	savedPosition   int
+	radioMu               sync.RWMutex
+	radioMode             bool
+	radioStationUUID      string
+	radioName             string
+	radioStreamURL        string
+	radioArtworkURL       string
+	radioTags             string
+	radioLastTitle        string // last ICY stream title, for change detection
+	radioReconnectPending bool
+	savedQueue            []player.QueueTrack
+	savedPosition         int
 }
 
 // ServiceStartup initialises the mpv engine when the application starts.
@@ -114,8 +117,7 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 		isRadio := p.radioMode
 		p.radioMu.RUnlock()
 		if isRadio {
-			p.toasts.Push("Radio stream lost", "warn")
-			p.StopRadio()
+			p.handleRadioStreamError()
 			return
 		}
 		p.skipToNextPlayable()
@@ -140,6 +142,7 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 
 	// Restore saved playback state.
 	p.restoreState()
+	p.startLastRadioStation()
 
 	// Periodic save (10s), MPRIS position update (1s), and scrobble queue flush (5m).
 	p.stopSave = make(chan struct{})
@@ -171,6 +174,26 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 	}()
 
 	return nil
+}
+
+func (p *PlayerService) startLastRadioStation() {
+	if p.db == nil {
+		return
+	}
+	prefs, err := p.db.GetAppPreferences()
+	if err != nil || !prefs.StartLastStation {
+		return
+	}
+	history, err := p.db.GetRadioHistory(1)
+	if err != nil || len(history) == 0 {
+		return
+	}
+	last := history[0]
+	go func() {
+		if err := p.playRadioStation(last.StationUUID, last.Name, last.StreamURL, last.FaviconURL, last.Tags, false); err != nil {
+			log.Printf("start last radio station: %v", err)
+		}
+	}()
 }
 
 // ServiceShutdown cleans up the mpv engine when the application exits.
@@ -1064,32 +1087,54 @@ func (p *PlayerService) flushListenBrainzQueue() {
 // PlayRadio starts playback of a radio stream. It saves the current library
 // queue and enters radio mode where next/prev/shuffle/repeat are disabled.
 func (p *PlayerService) PlayRadio(stationName, streamURL, artworkURL string) error {
+	return p.playRadioStation(library.CustomRadioStationUUID(streamURL), stationName, streamURL, artworkURL, "", true)
+}
+
+// PlayRadioStation starts playback of a radio stream with stable station metadata.
+func (p *PlayerService) PlayRadioStation(stationUUID, stationName, streamURL, artworkURL, tags string) error {
+	return p.playRadioStation(stationUUID, stationName, streamURL, artworkURL, tags, true)
+}
+
+func (p *PlayerService) playRadioStation(stationUUID, stationName, streamURL, artworkURL, tags string, countPlay bool) error {
+	if stationUUID == "" {
+		stationUUID = library.CustomRadioStationUUID(streamURL)
+	}
 	if p.engine == nil {
 		return fmt.Errorf("player not initialised")
 	}
 
-	// Save the library queue if not already in radio mode.
 	p.radioMu.Lock()
 	if !p.radioMode {
 		p.savedQueue = p.queue.Tracks()
 		p.savedPosition = p.queue.Position()
 	}
 	p.radioMode = true
+	p.radioStationUUID = stationUUID
 	p.radioName = stationName
 	p.radioStreamURL = streamURL
 	p.radioArtworkURL = artworkURL
+	p.radioTags = tags
 	p.radioLastTitle = ""
+	p.radioReconnectPending = false
 	p.radioMu.Unlock()
 
-	// Fetch artwork server-side to avoid WebKit external HTTP requests.
 	if artworkURL != "" {
 		go p.fetchRadioArtwork(artworkURL)
 	}
 
-	// Clear the queue and play the stream directly.
 	p.queue.Clear()
 	if err := p.engine.Play(streamURL); err != nil {
 		return fmt.Errorf("play radio: %w", err)
+	}
+
+	if countPlay && p.db != nil {
+		_ = p.db.RecordRadioPlayback(library.RadioHistoryEntry{
+			StationUUID: stationUUID,
+			Name:        stationName,
+			StreamURL:   streamURL,
+			FaviconURL:  artworkURL,
+			Tags:        tags,
+		})
 	}
 
 	if p.mpris != nil {
@@ -1099,7 +1144,7 @@ func (p *PlayerService) PlayRadio(stationName, streamURL, artworkURL string) err
 	if p.onTrayUpdate != nil {
 		p.onTrayUpdate(stationName, "Radio")
 	}
-	if p.notifier != nil {
+	if p.notifier != nil && countPlay {
 		p.notifier.Notify(stationName, "Radio", nil)
 	}
 
@@ -1148,10 +1193,13 @@ func (p *PlayerService) StopRadio() {
 	}
 
 	p.radioMode = false
+	p.radioStationUUID = ""
 	p.radioName = ""
 	p.radioStreamURL = ""
 	p.radioArtworkURL = ""
+	p.radioTags = ""
 	p.radioLastTitle = ""
+	p.radioReconnectPending = false
 	savedQueue := p.savedQueue
 	savedPosition := p.savedPosition
 	p.savedQueue = nil
@@ -1226,6 +1274,68 @@ func (p *PlayerService) checkRadioTitle() {
 	if p.notifier != nil && t != "" {
 		p.notifier.Notify(name, t, nil)
 	}
+	if p.db != nil {
+		p.radioMu.RLock()
+		stationUUID := p.radioStationUUID
+		p.radioMu.RUnlock()
+		if stationUUID != "" {
+			_ = p.db.UpdateRadioHistoryTitle(stationUUID, t)
+		}
+	}
+}
+
+func (p *PlayerService) handleRadioStreamError() {
+	p.radioMu.Lock()
+	if !p.radioMode {
+		p.radioMu.Unlock()
+		return
+	}
+	if p.radioReconnectPending {
+		p.radioMu.Unlock()
+		return
+	}
+	p.radioReconnectPending = true
+	stationUUID := p.radioStationUUID
+	name := p.radioName
+	streamURL := p.radioStreamURL
+	artworkURL := p.radioArtworkURL
+	tags := p.radioTags
+	p.radioMu.Unlock()
+
+	if p.db != nil && stationUUID != "" {
+		_ = p.db.MarkRadioHistoryError(stationUUID, "stream lost")
+	}
+
+	prefs := library.AppPreferences{AutoReconnect: true}
+	if p.db != nil {
+		if loaded, err := p.db.GetAppPreferences(); err == nil {
+			prefs = loaded
+		}
+	}
+	if !prefs.AutoReconnect {
+		p.toasts.Push("Radio stream lost", "warn")
+		p.StopRadio()
+		return
+	}
+
+	p.toasts.Push("Radio stream lost, reconnecting...", "warn")
+	go func() {
+		for attempt := 1; attempt <= 3; attempt++ {
+			time.Sleep(time.Duration(attempt*2) * time.Second)
+			p.radioMu.RLock()
+			stillCurrent := p.radioMode && p.radioStationUUID == stationUUID
+			p.radioMu.RUnlock()
+			if !stillCurrent {
+				return
+			}
+			if err := p.playRadioStation(stationUUID, name, streamURL, artworkURL, tags, false); err == nil {
+				p.toasts.Push("Radio reconnected", "info")
+				return
+			}
+		}
+		p.toasts.Push("Radio stream unavailable", "warn")
+		p.StopRadio()
+	}()
 }
 
 // IsRadioMode returns whether the player is currently in radio mode.

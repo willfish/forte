@@ -1,7 +1,13 @@
 package player
 
 import (
+	"encoding/binary"
+	"math"
+	"os"
+	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 )
 
 func newTestEngine(t *testing.T) *Engine {
@@ -150,6 +156,31 @@ func TestPlayAllEmpty(t *testing.T) {
 	}
 }
 
+func TestPlayLoadsRealWAVFile(t *testing.T) {
+	e := newTestEngine(t)
+	path := writeTestWAV(t)
+
+	loaded := make(chan struct{})
+	var once sync.Once
+	e.onTrackChange = func() {
+		once.Do(func() { close(loaded) })
+	}
+
+	if err := e.Play(path); err != nil {
+		t.Fatalf("Play() real wav error: %v", err)
+	}
+
+	select {
+	case <-loaded:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for mpv to load generated wav")
+	}
+
+	if s := e.State(); s != StatePlaying {
+		t.Fatalf("expected StatePlaying after loading real wav, got %s", s)
+	}
+}
+
 func TestGaplessOptionSet(t *testing.T) {
 	e := newTestEngine(t)
 
@@ -157,6 +188,56 @@ func TestGaplessOptionSet(t *testing.T) {
 	if v != "yes" {
 		t.Fatalf("expected gapless-audio=yes, got %q", v)
 	}
+}
+
+func writeTestWAV(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "tone.wav")
+	const sampleRate = 44100
+	const durationSeconds = 1
+	const channels = 1
+	const bitsPerSample = 16
+	const samples = sampleRate * durationSeconds
+	const dataBytes = samples * channels * bitsPerSample / 8
+
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create wav: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	writeString := func(s string) {
+		if _, err := f.WriteString(s); err != nil {
+			t.Fatalf("write wav: %v", err)
+		}
+	}
+	write := func(v any) {
+		if err := binary.Write(f, binary.LittleEndian, v); err != nil {
+			t.Fatalf("write wav: %v", err)
+		}
+	}
+
+	writeString("RIFF")
+	write(uint32(36 + dataBytes))
+	writeString("WAVE")
+	writeString("fmt ")
+	write(uint32(16))
+	write(uint16(1))
+	write(uint16(channels))
+	write(uint32(sampleRate))
+	write(uint32(sampleRate * channels * bitsPerSample / 8))
+	write(uint16(channels * bitsPerSample / 8))
+	write(uint16(bitsPerSample))
+	writeString("data")
+	write(uint32(dataBytes))
+
+	for i := 0; i < samples; i++ {
+		angle := 2 * math.Pi * 440 * float64(i) / sampleRate
+		sample := int16(math.Sin(angle) * math.MaxInt16 * 0.2)
+		write(sample)
+	}
+
+	return path
 }
 
 func TestReplayGainDefault(t *testing.T) {

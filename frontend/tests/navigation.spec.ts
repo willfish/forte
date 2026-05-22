@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { enableLibraryMode, openLibrary } from "./helpers";
 
 test.describe("Sidebar navigation", () => {
   test("shows brand name", async ({ page }) => {
@@ -6,13 +7,13 @@ test.describe("Sidebar navigation", () => {
     await expect(page.locator(".brand")).toContainText("Forte");
   });
 
-  test("library view is active by default", async ({ page }) => {
+  test("radio view is active by default", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("button", { name: "Library" })).toHaveClass(/active/);
+    await expect(page.locator("nav.sidebar button", { hasText: "Radio" })).toHaveClass(/active/);
   });
 
   test("navigates to playlists view", async ({ page }) => {
-    await page.goto("/");
+    await enableLibraryMode(page);
     await page.getByRole("button", { name: "Playlists" }).click();
     await expect(page.getByRole("button", { name: "Playlists" })).toHaveClass(/active/);
     // PlaylistView should show the fixture playlists.
@@ -21,7 +22,7 @@ test.describe("Sidebar navigation", () => {
   });
 
   test("navigates to stats view", async ({ page }) => {
-    await page.goto("/");
+    await enableLibraryMode(page);
     await page.getByRole("button", { name: "Stats" }).click();
     await expect(page.getByRole("button", { name: "Stats" })).toHaveClass(/active/);
     await expect(page.getByText("Listening Stats")).toBeVisible();
@@ -35,7 +36,7 @@ test.describe("Sidebar navigation", () => {
   });
 
   test("navigates back to library from settings", async ({ page }) => {
-    await page.goto("/");
+    await openLibrary(page);
     await page.getByRole("button", { name: "Settings" }).click();
     await page.getByRole("button", { name: "Library" }).click();
     await expect(page.getByRole("button", { name: "Library" })).toHaveClass(/active/);

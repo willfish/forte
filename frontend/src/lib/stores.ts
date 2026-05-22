@@ -1,24 +1,30 @@
 // Reactive stores for application state.
 
 // Current view shown in the content area.
-export type View = 'library' | 'playlists' | 'radio' | 'stats' | 'settings';
+export type View = 'library' | 'playlists' | 'radio' | 'history' | 'stats' | 'settings';
 
 // Simple store using Svelte 5 module-level state is not possible
 // in a .ts file, so we use a plain object with getter/setter callbacks.
 // Components will use $state() locally and subscribe via these helpers.
 
-let _currentView: View = 'library';
+let _currentView: View = 'radio';
 const _listeners: Array<(view: View) => void> = [];
 
 // Server status tracking: maps serverId to online status.
 let _serverStatuses: Record<string, boolean> = {};
 const _statusListeners: Array<(statuses: Record<string, boolean>) => void> = [];
 
+let _libraryEnabled = false;
+const _libraryPreferenceListeners: Array<(enabled: boolean) => void> = [];
+
 export function getCurrentView(): View {
   return _currentView;
 }
 
 export function setCurrentView(view: View) {
+  if (!_libraryEnabled && ['library', 'playlists', 'stats'].includes(view)) {
+    view = 'radio';
+  }
   _currentView = view;
   for (const fn of _listeners) {
     fn(view);
@@ -56,4 +62,26 @@ export function isServerOnline(serverId: string): boolean {
   if (!serverId) return true;
   if (!(serverId in _serverStatuses)) return true;
   return _serverStatuses[serverId];
+}
+
+export function isLibraryEnabled(): boolean {
+  return _libraryEnabled;
+}
+
+export function setLibraryEnabled(enabled: boolean) {
+  _libraryEnabled = enabled;
+  if (!enabled && ['library', 'playlists', 'stats'].includes(_currentView)) {
+    setCurrentView('radio');
+  }
+  for (const fn of _libraryPreferenceListeners) {
+    fn(enabled);
+  }
+}
+
+export function onLibraryEnabledChange(fn: (enabled: boolean) => void): () => void {
+  _libraryPreferenceListeners.push(fn);
+  return () => {
+    const idx = _libraryPreferenceListeners.indexOf(fn);
+    if (idx >= 0) _libraryPreferenceListeners.splice(idx, 1);
+  };
 }
