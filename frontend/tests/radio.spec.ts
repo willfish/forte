@@ -14,6 +14,7 @@ test('shows Radio in sidebar navigation', async ({ page }) => {
 
 test('opens on radio and hides library-first navigation by default', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Radio' })).toBeVisible();
+  await expect(page.locator('nav.sidebar button', { hasText: 'History' })).toHaveCount(0);
   await expect(page.locator('nav.sidebar button', { hasText: 'Library' })).toHaveCount(0);
   await expect(page.locator('nav.sidebar button', { hasText: 'Playlists' })).toHaveCount(0);
   await expect(page.locator('nav.sidebar button', { hasText: 'Stats' })).toHaveCount(0);
@@ -69,8 +70,9 @@ test('adds and plays a custom station', async ({ page }) => {
   await expect(page.getByText('My Stream')).toBeVisible();
 });
 
-test('shows radio history from sidebar', async ({ page }) => {
-  await page.locator('nav.sidebar button', { hasText: 'History' }).click();
+test('shows radio history from the Radio tab', async ({ page }) => {
+  await radioNavButton(page).click();
+  await page.locator('.tabs').getByRole('button', { name: 'History', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Radio' })).toBeVisible();
   await expect(page.getByText('Classical 24')).toBeVisible();
   await expect(page.getByText('Morning Concert')).toBeVisible();
