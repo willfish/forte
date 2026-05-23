@@ -41,6 +41,9 @@ jobs:
           npm ci
           npm run build
 
+      - name: Test installer
+        run: sh scripts/install_test.sh
+
       - run: go test -tags nocgo ./...
 
   lint:
