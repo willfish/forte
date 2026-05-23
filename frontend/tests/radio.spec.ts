@@ -90,7 +90,7 @@ test('h and l move across radio tabs', async ({ page }) => {
 
 test('pressing f shows button hints and activates the first station', async ({ page }) => {
   await radioNavButton(page).click();
-  const station = page.getByRole('listitem').filter({ hasText: 'Ishq - Iqqoa' });
+  const station = page.getByRole('listitem').filter({ hasText: 'Radio Paradise Main Mix' });
   await expect(station).toBeVisible();
 
   await page.keyboard.press('f');
@@ -157,6 +157,26 @@ test('selecting a tag from another radio tab opens Browse for that tag', async (
   await expect(page.getByText('Tag: jazz')).toBeVisible();
 });
 
+test('combines country and tag filters on Browse', async ({ page }) => {
+  await radioNavButton(page).click();
+
+  await page.getByRole('button', { name: 'UK', exact: true }).click();
+  await page.getByRole('button', { name: 'eclectic', exact: true }).click();
+
+  await expect(page.getByText('Country: UK')).toBeVisible();
+  await expect(page.getByText('Tag: eclectic')).toBeVisible();
+  await expect(page.getByText('BBC World Service')).toBeVisible();
+  await expect(page.getByText('Radio Paradise Main Mix')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Remove tag filter eclectic' }).click();
+  await expect(page.getByText('Tag: eclectic')).toHaveCount(0);
+  await expect(page.getByText('Country: UK')).toBeVisible();
+  await expect(page.getByText('BBC World Service')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Remove country filter UK' }).click();
+  await expect(page.getByText('Country: UK')).toHaveCount(0);
+});
+
 test('pins favourite stations', async ({ page }) => {
   await radioNavButton(page).click();
   await page.getByRole('tab', { name: /Favourites/ }).click();
@@ -208,7 +228,7 @@ test('shows play buttons for stations', async ({ page }) => {
 test('double-clicking the current radio station toggles play and pause', async ({ page }) => {
   await radioNavButton(page).click();
 
-  const station = page.getByRole('listitem').filter({ hasText: 'Ishq - Iqqoa' });
+  const station = page.getByRole('listitem').filter({ hasText: 'Jazz FM' });
   await station.dblclick();
   await expect(station.getByText('Playing')).toBeVisible();
 
@@ -222,8 +242,8 @@ test('double-clicking the current radio station toggles play and pause', async (
 test('pressing enter on a focused radio station toggles play and pause', async ({ page }) => {
   await radioNavButton(page).click();
 
-  const station = page.getByRole('listitem').filter({ hasText: 'Ishq - Iqqoa' });
-  const rowAction = station.getByRole('button', { name: 'Play or pause Ishq - Iqqoa' });
+  const station = page.getByRole('listitem').filter({ hasText: 'Jazz FM' });
+  const rowAction = station.getByRole('button', { name: 'Play or pause Jazz FM' });
   await rowAction.focus();
   await page.keyboard.press('Enter');
   await expect(station.getByText('Playing')).toBeVisible();
@@ -237,8 +257,8 @@ test('shows a recoverable error when a station cannot play', async ({ page }) =>
   await page.reload();
   await radioNavButton(page).click();
 
-  await page.getByRole('button', { name: 'Play Ishq - Iqqoa' }).click();
-  await expect(page.getByRole('alert')).toContainText("Couldn't play Ishq - Iqqoa.");
+  await page.getByRole('button', { name: 'Play Jazz FM' }).click();
+  await expect(page.getByRole('alert')).toContainText("Couldn't play Jazz FM.");
   await expect(page.getByRole('alert')).toContainText('stream unavailable');
 
   await page.getByRole('button', { name: 'Dismiss radio error' }).click();

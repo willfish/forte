@@ -405,10 +405,10 @@ export function SearchRadioStations(query: string, limit: number): $CancellableP
 }
 
 /**
- * SearchRadioStationsFiltered searches with optional country and codec filters.
+ * SearchRadioStationsFiltered searches with optional country, codec, and tag filters.
  */
-export function SearchRadioStationsFiltered(country: string, codec: string, limit: number): $CancellablePromise<$models.RadioStationJSON[]> {
-    return $Call.ByID(2804279923, country, codec, limit).then(($result: any) => {
+export function SearchRadioStationsFiltered(country: string, codec: string, tag: string, limit: number): $CancellablePromise<$models.RadioStationJSON[]> {
+    return $Call.ByID(2804279923, country, codec, tag, limit).then(($result: any) => {
         return $$createType18($result);
     });
 }
