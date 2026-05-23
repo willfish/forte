@@ -1,3 +1,5 @@
+//go:build linux
+
 package system
 
 import (
@@ -189,22 +191,22 @@ type mockPlayer struct {
 	duration       float64
 }
 
-func (m *mockPlayer) Pause()                    { m.pauseCalled = true }
-func (m *mockPlayer) Resume()                   { m.resumeCalled = true }
-func (m *mockPlayer) Stop()                     { m.stopCalled = true }
-func (m *mockPlayer) Next()                     { m.nextCalled = true }
-func (m *mockPlayer) Previous()                 { m.previousCalled = true }
-func (m *mockPlayer) Seek(s float64)            { m.seekPos = s }
-func (m *mockPlayer) SetVolume(p int)           { m.volumeSet = p }
-func (m *mockPlayer) Volume() int               { return 50 }
-func (m *mockPlayer) Position() float64         { return m.position }
-func (m *mockPlayer) Duration() float64         { return m.duration }
-func (m *mockPlayer) State() string             { return m.state }
-func (m *mockPlayer) MediaPath() string         { return "" }
-func (m *mockPlayer) SetShuffle(e bool)         { m.shuffleSet = &e }
-func (m *mockPlayer) GetShuffle() bool          { return false }
-func (m *mockPlayer) SetRepeat(mode string)     { m.repeatSet = mode }
-func (m *mockPlayer) GetRepeat() string         { return "off" }
+func (m *mockPlayer) Pause()                { m.pauseCalled = true }
+func (m *mockPlayer) Resume()               { m.resumeCalled = true }
+func (m *mockPlayer) Stop()                 { m.stopCalled = true }
+func (m *mockPlayer) Next()                 { m.nextCalled = true }
+func (m *mockPlayer) Previous()             { m.previousCalled = true }
+func (m *mockPlayer) Seek(s float64)        { m.seekPos = s }
+func (m *mockPlayer) SetVolume(p int)       { m.volumeSet = p }
+func (m *mockPlayer) Volume() int           { return 50 }
+func (m *mockPlayer) Position() float64     { return m.position }
+func (m *mockPlayer) Duration() float64     { return m.duration }
+func (m *mockPlayer) State() string         { return m.state }
+func (m *mockPlayer) MediaPath() string     { return "" }
+func (m *mockPlayer) SetShuffle(e bool)     { m.shuffleSet = &e }
+func (m *mockPlayer) GetShuffle() bool      { return false }
+func (m *mockPlayer) SetRepeat(mode string) { m.repeatSet = mode }
+func (m *mockPlayer) GetRepeat() string     { return "off" }
 
 func TestMprisPlayerPlay(t *testing.T) {
 	mock := &mockPlayer{}

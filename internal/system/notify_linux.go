@@ -1,3 +1,5 @@
+//go:build linux
+
 package system
 
 import (
@@ -67,14 +69,14 @@ func (n *Notifier) Notify(title, body string, artwork []byte) {
 	obj := n.conn.Object(notifyDest, notifyPath)
 	call := obj.Call(
 		notifyMethod, 0,
-		"Forte",          // app_name
-		n.replacesID,     // replaces_id
-		icon,             // app_icon
-		title,            // summary
-		body,             // body
-		[]string{},       // actions
+		"Forte",                   // app_name
+		n.replacesID,              // replaces_id
+		icon,                      // app_icon
+		title,                     // summary
+		body,                      // body
+		[]string{},                // actions
 		map[string]dbus.Variant{}, // hints
-		int32(5000),      // expire_timeout ms
+		int32(5000),               // expire_timeout ms
 	)
 	if call.Err != nil {
 		return

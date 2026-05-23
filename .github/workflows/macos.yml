@@ -1,0 +1,82 @@
+name: macOS
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25.10"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install system dependencies
+        run: |
+          brew update
+          brew install ffmpeg mpv pkg-config
+          mkdir -p "$RUNNER_TEMP/lib"
+          mpv_lib="$(
+            find "$(brew --prefix mpv)/lib" "$(brew --prefix)/lib" \
+              -maxdepth 1 \
+              \( -name 'libmpv.dylib' -o -name 'libmpv.*.dylib' \) \
+              -print \
+              | head -n 1
+          )"
+          test -n "$mpv_lib"
+          ln -sf "$mpv_lib" "$RUNNER_TEMP/lib/libmpv.dylib"
+          printf 'PATH=%s/opt/ffmpeg/bin:%s/bin:%s\n' "$(brew --prefix)" "$(brew --prefix)" "$PATH" >> "$GITHUB_ENV"
+          printf 'DYLD_LIBRARY_PATH=%s/lib:%s/lib:%s\n' "$RUNNER_TEMP" "$(brew --prefix mpv)" "${DYLD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
+          printf 'PKG_CONFIG_PATH=%s/lib/pkgconfig:%s\n' "$(brew --prefix mpv)" "${PKG_CONFIG_PATH:-}" >> "$GITHUB_ENV"
+
+      - name: Verify system dependencies
+        run: |
+          test -f "$RUNNER_TEMP/lib/libmpv.dylib"
+          ffmpeg -hide_banner -encoders | grep -q vorbis
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run check
+          npm run build
+
+      - name: Run Go tests
+        run: go test -tags nocgo ./...
+
+      - name: Build macOS binary
+        run: |
+          mkdir -p bin
+          go build -tags production,nocgo -trimpath -buildvcs=false -ldflags="-w -s" -o bin/forte
+          test -f bin/forte
+          file bin/forte | grep -q "Mach-O.*arm64"
+
+  nix:
+    name: Nix package
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: DeterminateSystems/nix-installer-action@v20
+
+      - name: Build Darwin package
+        run: nix build .#packages.aarch64-darwin.default -L --no-write-lock-file

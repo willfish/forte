@@ -117,7 +117,7 @@ func TestScanRealAudioFilesAcrossSupportedFormats(t *testing.T) {
 	}{
 		{"01 Forte FLAC.flac", "FLAC", "flac"},
 		{"02 Forte MP3.mp3", "MP3", "libmp3lame"},
-		{"03 Forte OGG.ogg", "OGG", "libvorbis"},
+		{"03 Forte OGG.ogg", "OGG", "vorbis"},
 		{"04 Forte M4A.m4a", "M4A", "aac"},
 		{"05 Forte WAV.wav", "WAV", "pcm_s16le"},
 	}
@@ -280,6 +280,9 @@ func generateTaggedAudio(t *testing.T, ffmpeg, path, codec, title, artist, album
 	}
 	if codec == "aac" {
 		args = append(args, "-b:a", "96k")
+	}
+	if codec == "vorbis" {
+		args = append(args, "-ac", "2", "-strict", "-2")
 	}
 	args = append(args, path)
 	if out, err := exec.Command(ffmpeg, args...).CombinedOutput(); err != nil {

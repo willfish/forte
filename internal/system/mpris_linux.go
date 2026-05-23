@@ -1,4 +1,5 @@
-// Package system provides Linux desktop integration (MPRIS2, notifications, tray).
+//go:build linux
+
 package system
 
 import (
@@ -20,35 +21,6 @@ const (
 	ifaceRoot   = "org.mpris.MediaPlayer2"
 	ifacePlayer = "org.mpris.MediaPlayer2.Player"
 )
-
-// readArtworkFn reads album artwork from a media file.
-// Set via SetReadArtworkFn to avoid a direct dependency on the metadata package.
-var readArtworkFn = func(path string) ([]byte, string, error) { return nil, "", nil }
-
-// SetReadArtworkFn sets the function used to read artwork from media files.
-func SetReadArtworkFn(fn func(string) ([]byte, string, error)) {
-	readArtworkFn = fn
-}
-
-// PlayerControl is the interface that the MPRIS provider uses to control the player.
-type PlayerControl interface {
-	Pause()
-	Resume()
-	Stop()
-	Next()
-	Previous()
-	Seek(seconds float64)
-	SetVolume(percent int)
-	Volume() int
-	Position() float64
-	Duration() float64
-	State() string // "playing", "paused", "stopped"
-	MediaPath() string
-	SetShuffle(enabled bool)
-	GetShuffle() bool
-	SetRepeat(mode string) // "off", "all", "one"
-	GetRepeat() string
-}
 
 // MPRIS provides MPRIS2 D-Bus integration for Forte.
 type MPRIS struct {
