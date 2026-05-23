@@ -549,10 +549,13 @@ func (e *Engine) handleEvent() (shutdown bool) {
 		}
 	case mpv.EventFileLoaded:
 		e.mu.Lock()
-		e.state = StatePlaying
+		state := e.state
+		if state != StateStopped && state != StatePaused {
+			e.state = StatePlaying
+		}
 		cb := e.onTrackChange
 		e.mu.Unlock()
-		if cb != nil {
+		if cb != nil && state != StateStopped {
 			cb()
 		}
 		slog.Debug("file loaded")

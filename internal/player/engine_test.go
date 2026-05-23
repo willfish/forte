@@ -95,6 +95,57 @@ func TestStopResetsState(t *testing.T) {
 	}
 }
 
+func TestPauseDuringLoadStaysPaused(t *testing.T) {
+	e := newTestEngine(t)
+	path := writeTestWAV(t)
+
+	loaded := make(chan struct{})
+	var once sync.Once
+	e.onTrackChange = func() {
+		once.Do(func() { close(loaded) })
+	}
+
+	if err := e.Play(path); err != nil {
+		t.Fatalf("Play() real wav error: %v", err)
+	}
+	e.Pause()
+
+	select {
+	case <-loaded:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for mpv to load generated wav")
+	}
+
+	if s := e.State(); s != StatePaused {
+		t.Fatalf("expected StatePaused after load completes, got %s", s)
+	}
+}
+
+func TestStopDuringLoadStaysStopped(t *testing.T) {
+	e := newTestEngine(t)
+	path := writeTestWAV(t)
+
+	loaded := make(chan struct{})
+	e.onTrackChange = func() {
+		close(loaded)
+	}
+
+	if err := e.Play(path); err != nil {
+		t.Fatalf("Play() real wav error: %v", err)
+	}
+	e.Stop()
+
+	select {
+	case <-loaded:
+		t.Fatal("onTrackChange should not run after stop during load")
+	case <-time.After(500 * time.Millisecond):
+	}
+
+	if s := e.State(); s != StateStopped {
+		t.Fatalf("expected StateStopped after load race, got %s", s)
+	}
+}
+
 func TestVolume(t *testing.T) {
 	e := newTestEngine(t)
 

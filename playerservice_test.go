@@ -2,7 +2,7 @@ package main
 
 import "testing"
 
-func TestPauseStopsRadioMode(t *testing.T) {
+func TestPauseKeepsRadioMode(t *testing.T) {
 	p := &PlayerService{}
 	p.radioMode = true
 	p.radioName = "Test Radio"
@@ -10,11 +10,11 @@ func TestPauseStopsRadioMode(t *testing.T) {
 
 	p.Pause()
 
-	if p.radioMode {
-		t.Fatal("Pause() should stop radio mode")
+	if !p.radioMode {
+		t.Fatal("Pause() should keep radio mode active")
 	}
-	if p.radioName != "" || p.radioStreamURL != "" {
-		t.Fatalf("radio metadata was not cleared: name=%q stream=%q", p.radioName, p.radioStreamURL)
+	if p.radioName != "Test Radio" || p.radioStreamURL != "https://example.com/stream" {
+		t.Fatalf("radio metadata should be preserved: name=%q stream=%q", p.radioName, p.radioStreamURL)
 	}
 }
 
