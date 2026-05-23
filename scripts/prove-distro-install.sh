@@ -89,7 +89,7 @@ set -euxo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y ca-certificates desktop-file-utils xvfb dbus-x11 procps
+apt-get install -y ca-certificates desktop-file-utils xvfb dbus-x11 procps systemd
 FORTE_PACKAGE_URL=file:///artifacts/forte-ubuntu.deb sh /install-forte.sh
 
 command -v forte
@@ -105,6 +105,18 @@ env WEBKIT_DISABLE_DMABUF_RENDERER=1 forte >/tmp/forte.log 2>&1 &
 forte_pid="$!"
 sleep 10
 kill -0 "$forte_pid"
+for i in $(seq 1 30); do
+  svc="$(busctl --user --list | grep -Eo 'org.kde.StatusNotifierItem-[0-9]+-1' | head -n1 || true)"
+  test -n "$svc" && break
+  sleep 1
+done
+test -n "$svc"
+busctl --user call -- "$svc" /StatusNotifierMenu com.canonical.dbusmenu GetLayout iias 0 -1 0 > /tmp/forte-tray-menu
+grep -q "Play/Pause" /tmp/forte-tray-menu
+grep -q "Next" /tmp/forte-tray-menu
+grep -q "Previous" /tmp/forte-tray-menu
+grep -q "Show/Hide Window" /tmp/forte-tray-menu
+grep -q "Quit" /tmp/forte-tray-menu
 kill "$forte_pid"
 set +e
 wait "$forte_pid"
@@ -185,6 +197,18 @@ env WEBKIT_DISABLE_DMABUF_RENDERER=1 forte >/tmp/forte.log 2>&1 &
 forte_pid="$!"
 sleep 10
 kill -0 "$forte_pid"
+for i in $(seq 1 30); do
+  svc="$(busctl --user --list | grep -Eo 'org.kde.StatusNotifierItem-[0-9]+-1' | head -n1 || true)"
+  test -n "$svc" && break
+  sleep 1
+done
+test -n "$svc"
+busctl --user call -- "$svc" /StatusNotifierMenu com.canonical.dbusmenu GetLayout iias 0 -1 0 > /tmp/forte-tray-menu
+grep -q "Play/Pause" /tmp/forte-tray-menu
+grep -q "Next" /tmp/forte-tray-menu
+grep -q "Previous" /tmp/forte-tray-menu
+grep -q "Show/Hide Window" /tmp/forte-tray-menu
+grep -q "Quit" /tmp/forte-tray-menu
 kill "$forte_pid"
 set +e
 wait "$forte_pid"

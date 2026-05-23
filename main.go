@@ -95,27 +95,12 @@ func main() {
 	tray := app.SystemTray.New()
 	tray.SetLabel("Forte")
 
-	menu := app.NewMenu()
-	menu.Add("Play/Pause").OnClick(func(_ *application.Context) {
-		if ps.State() == "playing" {
-			ps.Pause()
-		} else {
-			ps.Resume()
-		}
-	})
-	menu.Add("Next").OnClick(func(_ *application.Context) {
-		ps.Next()
-	})
-	menu.Add("Previous").OnClick(func(_ *application.Context) {
-		ps.Previous()
-	})
-	menu.AddSeparator()
-	menu.Add("Show/Hide Window").OnClick(func(_ *application.Context) {
-		tray.ToggleWindow()
-	})
-	menu.AddSeparator()
-	menu.Add("Quit").OnClick(func(_ *application.Context) {
-		app.Quit()
+	menu := buildForteTrayMenu(app.NewMenu(), trayMenuActions{
+		playback:     ps,
+		toggleWindow: tray.ToggleWindow,
+		quit: func() {
+			app.Quit()
+		},
 	})
 
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{

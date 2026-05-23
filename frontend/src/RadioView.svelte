@@ -61,6 +61,7 @@
   let loading = $state(false);
   let customSaving = $state(false);
   let customError = $state('');
+  let radioError = $state('');
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let customName = $state('');
   let customStreamUrl = $state('');
@@ -85,6 +86,21 @@
     { code: 'Australia', label: 'AU' },
   ];
   const codecs = ['MP3', 'AAC', 'OGG'];
+
+  function describeError(err: unknown): string {
+    if (err instanceof Error && err.message) return err.message;
+    if (typeof err === 'string' && err.trim()) return err;
+    return 'Please try again.';
+  }
+
+  function showRadioError(message: string, err?: unknown) {
+    const detail = err ? ` ${describeError(err)}` : '';
+    radioError = `${message}${detail}`;
+  }
+
+  function clearRadioError() {
+    radioError = '';
+  }
 
   // Proxied image cache: external URL -> data URI.
   const iconCache = new Map<string, string>();
@@ -388,6 +404,7 @@
 
   async function playStation(stationUuid: string, name: string, url: string, favicon: string, tags: string) {
     try {
+      clearRadioError();
       if (isCurrentStation(stationUuid)) {
         if (playbackState === 'playing') {
           await PlayerService.Pause();
@@ -403,8 +420,8 @@
       await PlayerService.PlayRadioStation(stationUuid, name, url, art, tags);
       await refreshPlaybackStatus();
       await loadHistory();
-    } catch {
-      // ignore play errors
+    } catch (err) {
+      showRadioError(`Couldn't play ${name}.`, err);
     }
   }
 
@@ -417,9 +434,30 @@
     tags: string
   ) {
     const target = event.target as HTMLElement;
-    if (target.closest('button, input, a, select, textarea')) {
+    const interactiveTarget = target.closest('button, input, a, select, textarea');
+    if (interactiveTarget && !interactiveTarget.classList.contains('station-main')) {
       return;
     }
+    await playStation(stationUuid, name, url, favicon, tags);
+  }
+
+  async function handleStationKeydown(
+    event: KeyboardEvent,
+    stationUuid: string,
+    name: string,
+    url: string,
+    favicon: string,
+    tags: string
+  ) {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+    const target = event.target as HTMLElement;
+    const interactiveTarget = target.closest('button, input, a, select, textarea');
+    if (interactiveTarget && !interactiveTarget.classList.contains('station-main')) {
+      return;
+    }
+    event.preventDefault();
     await playStation(stationUuid, name, url, favicon, tags);
   }
 
@@ -442,7 +480,9 @@
         favouriteUuids.delete(station.uuid);
         favouriteUuids = new Set(favouriteUuids);
         favourites = favourites.filter(f => f.stationUuid !== station.uuid);
-      } catch { /* ignore */ }
+      } catch (err) {
+        showRadioError('Could not remove this favourite.', err);
+      }
     } else {
       try {
         await LibraryService.AddRadioFavourite(
@@ -451,7 +491,9 @@
         favouriteUuids.add(station.uuid);
         favouriteUuids = new Set(favouriteUuids);
         await loadFavourites();
-      } catch { /* ignore */ }
+      } catch (err) {
+        showRadioError('Could not add this favourite.', err);
+      }
     }
   }
 
@@ -461,14 +503,18 @@
       favouriteUuids.delete(uuid);
       favouriteUuids = new Set(favouriteUuids);
       favourites = favourites.filter(f => f.stationUuid !== uuid);
-    } catch { /* ignore */ }
+    } catch (err) {
+      showRadioError('Could not remove this favourite.', err);
+    }
   }
 
   async function togglePinned(fav: Favourite) {
     try {
       await LibraryService.SetRadioFavouritePinned(fav.stationUuid, !fav.pinned);
       await loadFavourites();
-    } catch { /* ignore */ }
+    } catch (err) {
+      showRadioError('Could not update this favourite.', err);
+    }
   }
 
   async function saveCustomStation() {
@@ -502,14 +548,18 @@
     try {
       await LibraryService.DeleteCustomRadioStation(uuid);
       await loadCustomStations();
-    } catch { /* ignore */ }
+    } catch (err) {
+      showRadioError('Could not delete this station.', err);
+    }
   }
 
   async function clearHistory() {
     try {
       await LibraryService.ClearRadioHistory();
       history = [];
-    } catch { /* ignore */ }
+    } catch (err) {
+      showRadioError('Could not clear radio history.', err);
+    }
   }
 
   function formatTags(tags: string): string[] {
@@ -533,22 +583,34 @@
 <div class="radio-view">
   <h2>Radio</h2>
 
-  <div class="tabs">
-    <button class="tab" class:active={tab === 'featured'} onclick={() => tab = 'featured'}>
+  <div class="tabs" role="tablist" aria-label="Radio sections">
+    <button class="tab" class:active={tab === 'featured'} role="tab" aria-selected={tab === 'featured'} aria-controls="radio-panel-featured" id="radio-tab-featured" onclick={() => tab = 'featured'}>
       Browse
     </button>
-    <button class="tab" class:active={tab === 'favourites'} onclick={() => tab = 'favourites'}>
+    <button class="tab" class:active={tab === 'favourites'} role="tab" aria-selected={tab === 'favourites'} aria-controls="radio-panel-favourites" id="radio-tab-favourites" onclick={() => tab = 'favourites'}>
       Favourites ({favourites.length})
     </button>
-    <button class="tab" class:active={tab === 'custom'} onclick={() => tab = 'custom'}>
+    <button class="tab" class:active={tab === 'custom'} role="tab" aria-selected={tab === 'custom'} aria-controls="radio-panel-custom" id="radio-tab-custom" onclick={() => tab = 'custom'}>
       Custom ({customStations.length})
     </button>
-    <button class="tab" class:active={tab === 'history'} onclick={() => tab = 'history'}>
+    <button class="tab" class:active={tab === 'history'} role="tab" aria-selected={tab === 'history'} aria-controls="radio-panel-history" id="radio-tab-history" onclick={() => tab = 'history'}>
       History
     </button>
   </div>
 
+  {#if radioError}
+    <div class="radio-error" role="alert">
+      <span>{radioError}</span>
+      <button class="error-dismiss" type="button" onclick={clearRadioError} aria-label="Dismiss radio error">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+        </svg>
+      </button>
+    </div>
+  {/if}
+
   {#if tab === 'featured'}
+    <div id="radio-panel-featured" role="tabpanel" aria-labelledby="radio-tab-featured" class="tab-panel">
     <div class="search-bar">
       <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
         <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
@@ -616,17 +678,21 @@
     </div>
 
     {#if loading}
-      <div class="empty">Loading stations...</div>
+      <div class="empty" role="status" aria-live="polite">Loading stations...</div>
     {:else if stations.length === 0}
       <div class="empty">
         {#if isSearchActive}
-          No stations found for "{searchQuery.trim()}"
+          <p>No stations found for "{searchQuery.trim()}"</p>
+          <button type="button" onclick={clearSearch}>Clear search</button>
         {:else if activeTag}
-          No stations found for tag "{activeTag}"
+          <p>No stations found for tag "{activeTag}"</p>
+          <button type="button" onclick={clearFilters}>Clear filter</button>
         {:else if activeCountry || activeCodec}
-          No stations found for this filter
+          <p>No stations found for this filter</p>
+          <button type="button" onclick={clearFilters}>Clear filter</button>
         {:else}
-          No stations available
+          <p>No stations available</p>
+          <button type="button" onclick={loadFeatured}>Retry</button>
         {/if}
       </div>
     {:else}
@@ -635,8 +701,8 @@
           <div
             class="station-card"
             role="listitem"
+            aria-current={isCurrentStation(station.uuid) ? 'true' : undefined}
             class:playing={isCurrentStation(station.uuid)}
-            ondblclick={(event) => handleStationDoubleClick(event, station.uuid, station.name, station.streamUrl, station.favicon, station.tags)}
           >
             <button class="station-play" class:playing={isCurrentStation(station.uuid)} onclick={() => playStation(station.uuid, station.name, station.streamUrl, station.favicon, station.tags)} aria-label={isPlayingStation(station.uuid) ? `Pause ${station.name}` : `Play ${station.name}`}>
               {#if isPlayingStation(station.uuid)}
@@ -649,6 +715,15 @@
                 </svg>
               {/if}
             </button>
+            <div
+              role="button"
+              tabindex="0"
+              class="station-main"
+              aria-label={`Play or pause ${station.name}`}
+              title="Double-click or press Enter to play or pause"
+              ondblclick={(event) => handleStationDoubleClick(event, station.uuid, station.name, station.streamUrl, station.favicon, station.tags)}
+              onkeydown={(event) => handleStationKeydown(event, station.uuid, station.name, station.streamUrl, station.favicon, station.tags)}
+            >
             {#if resolvedIcon(station.favicon)}
               <img class="station-icon" src={resolvedIcon(station.favicon)} alt="" />
             {:else}
@@ -678,6 +753,7 @@
                 </div>
               {/if}
             </div>
+            </div>
             <button
               class="fav-btn"
               class:active={favouriteUuids.has(station.uuid)}
@@ -698,7 +774,9 @@
         {/each}
       </div>
     {/if}
+    </div>
   {:else if tab === 'favourites'}
+    <div id="radio-panel-favourites" role="tabpanel" aria-labelledby="radio-tab-favourites" class="tab-panel">
     {#if favourites.length === 0}
       <div class="empty">No favourite stations yet. Browse and add some!</div>
     {:else}
@@ -707,8 +785,8 @@
           <div
             class="station-card"
             role="listitem"
+            aria-current={isCurrentStation(fav.stationUuid) ? 'true' : undefined}
             class:playing={isCurrentStation(fav.stationUuid)}
-            ondblclick={(event) => handleStationDoubleClick(event, fav.stationUuid, fav.name, fav.streamUrl, fav.faviconUrl, fav.tags)}
           >
             <button class="station-play" class:playing={isCurrentStation(fav.stationUuid)} onclick={() => playStation(fav.stationUuid, fav.name, fav.streamUrl, fav.faviconUrl, fav.tags)} aria-label={isPlayingStation(fav.stationUuid) ? `Pause ${fav.name}` : `Play ${fav.name}`}>
               {#if isPlayingStation(fav.stationUuid)}
@@ -721,6 +799,15 @@
                 </svg>
               {/if}
             </button>
+            <div
+              role="button"
+              tabindex="0"
+              class="station-main"
+              aria-label={`Play or pause ${fav.name}`}
+              title="Double-click or press Enter to play or pause"
+              ondblclick={(event) => handleStationDoubleClick(event, fav.stationUuid, fav.name, fav.streamUrl, fav.faviconUrl, fav.tags)}
+              onkeydown={(event) => handleStationKeydown(event, fav.stationUuid, fav.name, fav.streamUrl, fav.faviconUrl, fav.tags)}
+            >
             {#if resolvedIcon(fav.faviconUrl)}
               <img class="station-icon" src={resolvedIcon(fav.faviconUrl)} alt="" />
             {:else}
@@ -745,6 +832,7 @@
                 </div>
               {/if}
             </div>
+            </div>
             <button
               class="pin-btn"
               class:active={fav.pinned}
@@ -768,7 +856,9 @@
         {/each}
       </div>
     {/if}
+    </div>
   {:else if tab === 'custom'}
+    <div id="radio-panel-custom" role="tabpanel" aria-labelledby="radio-tab-custom" class="tab-panel">
     <div class="custom-form">
       <div class="form-row">
         <input type="text" bind:value={customName} placeholder="Station name" aria-label="Station name" />
@@ -796,8 +886,8 @@
           <div
             class="station-card"
             role="listitem"
+            aria-current={isCurrentStation(station.stationUuid) ? 'true' : undefined}
             class:playing={isCurrentStation(station.stationUuid)}
-            ondblclick={(event) => handleStationDoubleClick(event, station.stationUuid, station.name, station.streamUrl, station.faviconUrl, station.tags)}
           >
             <button class="station-play" class:playing={isCurrentStation(station.stationUuid)} onclick={() => playStation(station.stationUuid, station.name, station.streamUrl, station.faviconUrl, station.tags)} aria-label={isPlayingStation(station.stationUuid) ? `Pause ${station.name}` : `Play ${station.name}`}>
               {#if isPlayingStation(station.stationUuid)}
@@ -810,6 +900,15 @@
                 </svg>
               {/if}
             </button>
+            <div
+              role="button"
+              tabindex="0"
+              class="station-main"
+              aria-label={`Play or pause ${station.name}`}
+              title="Double-click or press Enter to play or pause"
+              ondblclick={(event) => handleStationDoubleClick(event, station.stationUuid, station.name, station.streamUrl, station.faviconUrl, station.tags)}
+              onkeydown={(event) => handleStationKeydown(event, station.stationUuid, station.name, station.streamUrl, station.faviconUrl, station.tags)}
+            >
             {#if resolvedIcon(station.faviconUrl)}
               <img class="station-icon" src={resolvedIcon(station.faviconUrl)} alt="" />
             {:else}
@@ -835,6 +934,7 @@
                 </div>
               {/if}
             </div>
+            </div>
             <button class="fav-btn" onclick={() => deleteCustomStation(station.stationUuid)} aria-label="Delete custom station">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                 <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
@@ -844,7 +944,9 @@
         {/each}
       </div>
     {/if}
+    </div>
   {:else if tab === 'history'}
+    <div id="radio-panel-history" role="tabpanel" aria-labelledby="radio-tab-history" class="tab-panel">
     {#if history.length > 0}
       <div class="history-actions">
         <button class="secondary-btn" onclick={clearHistory}>Clear History</button>
@@ -858,8 +960,8 @@
           <div
             class="station-card"
             role="listitem"
+            aria-current={isCurrentStation(item.stationUuid) ? 'true' : undefined}
             class:playing={isCurrentStation(item.stationUuid)}
-            ondblclick={(event) => handleStationDoubleClick(event, item.stationUuid, item.name, item.streamUrl, item.faviconUrl, item.tags)}
           >
             <button class="station-play" class:playing={isCurrentStation(item.stationUuid)} onclick={() => playStation(item.stationUuid, item.name, item.streamUrl, item.faviconUrl, item.tags)} aria-label={isPlayingStation(item.stationUuid) ? `Pause ${item.name}` : `Play ${item.name}`}>
               {#if isPlayingStation(item.stationUuid)}
@@ -872,6 +974,15 @@
                 </svg>
               {/if}
             </button>
+            <div
+              role="button"
+              tabindex="0"
+              class="station-main"
+              aria-label={`Play or pause ${item.name}`}
+              title="Double-click or press Enter to play or pause"
+              ondblclick={(event) => handleStationDoubleClick(event, item.stationUuid, item.name, item.streamUrl, item.faviconUrl, item.tags)}
+              onkeydown={(event) => handleStationKeydown(event, item.stationUuid, item.name, item.streamUrl, item.faviconUrl, item.tags)}
+            >
             {#if resolvedIcon(item.faviconUrl)}
               <img class="station-icon" src={resolvedIcon(item.faviconUrl)} alt="" />
             {:else}
@@ -898,10 +1009,12 @@
                 </div>
               {/if}
             </div>
+            </div>
           </div>
         {/each}
       </div>
     {/if}
+    </div>
   {/if}
 </div>
 
@@ -945,6 +1058,46 @@
   .tab.active {
     color: var(--accent);
     border-bottom-color: var(--accent);
+  }
+
+  .tab-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .radio-error {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid color-mix(in srgb, var(--error) 55%, var(--border));
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--error) 12%, transparent);
+    color: var(--text-primary);
+  }
+
+  .radio-error span {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .error-dismiss {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+
+  .error-dismiss:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
   .search-bar {
@@ -1077,6 +1230,7 @@
     padding: 0.6rem 0.75rem;
     border-radius: 6px;
     background: transparent;
+    cursor: default;
   }
 
   .station-card:hover {
@@ -1086,6 +1240,24 @@
   .station-card.playing {
     background: var(--bg-active);
     box-shadow: inset 3px 0 0 var(--accent);
+  }
+
+  .station-card:focus-visible {
+    background: var(--bg-hover);
+  }
+
+  .station-main {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: default;
   }
 
   .station-play {
@@ -1302,11 +1474,30 @@
 
   .empty {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 0.75rem;
     padding: 3rem;
     color: var(--text-secondary);
     font-size: 0.9rem;
+  }
+
+  .empty p {
+    margin: 0;
+  }
+
+  .empty button {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 0.4rem 0.75rem;
+  }
+
+  .empty button:hover {
+    background: var(--bg-hover);
   }
 
   @media (max-width: 640px) {
