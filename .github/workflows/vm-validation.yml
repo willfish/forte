@@ -49,3 +49,27 @@ jobs:
           name: vm-validation-${{ matrix.desktop }}
           path: vm-artifacts/${{ matrix.desktop }}
           if-no-files-found: ignore
+
+  distro-install:
+    name: ${{ matrix.distro }} package install
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        distro:
+          - ubuntu
+          - arch
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Prove package install
+        run: scripts/prove-distro-install.sh "${{ matrix.distro }}"
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: distro-install-${{ matrix.distro }}
+          path: /tmp/forte-distro-proof
+          if-no-files-found: ignore
