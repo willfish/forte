@@ -7,7 +7,7 @@ host_gid="$(id -g)"
 repo_root="$(git rev-parse --show-toplevel)"
 
 usage() {
-  cat <<'USAGE'
+	cat <<'USAGE'
 Usage: scripts/prove-distro-install.sh [ubuntu|arch|all]
 
 Builds Forte packages inside fresh distro containers, installs them through the
@@ -18,32 +18,32 @@ USAGE
 }
 
 prepare_source() {
-  local source_dir
-  source_dir="$(mktemp -d)"
+	local source_dir
+	source_dir="$(mktemp -d)"
 
-  git -C "$repo_root" ls-files -z | tar -C "$repo_root" --null -T - -cf - | tar -x -C "$source_dir"
-  printf '%s\n' "$source_dir"
+	git -C "$repo_root" ls-files -z | tar -C "$repo_root" --null -T - -cf - | tar -x -C "$source_dir"
+	printf '%s\n' "$source_dir"
 }
 
 cleanup_source() {
-  local source_dir="$1"
+	local source_dir="$1"
 
-  docker run --rm -v "$source_dir:/src" ubuntu:latest \
-    bash -lc 'rm -rf /src/* /src/.[!.]* /src/..?* 2>/dev/null || true' >/dev/null
-  rmdir "$source_dir"
+	docker run --rm -v "$source_dir:/src" ubuntu:latest \
+		bash -lc 'rm -rf /src/* /src/.[!.]* /src/..?* 2>/dev/null || true' >/dev/null
+	rmdir "$source_dir"
 }
 
 build_ubuntu() {
-  local source_dir="$1"
+	local source_dir="$1"
 
-  docker run --rm -i \
-    -e HOST_UID="$host_uid" \
-    -e HOST_GID="$host_gid" \
-    -v "$source_dir:/src" \
-    -v "$artifact_dir:/artifacts" \
-    -w /src \
-    ubuntu:latest \
-    bash -s <<'EOF'
+	docker run --rm -i \
+		-e HOST_UID="$host_uid" \
+		-e HOST_GID="$host_gid" \
+		-v "$source_dir:/src" \
+		-v "$artifact_dir:/artifacts" \
+		-w /src \
+		ubuntu:latest \
+		bash -s <<'EOF'
 set -euxo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
@@ -74,17 +74,21 @@ ldd bin/forte | tee /tmp/forte-ldd.txt
 test -f bin/forte.deb
 
 install -m644 bin/forte.deb /artifacts/forte-ubuntu.deb
+sha256sum /artifacts/forte-ubuntu.deb | awk '{ print $1 }' > /artifacts/forte-ubuntu.deb.sha256
 chown "$HOST_UID:$HOST_GID" /artifacts/forte-ubuntu.deb
+chown "$HOST_UID:$HOST_GID" /artifacts/forte-ubuntu.deb.sha256
 chown -R "$HOST_UID:$HOST_GID" /src
 EOF
 }
 
 prove_ubuntu() {
-  docker run --rm --privileged -i \
-    -v "$artifact_dir:/artifacts:ro" \
-    -v "$repo_root/scripts/install.sh:/install-forte.sh:ro" \
-    ubuntu:latest \
-    bash -s <<'EOF'
+	ubuntu_sha="$(cat "$artifact_dir/forte-ubuntu.deb.sha256")"
+	docker run --rm --privileged -i \
+		-e FORTE_PACKAGE_SHA256="$ubuntu_sha" \
+		-v "$artifact_dir:/artifacts:ro" \
+		-v "$repo_root/scripts/install.sh:/install-forte.sh:ro" \
+		ubuntu:latest \
+		bash -s <<'EOF'
 set -euxo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
@@ -130,16 +134,16 @@ EOF
 }
 
 build_arch() {
-  local source_dir="$1"
+	local source_dir="$1"
 
-  docker run --rm -i \
-    -e HOST_UID="$host_uid" \
-    -e HOST_GID="$host_gid" \
-    -v "$source_dir:/src" \
-    -v "$artifact_dir:/artifacts" \
-    -w /src \
-    archlinux:latest \
-    bash -s <<'EOF'
+	docker run --rm -i \
+		-e HOST_UID="$host_uid" \
+		-e HOST_GID="$host_gid" \
+		-v "$source_dir:/src" \
+		-v "$artifact_dir:/artifacts" \
+		-w /src \
+		archlinux:latest \
+		bash -s <<'EOF'
 set -euxo pipefail
 
 pacman -Syu --noconfirm
@@ -168,17 +172,21 @@ ldd bin/forte | tee /tmp/forte-ldd.txt
 test -f bin/forte.pkg.tar.zst
 
 install -m644 bin/forte.pkg.tar.zst /artifacts/forte-arch.pkg.tar.zst
+sha256sum /artifacts/forte-arch.pkg.tar.zst | awk '{ print $1 }' > /artifacts/forte-arch.pkg.tar.zst.sha256
 chown "$HOST_UID:$HOST_GID" /artifacts/forte-arch.pkg.tar.zst
+chown "$HOST_UID:$HOST_GID" /artifacts/forte-arch.pkg.tar.zst.sha256
 chown -R "$HOST_UID:$HOST_GID" /src
 EOF
 }
 
 prove_arch() {
-  docker run --rm --privileged -i \
-    -v "$artifact_dir:/artifacts:ro" \
-    -v "$repo_root/scripts/install.sh:/install-forte.sh:ro" \
-    archlinux:latest \
-    bash -s <<'EOF'
+	arch_sha="$(cat "$artifact_dir/forte-arch.pkg.tar.zst.sha256")"
+	docker run --rm --privileged -i \
+		-e FORTE_PACKAGE_SHA256="$arch_sha" \
+		-v "$artifact_dir:/artifacts:ro" \
+		-v "$repo_root/scripts/install.sh:/install-forte.sh:ro" \
+		archlinux:latest \
+		bash -s <<'EOF'
 set -euxo pipefail
 
 pacman -Syu --noconfirm
@@ -223,49 +231,49 @@ EOF
 }
 
 prove_distro() {
-  local distro="$1"
-  local source_dir
+	local distro="$1"
+	local source_dir
 
-  source_dir="$(prepare_source)"
-  trap 'cleanup_source "$source_dir"' RETURN
-  mkdir -p "$artifact_dir"
+	source_dir="$(prepare_source)"
+	trap 'cleanup_source "$source_dir"' RETURN
+	mkdir -p "$artifact_dir"
 
-  case "$distro" in
-    ubuntu)
-      build_ubuntu "$source_dir"
-      prove_ubuntu
-      ;;
-    arch)
-      build_arch "$source_dir"
-      prove_arch
-      ;;
-    *)
-      printf 'Unknown distro: %s\n' "$distro" >&2
-      usage >&2
-      exit 2
-      ;;
-  esac
+	case "$distro" in
+	ubuntu)
+		build_ubuntu "$source_dir"
+		prove_ubuntu
+		;;
+	arch)
+		build_arch "$source_dir"
+		prove_arch
+		;;
+	*)
+		printf 'Unknown distro: %s\n' "$distro" >&2
+		usage >&2
+		exit 2
+		;;
+	esac
 
-  trap - RETURN
-  cleanup_source "$source_dir"
+	trap - RETURN
+	cleanup_source "$source_dir"
 }
 
 target="${1:-all}"
 
 case "$target" in
-  ubuntu|arch)
-    prove_distro "$target"
-    ;;
-  all)
-    prove_distro ubuntu
-    prove_distro arch
-    ;;
-  -h|--help|help)
-    usage
-    ;;
-  *)
-    printf 'Unknown target: %s\n' "$target" >&2
-    usage >&2
-    exit 2
-    ;;
+ubuntu | arch)
+	prove_distro "$target"
+	;;
+all)
+	prove_distro ubuntu
+	prove_distro arch
+	;;
+-h | --help | help)
+	usage
+	;;
+*)
+	printf 'Unknown target: %s\n' "$target" >&2
+	usage >&2
+	exit 2
+	;;
 esac
