@@ -16,6 +16,14 @@ Forte is a Linux desktop music player built with Go, Wails, Svelte, mpv, and SQL
 
 ## Installation
 
+### Linux Installer
+
+Install Forte on Ubuntu, Debian, or Arch:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/willfish/forte/master/scripts/install.sh | sh
+```
+
 ### Nix
 
 Build and run the current release from GitHub:
