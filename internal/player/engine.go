@@ -37,15 +37,15 @@ var ErrMpvNotFound = errors.New(
 
 // Engine wraps an mpv instance for audio playback.
 type Engine struct {
-	mu             sync.Mutex
-	handle         *mpv.Mpv
-	state          PlaybackState
-	closed         bool         // set by Close, checked by all public methods
-	stop           chan struct{}
-	done           chan struct{} // closed when event loop exits
-	onTrackChange  func()       // called when mpv loads a new file
-	onPlaylistEnd  func()       // called when the entire playlist finishes
-	onStreamError  func()       // called when mpv fails to play a stream
+	mu            sync.Mutex
+	handle        *mpv.Mpv
+	state         PlaybackState
+	closed        bool // set by Close, checked by all public methods
+	stop          chan struct{}
+	done          chan struct{} // closed when event loop exits
+	onTrackChange func()        // called when mpv loads a new file
+	onPlaylistEnd func()        // called when the entire playlist finishes
+	onStreamError func()        // called when mpv fails to play a stream
 }
 
 // NewEngine initialises mpv for audio-only playback.
@@ -94,6 +94,7 @@ func (e *Engine) Play(path string) error {
 		return nil
 	}
 
+	_ = e.handle.SetProperty("pause", mpv.FormatFlag, false)
 	if err := e.handle.Command([]string{"loadfile", path, "replace"}); err != nil {
 		return fmt.Errorf("mpv loadfile: %w", err)
 	}
@@ -128,6 +129,7 @@ func (e *Engine) PlayAll(paths []string) error {
 		return nil
 	}
 
+	_ = e.handle.SetProperty("pause", mpv.FormatFlag, false)
 	// Load the first track (replaces playlist).
 	if err := e.handle.Command([]string{"loadfile", paths[0], "replace"}); err != nil {
 		return fmt.Errorf("mpv loadfile: %w", err)
@@ -182,7 +184,10 @@ func (e *Engine) Stop() {
 		return
 	}
 
+	_ = e.handle.SetProperty("pause", mpv.FormatFlag, false)
 	_ = e.handle.Command([]string{"stop"})
+	_ = e.handle.Command([]string{"playlist-clear"})
+	_ = e.handle.SetProperty("pause", mpv.FormatFlag, false)
 	e.state = StateStopped
 }
 

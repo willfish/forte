@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	mpv "github.com/gen2brain/go-mpv"
 )
 
 func newTestEngine(t *testing.T) *Engine {
@@ -146,6 +148,45 @@ func TestStopDuringLoadStaysStopped(t *testing.T) {
 	}
 }
 
+func TestStopClearsPauseProperty(t *testing.T) {
+	e := newTestEngine(t)
+	path := writeTestWAV(t)
+
+	if err := e.Play(path); err != nil {
+		t.Fatalf("Play() real wav error: %v", err)
+	}
+	e.Pause()
+	e.Stop()
+
+	if s := e.State(); s != StateStopped {
+		t.Fatalf("expected StateStopped after Stop(), got %s", s)
+	}
+	if paused := readPauseProperty(t, e); paused {
+		t.Fatal("expected mpv pause property to be false after Stop()")
+	}
+}
+
+func TestPlayAfterPausedStopStartsUnpaused(t *testing.T) {
+	e := newTestEngine(t)
+	path := writeTestWAV(t)
+
+	if err := e.Play(path); err != nil {
+		t.Fatalf("Play() real wav error: %v", err)
+	}
+	e.Pause()
+	e.Stop()
+
+	if err := e.Play(path); err != nil {
+		t.Fatalf("Play() after paused stop error: %v", err)
+	}
+	if s := e.State(); s != StatePlaying {
+		t.Fatalf("expected StatePlaying after Play(), got %s", s)
+	}
+	if paused := readPauseProperty(t, e); paused {
+		t.Fatal("expected mpv pause property to be false after Play()")
+	}
+}
+
 func TestVolume(t *testing.T) {
 	e := newTestEngine(t)
 
@@ -164,6 +205,22 @@ func TestVolume(t *testing.T) {
 	if v := e.Volume(); v != 100 {
 		t.Fatalf("expected volume 100 after setting 200, got %d", v)
 	}
+}
+
+func readPauseProperty(t *testing.T, e *Engine) bool {
+	t.Helper()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	v, err := e.handle.GetProperty("pause", mpv.FormatFlag)
+	if err != nil {
+		t.Fatalf("GetProperty(pause): %v", err)
+	}
+	paused, ok := v.(bool)
+	if !ok {
+		t.Fatalf("pause property has type %T, want bool", v)
+	}
+	return paused
 }
 
 func TestSeekWhileStopped(t *testing.T) {
