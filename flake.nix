@@ -31,7 +31,7 @@
           version = "0.1.0";
           src = ./.;
           go = pkgs.go_1_25;
-          vendorHash = "sha256-WmqUW1tduVEZV+IuWu81mQke7GDs5tFUPy9LkmZjErM=";
+          vendorHash = "sha256-SX43UbVi1YEC323j/rvE6OgjA8G/RfaXoNACVhL7B44=";
           modBuildPhase = ''
             runHook preBuild
 
@@ -54,6 +54,7 @@
               goModVendorFlags+=(-v)
             fi
             go mod vendor "''${goModVendorFlags[@]}"
+            patch -p1 -d vendor/github.com/wailsapp/wails/v3 < ${./patches/wails-status-notifier-icon-name.patch}
 
             mkdir -p vendor
             runHook postBuild
@@ -92,6 +93,14 @@
             done
             install -Dm644 build/logo.svg $out/share/icons/hicolor/scalable/apps/io.github.willfish.forte.svg
             install -Dm644 build/logo.svg $out/share/icons/hicolor/scalable/apps/forte.svg
+            install -Dm644 build/tray-idle.svg $out/share/icons/hicolor/scalable/apps/io.github.willfish.forte-tray-idle.svg
+            install -Dm644 build/tray-playing.svg $out/share/icons/hicolor/scalable/apps/io.github.willfish.forte-tray-playing.svg
+            for size in 16 24 32 48; do
+              install -Dm644 "build/tray-idle-''${size}.png" \
+                "$out/share/icons/hicolor/''${size}x''${size}/apps/io.github.willfish.forte-tray-idle.png"
+              install -Dm644 "build/tray-playing-''${size}.png" \
+                "$out/share/icons/hicolor/''${size}x''${size}/apps/io.github.willfish.forte-tray-playing.png"
+            done
             install -Dm644 build/appicon.png $out/share/pixmaps/forte.png
             install -Dm644 build/linux/forte.desktop $out/share/applications/io.github.willfish.forte.desktop
             desktop-file-validate $out/share/applications/io.github.willfish.forte.desktop

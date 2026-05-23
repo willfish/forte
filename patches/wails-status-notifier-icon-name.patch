@@ -1,0 +1,42 @@
+--- a/pkg/application/systemtray_linux.go
++++ b/pkg/application/systemtray_linux.go
+@@ -10,6 +10,7 @@ import "C"
+ import (
+ 	"fmt"
+ 	"os"
++	"path/filepath"
+ 	"sync"
+ 	"sync/atomic"
+ 
+@@ -24,6 +25,15 @@ const (
+ 	menuPath = "/StatusNotifierMenu"
+ )
+ 
++func forteStatusNotifierIconThemePath() string {
++	executable, err := os.Executable()
++	if err != nil {
++		return ""
++	}
++
++	return filepath.Clean(filepath.Join(filepath.Dir(executable), "..", "share", "icons"))
++}
++
+ type linuxSystemTray struct {
+ 	parent *SystemTray
+ 
+@@ -606,13 +616,13 @@ func (s *linuxSystemTray) createPropSpec() map[string]map[string]*prop.Prop {
+ 		},
+ 
+ 		"IconName": {
+-			Value:    "",
++			Value:    "io.github.willfish.forte-tray-idle",
+ 			Writable: false,
+ 			Emit:     prop.EmitTrue,
+ 			Callback: nil,
+ 		},
+ 		"IconThemePath": {
+-			Value:    "",
++			Value:    forteStatusNotifierIconThemePath(),
+ 			Writable: false,
+ 			Emit:     prop.EmitTrue,
+ 			Callback: nil,
