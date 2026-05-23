@@ -1,0 +1,51 @@
+name: VM Validation
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  desktop-smoke:
+    name: ${{ matrix.desktop }} desktop smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        desktop:
+          - gnome
+          - plasma
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Run VM smoke test
+        run: nix build ".#checks.x86_64-linux.forte-vm-smoke-${{ matrix.desktop }}" -L --no-write-lock-file
+
+      - name: Collect VM artifacts
+        if: always()
+        run: |
+          mkdir -p "vm-artifacts/${{ matrix.desktop }}"
+          if [ -e result ]; then
+            cp -Lr result/* "vm-artifacts/${{ matrix.desktop }}/" || true
+          fi
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: vm-validation-${{ matrix.desktop }}
+          path: vm-artifacts/${{ matrix.desktop }}
+          if-no-files-found: ignore
