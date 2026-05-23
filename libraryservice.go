@@ -950,7 +950,7 @@ func stationsToJSON(stations []radio.Station) []RadioStationJSON {
 		result[i] = RadioStationJSON{
 			UUID:      s.UUID,
 			Name:      s.Name,
-			StreamURL: s.StreamURL,
+			StreamURL: normalizeRadioStreamURL(s.StreamURL),
 			Favicon:   favicon,
 			Country:   s.Country,
 			Tags:      s.Tags,
@@ -961,6 +961,19 @@ func stationsToJSON(stations []radio.Station) []RadioStationJSON {
 		}
 	}
 	return result
+}
+
+func normalizeRadioStreamURL(streamURL string) string {
+	u, err := url.Parse(streamURL)
+	if err != nil {
+		return streamURL
+	}
+	switch strings.ToLower(u.Hostname()) {
+	case "timesradio.wireless.radio":
+		return "https://times.live.stream.broadcasting.news/stream"
+	default:
+		return streamURL
+	}
 }
 
 var radioClient = radio.NewClient()
