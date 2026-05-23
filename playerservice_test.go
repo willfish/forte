@@ -44,3 +44,45 @@ func TestPlayerServiceShutdownIsIdempotent(t *testing.T) {
 		t.Fatalf("second shutdown: %v", err)
 	}
 }
+
+func TestCleanRadioMediaTitleFiltersStreamFallbacks(t *testing.T) {
+	tests := []struct {
+		name      string
+		title     string
+		streamURL string
+		want      string
+	}{
+		{
+			name:      "full stream URL",
+			title:     "https://example.com/live/radio.m3u8",
+			streamURL: "https://example.com/live/radio.m3u8",
+			want:      "",
+		},
+		{
+			name:      "stream filename",
+			title:     "radio.pls",
+			streamURL: "https://example.com/live/radio.pls",
+			want:      "",
+		},
+		{
+			name:      "HLS playlist filename",
+			title:     "bbc_radio_three-audio=320000.norewind.m3u8",
+			streamURL: "https://example.com/live/bbc_radio_three",
+			want:      "",
+		},
+		{
+			name:      "real ICY title",
+			title:     "Artist - Track",
+			streamURL: "https://example.com/live/radio.m3u8",
+			want:      "Artist - Track",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := cleanRadioMediaTitle(tt.title, tt.streamURL); got != tt.want {
+				t.Fatalf("cleanRadioMediaTitle(%q, %q) = %q, want %q", tt.title, tt.streamURL, got, tt.want)
+			}
+		})
+	}
+}

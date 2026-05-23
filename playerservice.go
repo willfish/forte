@@ -8,8 +8,11 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -639,8 +642,37 @@ func (p *PlayerService) MediaTitle() string {
 	streamURL := p.radioStreamURL
 	p.radioMu.RUnlock()
 
-	if isRadio && t == streamURL {
+	if isRadio {
+		return cleanRadioMediaTitle(t, streamURL)
+	}
+	return t
+}
+
+func cleanRadioMediaTitle(title, streamURL string) string {
+	t := strings.TrimSpace(title)
+	if t == "" {
 		return ""
+	}
+	lowerTitle := strings.ToLower(t)
+	lowerStreamURL := strings.ToLower(strings.TrimSpace(streamURL))
+	if lowerStreamURL != "" && lowerTitle == lowerStreamURL {
+		return ""
+	}
+	if strings.HasPrefix(lowerTitle, "http://") || strings.HasPrefix(lowerTitle, "https://") {
+		return ""
+	}
+	for _, ext := range []string{".m3u8", ".m3u", ".pls", ".xspf", ".asx"} {
+		if strings.Contains(lowerTitle, ext) {
+			return ""
+		}
+	}
+	if streamURL != "" {
+		if u, err := url.Parse(streamURL); err == nil {
+			base := strings.ToLower(path.Base(u.Path))
+			if base != "." && base != "/" && base != "" && lowerTitle == base {
+				return ""
+			}
+		}
 	}
 	return t
 }
@@ -1253,11 +1285,7 @@ func (p *PlayerService) checkRadioTitle() {
 	lastTitle := p.radioLastTitle
 	p.radioMu.RUnlock()
 
-	t := p.engine.MediaTitle()
-	// Filter out raw stream URL (shown when no ICY metadata is available).
-	if t == streamURL {
-		t = ""
-	}
+	t := cleanRadioMediaTitle(p.engine.MediaTitle(), streamURL)
 
 	if t == lastTitle {
 		return
