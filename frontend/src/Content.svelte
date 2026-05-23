@@ -146,7 +146,6 @@
 
   function handleSearchKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
-      clearSearch();
       searchInputRef?.blur();
     }
   }

@@ -20,7 +20,7 @@
   {#if title}
     <title>{title}</title>
   {/if}
-  <rect width="512" height="512" rx="96" fill="#10251c" />
+  <rect width="512" height="512" rx="96" fill="var(--mark-bg)" />
   <text
     x="256"
     y="365"
@@ -29,7 +29,7 @@
     font-size="360"
     font-style="italic"
     font-weight="700"
-    fill="#e0e0e0"
+    fill="var(--mark-text)"
   >f</text>
-  <path d="M166 244h198M148 294h198" stroke="#2fa866" stroke-width="22" stroke-linecap="round" opacity="0.78" />
+  <path d="M166 244h198M148 294h198" stroke="var(--mark-accent)" stroke-width="22" stroke-linecap="round" opacity="0.78" />
 </svg>

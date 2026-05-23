@@ -1,5 +1,15 @@
 <script lang="ts">
-  import { getPreference, setPreference, onPreferenceChange, type ThemePreference } from './lib/theme';
+  import {
+    getPreference,
+    onPreferenceChange,
+    setPreference,
+    themeColour,
+    themeMode,
+    themePreference,
+    type ThemeColour,
+    type ThemeMode,
+    type ThemePreference
+  } from './lib/theme';
   import { setLibraryEnabled, setTitlebarEnabled } from './lib/stores';
   import { LibraryService } from "../bindings/github.com/willfish/forte";
   import type { ServerConfig } from './lib/types';
@@ -64,11 +74,24 @@
     }
   }
 
-  const themeOptions: { value: ThemePreference; label: string; description: string }[] = [
-    { value: 'dark', label: 'Dark', description: 'Dark background with light text' },
-    { value: 'light', label: 'Light', description: 'Light background with dark text' },
-    { value: 'system', label: 'System', description: 'Follow your desktop theme' },
+  const themeModeOptions: { value: ThemeMode; label: string; description: string }[] = [
+    { value: 'dark', label: 'Dark', description: 'Use darker surfaces and light text' },
+    { value: 'light', label: 'Light', description: 'Use lighter surfaces and dark text' },
   ];
+
+  const themeColourOptions: { value: ThemeColour; label: string; description: string }[] = [
+    { value: 'green', label: 'Green', description: 'Forte green accents' },
+    { value: 'blue', label: 'Blue', description: 'Cool blue accents' },
+    { value: 'financial-times', label: 'Financial Times', description: 'FT-inspired pink and paper tones' },
+  ];
+
+  function handleThemeModeChange(mode: ThemeMode) {
+    handleChange(themePreference(themeColour(preference), mode));
+  }
+
+  function handleThemeColourChange(colour: ThemeColour) {
+    handleChange(themePreference(colour, themeMode(preference)));
+  }
 
   // Server state
   let servers = $state<ServerConfig[]>([]);
@@ -343,22 +366,48 @@
 
   <section class="section">
     <h3>Theme</h3>
-    <div class="theme-options">
-      {#each themeOptions as opt}
-        <label class="theme-option" class:selected={preference === opt.value}>
-          <input
-            type="radio"
-            name="theme"
-            value={opt.value}
-            checked={preference === opt.value}
-            onchange={() => handleChange(opt.value)}
-          />
-          <div class="option-content">
-            <span class="option-label">{opt.label}</span>
-            <span class="option-desc">{opt.description}</span>
-          </div>
-        </label>
-      {/each}
+    <div class="theme-controls">
+      <div class="theme-control-group">
+        <h4>Mode</h4>
+        <div class="theme-options">
+          {#each themeModeOptions as opt}
+            <label class="theme-option" class:selected={themeMode(preference) === opt.value}>
+              <input
+                type="radio"
+                name="theme-mode"
+                value={opt.value}
+                checked={themeMode(preference) === opt.value}
+                onchange={() => handleThemeModeChange(opt.value)}
+              />
+              <div class="option-content">
+                <span class="option-label">{opt.label}</span>
+                <span class="option-desc">{opt.description}</span>
+              </div>
+            </label>
+          {/each}
+        </div>
+      </div>
+
+      <div class="theme-control-group">
+        <h4>Colour</h4>
+        <div class="theme-options">
+          {#each themeColourOptions as opt}
+            <label class="theme-option" class:selected={themeColour(preference) === opt.value}>
+              <input
+                type="radio"
+                name="theme-colour"
+                value={opt.value}
+                checked={themeColour(preference) === opt.value}
+                onchange={() => handleThemeColourChange(opt.value)}
+              />
+              <div class="option-content">
+                <span class="option-label">{opt.label}</span>
+                <span class="option-desc">{opt.description}</span>
+              </div>
+            </label>
+          {/each}
+        </div>
+      </div>
     </div>
   </section>
 
@@ -648,6 +697,19 @@
   }
 
   /* Theme options */
+  .theme-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .theme-control-group h4 {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin: 0 0 0.5rem;
+  }
+
   .theme-options {
     display: flex;
     flex-direction: column;

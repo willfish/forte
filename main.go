@@ -17,11 +17,41 @@ var assets embed.FS
 //go:embed build/appicon.png
 var appIcon []byte
 
-//go:embed build/tray-idle-32.png
-var trayIconIdle []byte
+//go:embed build/tray-green-dark-idle-32.png
+var trayIconGreenDarkIdle []byte
 
-//go:embed build/tray-playing-32.png
-var trayIconPlaying []byte
+//go:embed build/tray-green-dark-playing-32.png
+var trayIconGreenDarkPlaying []byte
+
+//go:embed build/tray-green-light-idle-32.png
+var trayIconGreenLightIdle []byte
+
+//go:embed build/tray-green-light-playing-32.png
+var trayIconGreenLightPlaying []byte
+
+//go:embed build/tray-blue-dark-idle-32.png
+var trayIconBlueDarkIdle []byte
+
+//go:embed build/tray-blue-dark-playing-32.png
+var trayIconBlueDarkPlaying []byte
+
+//go:embed build/tray-blue-light-idle-32.png
+var trayIconBlueLightIdle []byte
+
+//go:embed build/tray-blue-light-playing-32.png
+var trayIconBlueLightPlaying []byte
+
+//go:embed build/tray-financial-times-dark-idle-32.png
+var trayIconFinancialTimesDarkIdle []byte
+
+//go:embed build/tray-financial-times-dark-playing-32.png
+var trayIconFinancialTimesDarkPlaying []byte
+
+//go:embed build/tray-financial-times-light-idle-32.png
+var trayIconFinancialTimesLightIdle []byte
+
+//go:embed build/tray-financial-times-light-playing-32.png
+var trayIconFinancialTimesLightPlaying []byte
 
 const appID = "io.github.willfish.forte"
 
@@ -120,8 +150,13 @@ func main() {
 		e.Cancel()
 	})
 
-	tray.SetIcon(trayIconIdle).SetMenu(menu).AttachWindow(window)
+	trayIconState := newTrayIconState("green-dark", trayStateIdle)
+	tray.SetIcon(trayIconState.current()).SetMenu(menu).AttachWindow(window)
 	tray.SetTooltip("Forte")
+
+	ls.onThemeChange = func(theme string) {
+		tray.SetIcon(trayIconState.setTheme(theme))
+	}
 
 	// Left-click toggles window, right-click opens menu.
 	tray.OnClick(func() {
@@ -132,13 +167,13 @@ func main() {
 	ps.onTrayUpdate = func(title, artist string) {
 		if title == "" {
 			tray.SetTooltip("Forte")
-			tray.SetIcon(trayIconIdle)
+			tray.SetIcon(trayIconState.setPlaybackState(trayStateIdle))
 		} else if artist != "" {
 			tray.SetTooltip(title + " - " + artist)
-			tray.SetIcon(trayIconPlaying)
+			tray.SetIcon(trayIconState.setPlaybackState(trayStatePlaying))
 		} else {
 			tray.SetTooltip(title)
-			tray.SetIcon(trayIconPlaying)
+			tray.SetIcon(trayIconState.setPlaybackState(trayStatePlaying))
 		}
 	}
 
