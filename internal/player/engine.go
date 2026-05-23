@@ -38,6 +38,7 @@ var ErrMpvNotFound = errors.New(
 // Engine wraps an mpv instance for audio playback.
 type Engine struct {
 	mu            sync.Mutex
+	closeOnce     sync.Once
 	handle        *mpv.Mpv
 	state         PlaybackState
 	closed        bool // set by Close, checked by all public methods
@@ -391,13 +392,15 @@ func (e *Engine) getPropertyString(name string) string {
 // then holds the mutex while destroying the handle so no concurrent caller
 // can access it mid-destroy.
 func (e *Engine) Close() {
-	close(e.stop)
-	<-e.done // wait for the event loop goroutine to exit
+	e.closeOnce.Do(func() {
+		close(e.stop)
+		<-e.done // wait for the event loop goroutine to exit
 
-	e.mu.Lock()
-	e.closed = true
-	e.handle.TerminateDestroy()
-	e.mu.Unlock()
+		e.mu.Lock()
+		e.closed = true
+		e.handle.TerminateDestroy()
+		e.mu.Unlock()
+	})
 }
 
 // MediaTitle returns the title of the currently playing track.

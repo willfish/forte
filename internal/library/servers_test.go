@@ -73,6 +73,43 @@ func TestDeleteServer(t *testing.T) {
 	}
 }
 
+func TestDeleteServerRemovesSyncedContent(t *testing.T) {
+	db := openTestDB(t)
+
+	mustExec(t, db, "INSERT INTO servers (id, name, type, url, username) VALUES ('s1', 'Test', 'subsonic', 'http://t', 'u')")
+	mustExec(t, db, "INSERT INTO artists (id, name) VALUES (1, 'Artist')")
+	mustExec(t, db, "INSERT INTO albums (id, artist_id, title, server_id, remote_id) VALUES (1, 1, 'Album', 's1', 'album-1')")
+	mustExec(t, db, `INSERT INTO tracks
+		(id, album_id, artist_id, title, file_path, server_id, remote_id)
+		VALUES (1, 1, 1, 'Track', 'server://s1/track-1', 's1', 'track-1')`)
+	mustExec(t, db, "INSERT INTO genres (id, name) VALUES (1, 'Genre')")
+	mustExec(t, db, "INSERT INTO track_genres (track_id, genre_id) VALUES (1, 1)")
+	mustExec(t, db, "INSERT INTO fts_tracks (rowid, title, artist, album, genre) VALUES (1, 'Track', 'Artist', 'Album', 'Genre')")
+
+	if err := db.DeleteServer("s1"); err != nil {
+		t.Fatalf("DeleteServer: %v", err)
+	}
+
+	for _, tc := range []struct {
+		name  string
+		query string
+	}{
+		{name: "servers", query: "SELECT COUNT(*) FROM servers WHERE id = 's1'"},
+		{name: "albums", query: "SELECT COUNT(*) FROM albums WHERE server_id = 's1'"},
+		{name: "tracks", query: "SELECT COUNT(*) FROM tracks WHERE server_id = 's1'"},
+		{name: "track_genres", query: "SELECT COUNT(*) FROM track_genres WHERE track_id = 1"},
+		{name: "fts_tracks", query: "SELECT COUNT(*) FROM fts_tracks WHERE rowid = 1"},
+	} {
+		var count int
+		if err := db.QueryRow(tc.query).Scan(&count); err != nil {
+			t.Fatalf("%s count: %v", tc.name, err)
+		}
+		if count != 0 {
+			t.Fatalf("%s count = %d, want 0", tc.name, count)
+		}
+	}
+}
+
 func TestServersTableExists(t *testing.T) {
 	db := openTestDB(t)
 

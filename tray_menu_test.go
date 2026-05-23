@@ -24,6 +24,10 @@ func (f *fakeTrayPlayback) Resume() {
 	f.calls = append(f.calls, "resume")
 }
 
+func (f *fakeTrayPlayback) Stop() {
+	f.calls = append(f.calls, "stop")
+}
+
 func (f *fakeTrayPlayback) Next() {
 	f.calls = append(f.calls, "next")
 }
@@ -54,6 +58,7 @@ func TestForteTrayMenuShape(t *testing.T) {
 
 	want := []string{
 		"Play/Pause",
+		"Stop",
 		"Next",
 		"Previous",
 		"-",
@@ -83,12 +88,13 @@ func TestForteTrayMenuActions(t *testing.T) {
 	runEntry(t, entries, "Play/Pause")
 	playback.state = "paused"
 	runEntry(t, entries, "Play/Pause")
+	runEntry(t, entries, "Stop")
 	runEntry(t, entries, "Next")
 	runEntry(t, entries, "Previous")
 	runEntry(t, entries, "Show/Hide Window")
 	runEntry(t, entries, "Quit")
 
-	if want := []string{"pause", "resume", "next", "previous"}; !reflect.DeepEqual(playback.calls, want) {
+	if want := []string{"pause", "resume", "stop", "next", "previous"}; !reflect.DeepEqual(playback.calls, want) {
 		t.Fatalf("playback calls = %#v, want %#v", playback.calls, want)
 	}
 	if toggled != 1 {

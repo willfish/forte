@@ -113,6 +113,7 @@ done
 test -n "$svc"
 busctl --user call -- "$svc" /StatusNotifierMenu com.canonical.dbusmenu GetLayout iias 0 -1 0 > /tmp/forte-tray-menu
 grep -q "Play/Pause" /tmp/forte-tray-menu
+grep -q "Stop" /tmp/forte-tray-menu
 grep -q "Next" /tmp/forte-tray-menu
 grep -q "Previous" /tmp/forte-tray-menu
 grep -q "Show/Hide Window" /tmp/forte-tray-menu
@@ -205,6 +206,7 @@ done
 test -n "$svc"
 busctl --user call -- "$svc" /StatusNotifierMenu com.canonical.dbusmenu GetLayout iias 0 -1 0 > /tmp/forte-tray-menu
 grep -q "Play/Pause" /tmp/forte-tray-menu
+grep -q "Stop" /tmp/forte-tray-menu
 grep -q "Next" /tmp/forte-tray-menu
 grep -q "Previous" /tmp/forte-tray-menu
 grep -q "Show/Hide Window" /tmp/forte-tray-menu

@@ -166,6 +166,13 @@ func TestStopClearsPauseProperty(t *testing.T) {
 	}
 }
 
+func TestCloseIsIdempotent(t *testing.T) {
+	e := newTestEngine(t)
+
+	e.Close()
+	e.Close()
+}
+
 func TestPlayAfterPausedStopStartsUnpaused(t *testing.T) {
 	e := newTestEngine(t)
 	path := writeTestWAV(t)

@@ -28,10 +28,11 @@ import (
 
 // LibraryService exposes the music library to the frontend.
 type LibraryService struct {
-	db         *library.DB
-	health     *library.HealthMonitor
-	syncCancel context.CancelFunc
-	syncDone   chan struct{}
+	db          *library.DB
+	lifecycleMu sync.Mutex
+	health      *library.HealthMonitor
+	syncCancel  context.CancelFunc
+	syncDone    chan struct{}
 }
 
 // ServiceStartup opens the library database when the application starts.
@@ -57,58 +58,75 @@ func (s *LibraryService) ServiceStartup(_ context.Context, _ application.Service
 		return fmt.Errorf("load preferences: %w", err)
 	}
 
-	// Start health monitor to track server connectivity.
-	s.health = library.NewHealthMonitor(db)
+	s.lifecycleMu.Lock()
 	if prefs.LibraryEnabled {
-		s.health.Start()
+		s.startLibraryRuntimeLocked()
 	}
-
-	if prefs.LibraryEnabled {
-		// Start background server sync: immediate + every 15 minutes.
-		syncCtx, cancelSync := context.WithCancel(context.Background())
-		s.syncCancel = cancelSync
-		s.syncDone = make(chan struct{})
-		go func() {
-			defer close(s.syncDone)
-
-			// Initial sync on startup.
-			if err := library.SyncAllServers(syncCtx, s.db); err != nil && syncCtx.Err() == nil {
-				log.Printf("server sync: %v", err)
-			}
-
-			ticker := time.NewTicker(15 * time.Minute)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ticker.C:
-					if err := library.SyncAllServers(syncCtx, s.db); err != nil && syncCtx.Err() == nil {
-						log.Printf("server sync: %v", err)
-					}
-				case <-syncCtx.Done():
-					return
-				}
-			}
-		}()
-	}
-
+	s.lifecycleMu.Unlock()
 	return nil
 }
 
 // ServiceShutdown closes the library database when the application exits.
 func (s *LibraryService) ServiceShutdown() error {
+	s.lifecycleMu.Lock()
+	s.stopLibraryRuntimeLocked()
+	s.lifecycleMu.Unlock()
+
+	if s.db != nil {
+		return s.db.Close()
+	}
+	return nil
+}
+
+func (s *LibraryService) startLibraryRuntimeLocked() {
+	if s.db == nil {
+		return
+	}
+	if s.health == nil {
+		s.health = library.NewHealthMonitor(s.db)
+	}
+	s.health.Start()
+	if s.syncCancel != nil {
+		return
+	}
+
+	syncCtx, cancelSync := context.WithCancel(context.Background())
+	s.syncCancel = cancelSync
+	s.syncDone = make(chan struct{})
+	go func(done chan<- struct{}) {
+		defer close(done)
+
+		if err := library.SyncAllServers(syncCtx, s.db); err != nil && syncCtx.Err() == nil {
+			log.Printf("server sync: %v", err)
+		}
+
+		ticker := time.NewTicker(15 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if err := library.SyncAllServers(syncCtx, s.db); err != nil && syncCtx.Err() == nil {
+					log.Printf("server sync: %v", err)
+				}
+			case <-syncCtx.Done():
+				return
+			}
+		}
+	}(s.syncDone)
+}
+
+func (s *LibraryService) stopLibraryRuntimeLocked() {
 	if s.syncCancel != nil {
 		s.syncCancel()
 	}
 	if s.syncDone != nil {
 		<-s.syncDone
 	}
+	s.syncCancel = nil
+	s.syncDone = nil
 	if s.health != nil {
 		s.health.Stop()
 	}
-	if s.db != nil {
-		return s.db.Close()
-	}
-	return nil
 }
 
 // sourceFromServerID returns "local" or "server" based on the server_id value.
@@ -1217,12 +1235,32 @@ func (s *LibraryService) SaveAppPreferences(prefs AppPreferencesJSON) error {
 	if s.db == nil {
 		return fmt.Errorf("library not initialised")
 	}
-	return s.db.SaveAppPreferences(library.AppPreferences{
+
+	current, err := s.db.GetAppPreferences()
+	if err != nil {
+		return err
+	}
+
+	next := library.AppPreferences{
 		LibraryEnabled:   prefs.LibraryEnabled,
 		StartLastStation: prefs.StartLastStation,
 		AutoReconnect:    prefs.AutoReconnect,
 		ShowTitlebar:     prefs.ShowTitlebar,
-	})
+	}
+	if err := s.db.SaveAppPreferences(next); err != nil {
+		return err
+	}
+
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if !current.LibraryEnabled && next.LibraryEnabled {
+		s.startLibraryRuntimeLocked()
+	} else if current.LibraryEnabled && !next.LibraryEnabled {
+		s.stopLibraryRuntimeLocked()
+	} else if next.LibraryEnabled {
+		s.startLibraryRuntimeLocked()
+	}
+	return nil
 }
 
 func customStationToJSON(station library.RadioCustomStation) RadioCustomStationJSON {

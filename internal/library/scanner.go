@@ -250,9 +250,15 @@ func (s *Scanner) upsertGenre(ctx context.Context, tx *sql.Tx, name string) erro
 
 func (s *Scanner) upsertTrack(ctx context.Context, tx *sql.Tx, albumID *int64, artistID int64, meta metadata.TrackMeta, path string, info fileInfo) (int64, error) {
 	// Delete existing if present (for re-scan of changed files).
-	_, _ = tx.ExecContext(ctx, "DELETE FROM fts_tracks WHERE rowid IN (SELECT id FROM tracks WHERE file_path = ?)", path)
-	_, _ = tx.ExecContext(ctx, "DELETE FROM track_genres WHERE track_id IN (SELECT id FROM tracks WHERE file_path = ?)", path)
-	_, _ = tx.ExecContext(ctx, "DELETE FROM tracks WHERE file_path = ?", path)
+	if _, err := tx.ExecContext(ctx, "DELETE FROM fts_tracks WHERE rowid IN (SELECT id FROM tracks WHERE file_path = ?)", path); err != nil {
+		return 0, err
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM track_genres WHERE track_id IN (SELECT id FROM tracks WHERE file_path = ?)", path); err != nil {
+		return 0, err
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM tracks WHERE file_path = ?", path); err != nil {
+		return 0, err
+	}
 
 	res, err := tx.ExecContext(ctx, `INSERT INTO tracks
 		(album_id, artist_id, title, track_number, disc_number, duration_ms,

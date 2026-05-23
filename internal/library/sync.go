@@ -114,9 +114,11 @@ func syncAlbum(ctx context.Context, db *DB, provider streaming.Provider, srv Ser
 	}
 
 	// Update track count.
-	_, _ = tx.ExecContext(ctx,
+	if _, err := tx.ExecContext(ctx,
 		"UPDATE albums SET track_count = ? WHERE id = ?", len(tracks), albumID,
-	)
+	); err != nil {
+		return nil, fmt.Errorf("update album track count: %w", err)
+	}
 
 	for _, t := range tracks {
 		filePath := serverFilePath(srv.ID, t.ID)
@@ -124,13 +126,21 @@ func syncAlbum(ctx context.Context, db *DB, provider streaming.Provider, srv Ser
 
 		// Upsert genre if present.
 		if t.Genre != "" {
-			_, _ = tx.ExecContext(ctx, "INSERT OR IGNORE INTO genres (name) VALUES (?)", t.Genre)
+			if _, err := tx.ExecContext(ctx, "INSERT OR IGNORE INTO genres (name) VALUES (?)", t.Genre); err != nil {
+				return nil, fmt.Errorf("upsert genre: %w", err)
+			}
 		}
 
 		// Delete existing track data for re-sync.
-		_, _ = tx.ExecContext(ctx, "DELETE FROM fts_tracks WHERE rowid IN (SELECT id FROM tracks WHERE file_path = ?)", filePath)
-		_, _ = tx.ExecContext(ctx, "DELETE FROM track_genres WHERE track_id IN (SELECT id FROM tracks WHERE file_path = ?)", filePath)
-		_, _ = tx.ExecContext(ctx, "DELETE FROM tracks WHERE file_path = ?", filePath)
+		if _, err := tx.ExecContext(ctx, "DELETE FROM fts_tracks WHERE rowid IN (SELECT id FROM tracks WHERE file_path = ?)", filePath); err != nil {
+			return nil, fmt.Errorf("delete existing track fts: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM track_genres WHERE track_id IN (SELECT id FROM tracks WHERE file_path = ?)", filePath); err != nil {
+			return nil, fmt.Errorf("delete existing track genres: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM tracks WHERE file_path = ?", filePath); err != nil {
+			return nil, fmt.Errorf("delete existing track: %w", err)
+		}
 
 		res, err := tx.ExecContext(ctx, `INSERT INTO tracks
 			(album_id, artist_id, title, track_number, disc_number, duration_ms,
@@ -140,22 +150,28 @@ func syncAlbum(ctx context.Context, db *DB, provider streaming.Provider, srv Ser
 			t.DurationMs, filePath, t.Size, t.ContentType, srv.ID, t.ID,
 		)
 		if err != nil {
-			slog.Warn("sync: insert track", "track", t.Title, "err", err)
-			continue
+			return nil, fmt.Errorf("insert track %q: %w", t.Title, err)
 		}
 
-		trackID, _ := res.LastInsertId()
+		trackID, err := res.LastInsertId()
+		if err != nil {
+			return nil, fmt.Errorf("track insert id: %w", err)
+		}
 
 		if t.Genre != "" {
-			_, _ = tx.ExecContext(ctx, `INSERT OR IGNORE INTO track_genres (track_id, genre_id)
-				SELECT ?, id FROM genres WHERE name = ?`, trackID, t.Genre)
+			if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO track_genres (track_id, genre_id)
+				SELECT ?, id FROM genres WHERE name = ?`, trackID, t.Genre); err != nil {
+				return nil, fmt.Errorf("insert track genre: %w", err)
+			}
 		}
 
 		// FTS index.
-		_, _ = tx.ExecContext(ctx,
+		if _, err := tx.ExecContext(ctx,
 			"INSERT INTO fts_tracks (rowid, title, artist, album, genre) VALUES (?, ?, ?, ?, ?)",
 			trackID, t.Title, t.Artist, album.Title, t.Genre,
-		)
+		); err != nil {
+			return nil, fmt.Errorf("insert track fts: %w", err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -167,9 +183,11 @@ func syncAlbum(ctx context.Context, db *DB, provider streaming.Provider, srv Ser
 		artURL := provider.CoverArtURL(album.CoverArtID)
 		if artURL != "" {
 			if data, err := fetchArtwork(artURL); err == nil && len(data) > 0 {
-				_, _ = db.ExecContext(ctx,
+				if _, err := db.ExecContext(ctx,
 					"UPDATE albums SET artwork_blob = ? WHERE id = ?", data, albumID,
-				)
+				); err != nil {
+					return nil, fmt.Errorf("update album artwork: %w", err)
+				}
 			}
 		}
 	}
@@ -203,9 +221,15 @@ func reconcile(ctx context.Context, db *DB, serverID string, seenAlbums map[stri
 	}
 
 	for _, id := range staleTrackIDs {
-		_, _ = db.ExecContext(ctx, "DELETE FROM fts_tracks WHERE rowid = ?", id)
-		_, _ = db.ExecContext(ctx, "DELETE FROM track_genres WHERE track_id = ?", id)
-		_, _ = db.ExecContext(ctx, "DELETE FROM tracks WHERE id = ?", id)
+		if _, err := db.ExecContext(ctx, "DELETE FROM fts_tracks WHERE rowid = ?", id); err != nil {
+			return fmt.Errorf("delete stale track fts: %w", err)
+		}
+		if _, err := db.ExecContext(ctx, "DELETE FROM track_genres WHERE track_id = ?", id); err != nil {
+			return fmt.Errorf("delete stale track genres: %w", err)
+		}
+		if _, err := db.ExecContext(ctx, "DELETE FROM tracks WHERE id = ?", id); err != nil {
+			return fmt.Errorf("delete stale track: %w", err)
+		}
 	}
 
 	// Remove albums not seen in this sync.
@@ -233,7 +257,9 @@ func reconcile(ctx context.Context, db *DB, serverID string, seenAlbums map[stri
 	}
 
 	for _, id := range staleAlbumIDs {
-		_, _ = db.ExecContext(ctx, "DELETE FROM albums WHERE id = ?", id)
+		if _, err := db.ExecContext(ctx, "DELETE FROM albums WHERE id = ?", id); err != nil {
+			return fmt.Errorf("delete stale album: %w", err)
+		}
 	}
 
 	return nil

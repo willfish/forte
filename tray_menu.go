@@ -6,6 +6,7 @@ type trayPlaybackController interface {
 	State() string
 	Pause()
 	Resume()
+	Stop()
 	Next()
 	Previous()
 }
@@ -34,6 +35,7 @@ func forteTrayMenuEntries(actions trayMenuActions) []trayMenuEntry {
 				}
 			},
 		},
+		{label: "Stop", action: actions.playback.Stop},
 		{label: "Next", action: actions.playback.Next},
 		{label: "Previous", action: actions.playback.Previous},
 		{separator: true},

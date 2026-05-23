@@ -64,7 +64,8 @@ CREATE VIRTUAL TABLE fts_tracks USING fts5 (
 	album,
 	genre,
 	content='',
-	content_rowid='rowid'
+	content_rowid='rowid',
+	contentless_delete=1
 );
 
 CREATE TABLE playlists (
@@ -223,4 +224,32 @@ INSERT INTO app_preferences (id) VALUES (1);
 
 const migration012 = `
 ALTER TABLE app_preferences ADD COLUMN show_titlebar INTEGER NOT NULL DEFAULT 0;
+`
+
+const migration013 = `
+DROP TABLE fts_tracks;
+
+CREATE VIRTUAL TABLE fts_tracks USING fts5 (
+	title,
+	artist,
+	album,
+	genre,
+	content='',
+	content_rowid='rowid',
+	contentless_delete=1
+);
+
+INSERT INTO fts_tracks (rowid, title, artist, album, genre)
+SELECT
+	t.id,
+	t.title,
+	artists.name,
+	COALESCE(albums.title, ''),
+	COALESCE(group_concat(genres.name, ' '), '')
+FROM tracks t
+JOIN artists ON artists.id = t.artist_id
+LEFT JOIN albums ON albums.id = t.album_id
+LEFT JOIN track_genres ON track_genres.track_id = t.id
+LEFT JOIN genres ON genres.id = track_genres.genre_id
+GROUP BY t.id;
 `
