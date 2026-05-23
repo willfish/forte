@@ -1,5 +1,6 @@
 <script lang="ts">
   import { LibraryService, PlayerService } from "../bindings/github.com/willfish/forte";
+  import { onPlaybackStatusChange, refreshPlaybackStatus } from './lib/playback';
 
   type Station = {
     uuid: string;
@@ -64,6 +65,8 @@
   let customStreamUrl = $state('');
   let customFaviconUrl = $state('');
   let customTags = $state('');
+  let radioMode = $state(false);
+  let currentStationUuid = $state('');
 
   // Active filters.
   let activeTag = $state('');
@@ -129,6 +132,13 @@
     activeTag !== '' || activeSource !== 'all' ||
     activeCountry !== '' || activeCodec !== ''
   );
+
+  $effect(() => {
+    return onPlaybackStatusChange(status => {
+      radioMode = status.radioMode;
+      currentStationUuid = status.radioUuid;
+    });
+  });
 
   // Proxy favicons without hiding stations that do not publish artwork.
   async function proxyAndFilter(raw: Station[], limit: number): Promise<Station[]> {
@@ -375,13 +385,25 @@
 
   async function playStation(stationUuid: string, name: string, url: string, favicon: string, tags: string) {
     try {
+      if (isPlayingStation(stationUuid)) {
+        await PlayerService.Stop();
+        await refreshPlaybackStatus();
+        await loadHistory();
+        return;
+      }
+
       // Proxy artwork so the webview can display it.
       const art = favicon ? await LibraryService.ProxyImageURL(favicon) : '';
       await PlayerService.PlayRadioStation(stationUuid, name, url, art, tags);
+      await refreshPlaybackStatus();
       await loadHistory();
     } catch {
       // ignore play errors
     }
+  }
+
+  function isPlayingStation(stationUuid: string): boolean {
+    return radioMode && stationUuid !== '' && currentStationUuid === stationUuid;
   }
 
   async function toggleFavourite(station: Station) {
@@ -581,11 +603,17 @@
     {:else}
       <div class="station-list">
         {#each stations as station (station.uuid)}
-          <div class="station-card">
-            <button class="station-play" onclick={() => playStation(station.uuid, station.name, station.streamUrl, station.favicon, station.tags)} aria-label="Play {station.name}">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                <path d="M8 5v14l11-7z"/>
-              </svg>
+          <div class="station-card" class:playing={isPlayingStation(station.uuid)}>
+            <button class="station-play" class:playing={isPlayingStation(station.uuid)} onclick={() => playStation(station.uuid, station.name, station.streamUrl, station.favicon, station.tags)} aria-label={isPlayingStation(station.uuid) ? `Stop ${station.name}` : `Play ${station.name}`}>
+              {#if isPlayingStation(station.uuid)}
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M6 19h4V5H6zm8-14v14h4V5z"/>
+                </svg>
+              {:else}
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+              {/if}
             </button>
             {#if resolvedIcon(station.favicon)}
               <img class="station-icon" src={resolvedIcon(station.favicon)} alt="" />
@@ -599,6 +627,7 @@
             <div class="station-info">
               <div class="station-name">{station.name}</div>
               <div class="station-meta">
+                {#if isPlayingStation(station.uuid)}<span class="playing-badge">Playing</span>{/if}
                 {#if station.country}
                   <span class="station-country">{station.country}</span>
                 {/if}
@@ -640,11 +669,17 @@
     {:else}
       <div class="station-list">
         {#each favourites as fav (fav.stationUuid)}
-          <div class="station-card">
-            <button class="station-play" onclick={() => playStation(fav.stationUuid, fav.name, fav.streamUrl, fav.faviconUrl, fav.tags)} aria-label="Play {fav.name}">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                <path d="M8 5v14l11-7z"/>
-              </svg>
+          <div class="station-card" class:playing={isPlayingStation(fav.stationUuid)}>
+            <button class="station-play" class:playing={isPlayingStation(fav.stationUuid)} onclick={() => playStation(fav.stationUuid, fav.name, fav.streamUrl, fav.faviconUrl, fav.tags)} aria-label={isPlayingStation(fav.stationUuid) ? `Stop ${fav.name}` : `Play ${fav.name}`}>
+              {#if isPlayingStation(fav.stationUuid)}
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M6 19h4V5H6zm8-14v14h4V5z"/>
+                </svg>
+              {:else}
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+              {/if}
             </button>
             {#if resolvedIcon(fav.faviconUrl)}
               <img class="station-icon" src={resolvedIcon(fav.faviconUrl)} alt="" />
@@ -657,9 +692,10 @@
             {/if}
             <div class="station-info">
               <div class="station-name">{fav.name}</div>
-              {#if fav.pinned}
-                <div class="station-meta"><span>Pinned</span></div>
-              {/if}
+              <div class="station-meta">
+                {#if isPlayingStation(fav.stationUuid)}<span class="playing-badge">Playing</span>{/if}
+                {#if fav.pinned}<span>Pinned</span>{/if}
+              </div>
               {#if formatTags(fav.tags).length > 0}
                 <div class="station-tags">
                   {#each formatTags(fav.tags) as tag}
@@ -716,11 +752,17 @@
     {:else}
       <div class="station-list">
         {#each customStations as station (station.stationUuid)}
-          <div class="station-card">
-            <button class="station-play" onclick={() => playStation(station.stationUuid, station.name, station.streamUrl, station.faviconUrl, station.tags)} aria-label="Play {station.name}">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                <path d="M8 5v14l11-7z"/>
-              </svg>
+          <div class="station-card" class:playing={isPlayingStation(station.stationUuid)}>
+            <button class="station-play" class:playing={isPlayingStation(station.stationUuid)} onclick={() => playStation(station.stationUuid, station.name, station.streamUrl, station.faviconUrl, station.tags)} aria-label={isPlayingStation(station.stationUuid) ? `Stop ${station.name}` : `Play ${station.name}`}>
+              {#if isPlayingStation(station.stationUuid)}
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M6 19h4V5H6zm8-14v14h4V5z"/>
+                </svg>
+              {:else}
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+              {/if}
             </button>
             {#if resolvedIcon(station.faviconUrl)}
               <img class="station-icon" src={resolvedIcon(station.faviconUrl)} alt="" />
@@ -733,6 +775,9 @@
             {/if}
             <div class="station-info">
               <div class="station-name">{station.name}</div>
+              {#if isPlayingStation(station.stationUuid)}
+                <div class="station-meta"><span class="playing-badge">Playing</span></div>
+              {/if}
               {#if formatTags(station.tags).length > 0}
                 <div class="station-tags">
                   {#each formatTags(station.tags) as tag}
@@ -761,11 +806,17 @@
     {:else}
       <div class="station-list">
         {#each history as item (item.stationUuid)}
-          <div class="station-card">
-            <button class="station-play" onclick={() => playStation(item.stationUuid, item.name, item.streamUrl, item.faviconUrl, item.tags)} aria-label="Play {item.name}">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                <path d="M8 5v14l11-7z"/>
-              </svg>
+          <div class="station-card" class:playing={isPlayingStation(item.stationUuid)}>
+            <button class="station-play" class:playing={isPlayingStation(item.stationUuid)} onclick={() => playStation(item.stationUuid, item.name, item.streamUrl, item.faviconUrl, item.tags)} aria-label={isPlayingStation(item.stationUuid) ? `Stop ${item.name}` : `Play ${item.name}`}>
+              {#if isPlayingStation(item.stationUuid)}
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M6 19h4V5H6zm8-14v14h4V5z"/>
+                </svg>
+              {:else}
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+              {/if}
             </button>
             {#if resolvedIcon(item.faviconUrl)}
               <img class="station-icon" src={resolvedIcon(item.faviconUrl)} alt="" />
@@ -779,6 +830,7 @@
             <div class="station-info">
               <div class="station-name">{item.name}</div>
               <div class="station-meta">
+                {#if isPlayingStation(item.stationUuid)}<span class="playing-badge">Playing</span>{/if}
                 <span>Played {item.playCount} {item.playCount === 1 ? 'time' : 'times'}</span>
                 {#if item.lastTitle}<span>{item.lastTitle}</span>{/if}
                 {#if item.lastError}<span class="station-error">{item.lastError}</span>{/if}
@@ -976,6 +1028,11 @@
     background: var(--bg-hover);
   }
 
+  .station-card.playing {
+    background: var(--bg-active);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+
   .station-play {
     display: flex;
     align-items: center;
@@ -993,6 +1050,13 @@
 
   .station-play:hover {
     opacity: 1;
+  }
+
+  .station-play.playing {
+    opacity: 1;
+    background: var(--bg-main);
+    color: var(--accent);
+    border: 1px solid var(--accent);
   }
 
   .station-icon {
@@ -1036,6 +1100,11 @@
 
   .station-error {
     color: var(--error);
+  }
+
+  .playing-badge {
+    color: var(--accent);
+    font-weight: 600;
   }
 
   .station-tags {

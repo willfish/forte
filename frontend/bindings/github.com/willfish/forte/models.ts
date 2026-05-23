@@ -254,6 +254,7 @@ export class PlaybackStatus {
     "repeat": string;
     "mediaPath": string;
     "radioMode": boolean;
+    "radioUuid": string;
     "radioStation": string;
     "radioArtwork": string;
 
@@ -291,6 +292,9 @@ export class PlaybackStatus {
         }
         if (!("radioMode" in $$source)) {
             this["radioMode"] = false;
+        }
+        if (!("radioUuid" in $$source)) {
+            this["radioUuid"] = "";
         }
         if (!("radioStation" in $$source)) {
             this["radioStation"] = "";

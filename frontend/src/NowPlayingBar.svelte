@@ -57,14 +57,7 @@
   }
 
   async function stop() {
-    if (radioMode) {
-      await PlayerService.StopRadio();
-      radioMode = false;
-      radioStation = '';
-      radioArtwork = '';
-    } else {
-      await PlayerService.Stop();
-    }
+    await PlayerService.Stop();
     await refreshPlaybackStatus();
   }
 
