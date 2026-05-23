@@ -1,6 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <g stroke="#0b1020" stroke-width="2" stroke-linejoin="round">
-    <path fill="#f8fafc" d="M8 5h17v6H15v4h8v6h-8v7H8z"/>
-  </g>
-  <path fill="#22d3ee" d="M21 12h3v16h-3zM26 8h3v20h-3z"/>
+  <rect x="2" y="2" width="28" height="28" rx="6" fill="#1b2636" stroke="#9fb6d2" stroke-opacity="0.65" stroke-width="1.5"/>
+  <text
+    x="15.2"
+    y="23.1"
+    text-anchor="middle"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="22"
+    font-style="italic"
+    font-weight="700"
+    fill="#f4f7fb">f</text>
+  <path d="M10 15.2h13M9 18.6h13" stroke="#58a6ff" stroke-width="1.9" stroke-linecap="round"/>
 </svg>
