@@ -33,3 +33,14 @@ func TestStopStopsRadioMode(t *testing.T) {
 		t.Fatalf("radio metadata was not cleared: name=%q stream=%q", p.radioName, p.radioStreamURL)
 	}
 }
+
+func TestPlayerServiceShutdownIsIdempotent(t *testing.T) {
+	p := &PlayerService{}
+
+	if err := p.ServiceShutdown(); err != nil {
+		t.Fatalf("first shutdown: %v", err)
+	}
+	if err := p.ServiceShutdown(); err != nil {
+		t.Fatalf("second shutdown: %v", err)
+	}
+}

@@ -37,6 +37,8 @@ type PlayerService struct {
 	manualSkip     int32                      // atomic: set before explicit Next/Previous to suppress auto-advance
 	stopSave       chan struct{}
 	tickerDone     chan struct{} // closed when the ticker goroutine exits
+	shutdownOnce   sync.Once
+	shutdownErr    error
 
 	// Scrobble tracking state (protected by scrobbleMu).
 	scrobbleMu      sync.Mutex
@@ -198,26 +200,28 @@ func (p *PlayerService) startLastRadioStation() {
 
 // ServiceShutdown cleans up the mpv engine when the application exits.
 func (p *PlayerService) ServiceShutdown() error {
-	if p.stopSave != nil {
-		close(p.stopSave)
-	}
-	if p.tickerDone != nil {
-		<-p.tickerDone // wait for ticker goroutine to fully exit
-	}
-	p.saveState()
-	if p.notifier != nil {
-		p.notifier.Close()
-	}
-	if p.mpris != nil {
-		p.mpris.Close()
-	}
-	if p.engine != nil {
-		p.engine.Close()
-	}
-	if p.db != nil {
-		return p.db.Close()
-	}
-	return nil
+	p.shutdownOnce.Do(func() {
+		if p.stopSave != nil {
+			close(p.stopSave)
+		}
+		if p.tickerDone != nil {
+			<-p.tickerDone // wait for ticker goroutine to fully exit
+		}
+		p.saveState()
+		if p.notifier != nil {
+			p.notifier.Close()
+		}
+		if p.mpris != nil {
+			p.mpris.Close()
+		}
+		if p.engine != nil {
+			p.engine.Close()
+		}
+		if p.db != nil {
+			p.shutdownErr = p.db.Close()
+		}
+	})
+	return p.shutdownErr
 }
 
 func (p *PlayerService) pushMPRISMetadata() {

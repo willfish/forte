@@ -26,11 +26,13 @@ type serverState struct {
 
 // HealthMonitor periodically pings configured servers and tracks their status.
 type HealthMonitor struct {
-	db       *DB
-	mu       sync.RWMutex
-	statuses map[string]*serverState
-	stop     chan struct{}
-	done     chan struct{}
+	db        *DB
+	mu        sync.RWMutex
+	statuses  map[string]*serverState
+	lifecycle sync.Mutex
+	running   bool
+	stop      chan struct{}
+	done      chan struct{}
 }
 
 // NewHealthMonitor creates a health monitor backed by the given database.
@@ -38,20 +40,45 @@ func NewHealthMonitor(db *DB) *HealthMonitor {
 	return &HealthMonitor{
 		db:       db,
 		statuses: make(map[string]*serverState),
-		stop:     make(chan struct{}),
-		done:     make(chan struct{}),
 	}
 }
 
 // Start launches the background ping loop.
 func (h *HealthMonitor) Start() {
-	go h.loop()
+	h.lifecycle.Lock()
+	defer h.lifecycle.Unlock()
+	if h.running {
+		return
+	}
+	h.stop = make(chan struct{})
+	h.done = make(chan struct{})
+	h.running = true
+	go h.loop(h.stop, h.done)
 }
 
 // Stop signals the ping loop to exit and waits for it to finish.
 func (h *HealthMonitor) Stop() {
-	close(h.stop)
-	<-h.done
+	h.lifecycle.Lock()
+	defer h.lifecycle.Unlock()
+	if !h.running {
+		return
+	}
+	stop := h.stop
+	done := h.done
+	h.running = false
+
+	close(stop)
+	<-done
+
+	h.stop = nil
+	h.done = nil
+}
+
+// Running reports whether the monitor has an active background loop.
+func (h *HealthMonitor) Running() bool {
+	h.lifecycle.Lock()
+	defer h.lifecycle.Unlock()
+	return h.running
 }
 
 // IsOnline returns whether the given server is considered online.
@@ -77,8 +104,8 @@ func (h *HealthMonitor) Statuses() []ServerStatus {
 	return result
 }
 
-func (h *HealthMonitor) loop() {
-	defer close(h.done)
+func (h *HealthMonitor) loop(stop <-chan struct{}, done chan<- struct{}) {
+	defer close(done)
 
 	// Ping immediately on start.
 	h.pingAll()
@@ -89,7 +116,7 @@ func (h *HealthMonitor) loop() {
 		select {
 		case <-ticker.C:
 			h.pingAll()
-		case <-h.stop:
+		case <-stop:
 			return
 		}
 	}

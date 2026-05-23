@@ -722,6 +722,9 @@ func TestServiceShutdown(t *testing.T) {
 	if err := s.ServiceShutdown(); err != nil {
 		t.Fatalf("ServiceShutdown: %v", err)
 	}
+	if err := s.ServiceShutdown(); err != nil {
+		t.Fatalf("second ServiceShutdown: %v", err)
+	}
 }
 
 func TestServiceShutdownWithStopSync(t *testing.T) {
@@ -733,6 +736,37 @@ func TestServiceShutdownWithStopSync(t *testing.T) {
 	// Should cancel sync and wait for the completed goroutine without blocking.
 	if err := s.ServiceShutdown(); err != nil {
 		t.Fatalf("ServiceShutdown: %v", err)
+	}
+}
+
+func TestSaveAppPreferencesTogglesLibraryRuntime(t *testing.T) {
+	s := openTestService(t)
+
+	if err := s.SaveAppPreferences(AppPreferencesJSON{LibraryEnabled: true}); err != nil {
+		t.Fatalf("enable library mode: %v", err)
+	}
+	if s.health == nil || !s.health.Running() {
+		t.Fatal("health monitor not running after enabling library mode")
+	}
+	if s.syncCancel == nil || s.syncDone == nil {
+		t.Fatal("server sync runtime not started after enabling library mode")
+	}
+
+	if err := s.SaveAppPreferences(AppPreferencesJSON{LibraryEnabled: true}); err != nil {
+		t.Fatalf("save unchanged enabled preferences: %v", err)
+	}
+	if s.syncCancel == nil || s.syncDone == nil {
+		t.Fatal("server sync runtime stopped after saving unchanged enabled preferences")
+	}
+
+	if err := s.SaveAppPreferences(AppPreferencesJSON{LibraryEnabled: false}); err != nil {
+		t.Fatalf("disable library mode: %v", err)
+	}
+	if s.health != nil && s.health.Running() {
+		t.Fatal("health monitor still running after disabling library mode")
+	}
+	if s.syncCancel != nil || s.syncDone != nil {
+		t.Fatal("server sync runtime still present after disabling library mode")
 	}
 }
 

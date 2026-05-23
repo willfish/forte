@@ -1,9 +1,12 @@
 package library
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
+
+	_ "modernc.org/sqlite"
 )
 
 func openTestDB(t *testing.T) *DB {
@@ -62,6 +65,67 @@ func TestMigrationIdempotent(t *testing.T) {
 		t.Fatalf("second OpenDB: %v", err)
 	}
 	_ = db2.Close()
+}
+
+func TestMigration13RebuildsFTSAndAllowsDelete(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.db")
+	conn, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("sql.Open: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	if _, err := conn.Exec(`CREATE TABLE schema_migrations (
+		version INTEGER PRIMARY KEY,
+		applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+	)`); err != nil {
+		t.Fatalf("create schema_migrations: %v", err)
+	}
+	for _, m := range migrations {
+		if m.version >= 13 {
+			break
+		}
+		if _, err := conn.Exec(m.sql); err != nil {
+			t.Fatalf("migration %d: %v", m.version, err)
+		}
+		if _, err := conn.Exec("INSERT INTO schema_migrations (version) VALUES (?)", m.version); err != nil {
+			t.Fatalf("record migration %d: %v", m.version, err)
+		}
+	}
+	if _, err := conn.Exec("INSERT INTO artists (id, name) VALUES (1, 'Artist')"); err != nil {
+		t.Fatalf("insert artist: %v", err)
+	}
+	if _, err := conn.Exec("INSERT INTO albums (id, artist_id, title) VALUES (1, 1, 'Album')"); err != nil {
+		t.Fatalf("insert album: %v", err)
+	}
+	if _, err := conn.Exec("INSERT INTO tracks (id, album_id, artist_id, title, file_path) VALUES (1, 1, 1, 'Track', '/music/track.flac')"); err != nil {
+		t.Fatalf("insert track: %v", err)
+	}
+	if _, err := conn.Exec("INSERT INTO fts_tracks (rowid, title, artist, album, genre) VALUES (1, 'Track', 'Artist', 'Album', '')"); err != nil {
+		t.Fatalf("insert fts row: %v", err)
+	}
+	if err := conn.Close(); err != nil {
+		t.Fatalf("close pre-migration db: %v", err)
+	}
+
+	db, err := OpenDB(path)
+	if err != nil {
+		t.Fatalf("OpenDB migrate to 13: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	var title string
+	if err := db.QueryRow(`SELECT t.title FROM fts_tracks f
+		JOIN tracks t ON t.id = f.rowid
+		WHERE fts_tracks MATCH 'Artist'`).Scan(&title); err != nil {
+		t.Fatalf("rebuilt fts search: %v", err)
+	}
+	if title != "Track" {
+		t.Fatalf("rebuilt fts title = %q, want Track", title)
+	}
+	if _, err := db.Exec("DELETE FROM fts_tracks WHERE rowid = 1"); err != nil {
+		t.Fatalf("delete migrated fts row: %v", err)
+	}
 }
 
 func TestTablesExist(t *testing.T) {
