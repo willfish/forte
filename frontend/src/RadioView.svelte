@@ -408,6 +408,21 @@
     }
   }
 
+  async function handleStationDoubleClick(
+    event: MouseEvent,
+    stationUuid: string,
+    name: string,
+    url: string,
+    favicon: string,
+    tags: string
+  ) {
+    const target = event.target as HTMLElement;
+    if (target.closest('button, input, a, select, textarea')) {
+      return;
+    }
+    await playStation(stationUuid, name, url, favicon, tags);
+  }
+
   function isPlayingStation(stationUuid: string): boolean {
     return isCurrentStation(stationUuid) && playbackState === 'playing';
   }
@@ -615,9 +630,14 @@
         {/if}
       </div>
     {:else}
-      <div class="station-list">
+      <div class="station-list" role="list">
         {#each stations as station (station.uuid)}
-          <div class="station-card" class:playing={isCurrentStation(station.uuid)}>
+          <div
+            class="station-card"
+            role="listitem"
+            class:playing={isCurrentStation(station.uuid)}
+            ondblclick={(event) => handleStationDoubleClick(event, station.uuid, station.name, station.streamUrl, station.favicon, station.tags)}
+          >
             <button class="station-play" class:playing={isCurrentStation(station.uuid)} onclick={() => playStation(station.uuid, station.name, station.streamUrl, station.favicon, station.tags)} aria-label={isPlayingStation(station.uuid) ? `Pause ${station.name}` : `Play ${station.name}`}>
               {#if isPlayingStation(station.uuid)}
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
@@ -682,9 +702,14 @@
     {#if favourites.length === 0}
       <div class="empty">No favourite stations yet. Browse and add some!</div>
     {:else}
-      <div class="station-list">
+      <div class="station-list" role="list">
         {#each favourites as fav (fav.stationUuid)}
-          <div class="station-card" class:playing={isCurrentStation(fav.stationUuid)}>
+          <div
+            class="station-card"
+            role="listitem"
+            class:playing={isCurrentStation(fav.stationUuid)}
+            ondblclick={(event) => handleStationDoubleClick(event, fav.stationUuid, fav.name, fav.streamUrl, fav.faviconUrl, fav.tags)}
+          >
             <button class="station-play" class:playing={isCurrentStation(fav.stationUuid)} onclick={() => playStation(fav.stationUuid, fav.name, fav.streamUrl, fav.faviconUrl, fav.tags)} aria-label={isPlayingStation(fav.stationUuid) ? `Pause ${fav.name}` : `Play ${fav.name}`}>
               {#if isPlayingStation(fav.stationUuid)}
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
@@ -766,9 +791,14 @@
     {#if customStations.length === 0}
       <div class="empty">No custom stations yet.</div>
     {:else}
-      <div class="station-list">
+      <div class="station-list" role="list">
         {#each customStations as station (station.stationUuid)}
-          <div class="station-card" class:playing={isCurrentStation(station.stationUuid)}>
+          <div
+            class="station-card"
+            role="listitem"
+            class:playing={isCurrentStation(station.stationUuid)}
+            ondblclick={(event) => handleStationDoubleClick(event, station.stationUuid, station.name, station.streamUrl, station.faviconUrl, station.tags)}
+          >
             <button class="station-play" class:playing={isCurrentStation(station.stationUuid)} onclick={() => playStation(station.stationUuid, station.name, station.streamUrl, station.faviconUrl, station.tags)} aria-label={isPlayingStation(station.stationUuid) ? `Pause ${station.name}` : `Play ${station.name}`}>
               {#if isPlayingStation(station.stationUuid)}
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
@@ -823,9 +853,14 @@
     {#if history.length === 0}
       <div class="empty">No radio history yet.</div>
     {:else}
-      <div class="station-list">
+      <div class="station-list" role="list">
         {#each history as item (item.stationUuid)}
-          <div class="station-card" class:playing={isCurrentStation(item.stationUuid)}>
+          <div
+            class="station-card"
+            role="listitem"
+            class:playing={isCurrentStation(item.stationUuid)}
+            ondblclick={(event) => handleStationDoubleClick(event, item.stationUuid, item.name, item.streamUrl, item.faviconUrl, item.tags)}
+          >
             <button class="station-play" class:playing={isCurrentStation(item.stationUuid)} onclick={() => playStation(item.stationUuid, item.name, item.streamUrl, item.faviconUrl, item.tags)} aria-label={isPlayingStation(item.stationUuid) ? `Pause ${item.name}` : `Play ${item.name}`}>
               {#if isPlayingStation(item.stationUuid)}
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
