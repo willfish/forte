@@ -203,6 +203,7 @@
       max="100"
       value={muted ? 0 : volume}
       oninput={handleVolume}
+      aria-label="Volume"
     />
   </div>
 </footer>
@@ -294,8 +295,8 @@
   }
 
   .transport button {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     border: none;
     background: transparent;
@@ -319,8 +320,8 @@
   }
 
   .transport .play-btn {
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     background: var(--accent);
     color: var(--text-on-accent);
     transition: transform 0.1s ease;
@@ -401,9 +402,12 @@
     border: none;
     color: var(--text-secondary);
     cursor: pointer;
+    width: 32px;
+    height: 32px;
     padding: 4px;
     display: flex;
     align-items: center;
+    justify-content: center;
     border-radius: 4px;
   }
 
@@ -417,9 +421,12 @@
     border: none;
     color: var(--text-secondary);
     cursor: pointer;
+    width: 32px;
+    height: 32px;
     padding: 4px;
     display: flex;
     align-items: center;
+    justify-content: center;
     border-radius: 4px;
   }
 
