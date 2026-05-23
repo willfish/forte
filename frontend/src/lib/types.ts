@@ -58,6 +58,7 @@ export type PlaybackStatus = {
   repeat: RepeatMode;
   mediaPath: string;
   radioMode: boolean;
+  radioUuid: string;
   radioStation: string;
   radioArtwork: string;
   artworkSrc: string;

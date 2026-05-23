@@ -1392,6 +1392,7 @@ type PlaybackStatus struct {
 	Repeat       string  `json:"repeat"`
 	MediaPath    string  `json:"mediaPath"`
 	RadioMode    bool    `json:"radioMode"`
+	RadioUUID    string  `json:"radioUuid"`
 	RadioStation string  `json:"radioStation"`
 	RadioArtwork string  `json:"radioArtwork"`
 }
@@ -1416,6 +1417,7 @@ func (p *PlayerService) GetPlaybackStatus() PlaybackStatus {
 
 	p.radioMu.RLock()
 	s.RadioMode = p.radioMode
+	s.RadioUUID = p.radioStationUUID
 	s.RadioStation = p.radioName
 	s.RadioArtwork = p.radioArtworkURL
 	p.radioMu.RUnlock()

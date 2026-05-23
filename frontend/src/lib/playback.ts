@@ -13,6 +13,7 @@ const stoppedStatus: PlaybackStatus = {
   repeat: 'off',
   mediaPath: '',
   radioMode: false,
+  radioUuid: '',
   radioStation: '',
   radioArtwork: '',
   artworkSrc: '',
@@ -55,6 +56,7 @@ export async function refreshPlaybackStatus() {
       repeat: toRepeatMode(next.repeat),
       mediaPath: next.state !== 'stopped' ? next.mediaPath : '',
       radioMode: next.radioMode,
+      radioUuid: next.radioUuid || '',
       radioStation: next.radioStation,
       radioArtwork: next.radioArtwork,
     };
