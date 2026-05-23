@@ -162,14 +162,17 @@ test('combines country and tag filters on Browse', async ({ page }) => {
 
   await page.getByRole('button', { name: 'UK', exact: true }).click();
   await page.getByRole('button', { name: 'eclectic', exact: true }).click();
+  await page.getByRole('button', { name: 'talk', exact: true }).click();
 
   await expect(page.getByText('Country: UK')).toBeVisible();
   await expect(page.getByText('Tag: eclectic')).toBeVisible();
+  await expect(page.getByText('Tag: talk')).toBeVisible();
   await expect(page.getByText('BBC World Service')).toBeVisible();
   await expect(page.getByText('Radio Paradise Main Mix')).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Remove tag filter eclectic' }).click();
-  await expect(page.getByText('Tag: eclectic')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Remove tag filter talk' }).click();
+  await expect(page.getByText('Tag: talk')).toHaveCount(0);
+  await expect(page.getByText('Tag: eclectic')).toBeVisible();
   await expect(page.getByText('Country: UK')).toBeVisible();
   await expect(page.getByText('BBC World Service')).toBeVisible();
 

@@ -75,7 +75,7 @@
   let searchInputRef: HTMLInputElement | undefined = $state();
 
   // Active filters.
-  let activeTag = $state('');
+  let activeTags = $state<string[]>([]);
   let activeSource = $state<'all' | 'somafm'>('all');
   let activeCountry = $state('');
   let activeCodec = $state('');
@@ -157,7 +157,7 @@
 
   const isSearchActive = $derived(searchQuery.trim().length > 0);
   const hasFilter = $derived(
-    activeTag !== '' || activeSource !== 'all' ||
+    activeTags.length > 0 || activeSource !== 'all' ||
     activeCountry !== '' || activeCodec !== ''
   );
 
@@ -183,7 +183,7 @@
   function stationMatchesActiveFilters(station: Station): boolean {
     return (!activeCountry || station.country === activeCountry) &&
       (!activeCodec || station.codec.toLowerCase() === activeCodec.toLowerCase()) &&
-      stationHasTag(station, activeTag);
+      activeTags.every(tag => stationHasTag(station, tag));
   }
 
   async function loadFeatured() {
@@ -239,9 +239,9 @@
         return;
       }
       const result = await LibraryService.SearchRadioStationsFiltered(
-        activeCountry, activeCodec, activeTag, 100
+        activeCountry, activeCodec, activeTags[0] || '', 100
       );
-      stations = await proxyAndFilter((result || []).map(mapStation), 50);
+      stations = await proxyAndFilter((result || []).map(mapStation).filter(stationMatchesActiveFilters), 50);
     } catch {
       stations = [];
     } finally {
@@ -324,7 +324,7 @@
   function handleSearchInput(e: Event) {
     const value = (e.target as HTMLInputElement).value;
     searchQuery = value;
-    activeTag = '';
+    activeTags = [];
     activeSource = 'all';
     activeCountry = '';
     activeCodec = '';
@@ -375,7 +375,7 @@
   }
 
   function clearFilters() {
-    activeTag = '';
+    activeTags = [];
     activeSource = 'all';
     activeCountry = '';
     activeCodec = '';
@@ -384,11 +384,15 @@
     loadFeatured();
   }
 
-  function removeFilter(filter: 'tag' | 'source' | 'country' | 'codec') {
-    if (filter === 'tag') activeTag = '';
+  function removeFilter(filter: 'source' | 'country' | 'codec') {
     if (filter === 'source') activeSource = 'all';
     if (filter === 'country') activeCountry = '';
     if (filter === 'codec') activeCodec = '';
+    reloadBrowseStations();
+  }
+
+  function removeTagFilter(tag: string) {
+    activeTags = activeTags.filter(activeTag => activeTag !== tag);
     reloadBrowseStations();
   }
 
@@ -404,7 +408,19 @@
     searchQuery = '';
     if (debounceTimer) clearTimeout(debounceTimer);
     tab = 'featured';
-    activeTag = activeTag === tag ? '' : tag;
+    activeTags = activeTags.includes(tag)
+      ? activeTags.filter(activeTag => activeTag !== tag)
+      : [...activeTags, tag];
+    reloadBrowseStations();
+  }
+
+  function addTagFilter(tag: string) {
+    searchQuery = '';
+    if (debounceTimer) clearTimeout(debounceTimer);
+    tab = 'featured';
+    if (!activeTags.includes(tag)) {
+      activeTags = [...activeTags, tag];
+    }
     reloadBrowseStations();
   }
 
@@ -626,9 +642,9 @@
   $effect(() => {
     const pendingTag = getRadioTagFilter();
     if (pendingTag) {
-      filterByTag(pendingTag);
+      addTagFilter(pendingTag);
     }
-    return onRadioTagFilterChange(filterByTag);
+    return onRadioTagFilterChange(addTagFilter);
   });
 </script>
 
@@ -691,7 +707,7 @@
       <div class="filter-group">
         <button
           class="filter-pill"
-          class:active={activeSource === 'all' && activeTag === '' && activeCountry === '' && activeCodec === ''}
+          class:active={activeSource === 'all' && activeTags.length === 0 && activeCountry === '' && activeCodec === ''}
           onclick={() => filterBySource('all')}
         >All</button>
         <button
@@ -720,14 +736,14 @@
       </div>
       {#if hasFilter}
         <div class="active-filters" aria-label="Active radio filters">
-          {#if activeTag}
-            <button class="active-filter" onclick={() => removeFilter('tag')} aria-label={`Remove tag filter ${activeTag}`}>
-              <span class="filter-label">Tag: {activeTag}</span>
+          {#each activeTags as tag}
+            <button class="active-filter" onclick={() => removeTagFilter(tag)} aria-label={`Remove tag filter ${tag}`}>
+              <span class="filter-label">Tag: {tag}</span>
               <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
               </svg>
             </button>
-          {/if}
+          {/each}
           {#if activeSource === 'somafm'}
             <button class="active-filter" onclick={() => removeFilter('source')} aria-label="Remove source filter SomaFM">
               <span class="filter-label">Source: SomaFM</span>
@@ -768,8 +784,8 @@
         {#if isSearchActive}
           <p>No stations found for "{searchQuery.trim()}"</p>
           <button type="button" onclick={clearSearch}>Clear search</button>
-        {:else if activeTag}
-          <p>No stations found for tag "{activeTag}"</p>
+        {:else if activeTags.length > 0}
+          <p>No stations found for tags "{activeTags.join(', ')}"</p>
           <button type="button" onclick={clearFilters}>Clear filter</button>
         {:else if activeCountry || activeCodec}
           <p>No stations found for this filter</p>
@@ -832,7 +848,7 @@
               {#if formatTags(station.tags).length > 0}
                 <div class="station-tags">
                   {#each formatTags(station.tags) as tag}
-                    <button class="tag" class:active={activeTag === tag} onclick={() => filterByTag(tag)}>{tag}</button>
+                    <button class="tag" class:active={activeTags.includes(tag)} onclick={() => filterByTag(tag)}>{tag}</button>
                   {/each}
                 </div>
               {/if}
