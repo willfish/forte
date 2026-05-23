@@ -32,7 +32,11 @@
           version = "0.1.0";
           src = ./.;
           go = pkgs.go_1_25;
-          vendorHash = "sha256-0pJQ5R54CwSn+f1wSt3Y5zPzV2A5WA2EC5flOAdhBd0=";
+          vendorHash =
+            if pkgs.stdenv.isDarwin then
+              "sha256-66N2XYd0rMUmtZkkScLL/KtpfyR/cPXIUOJ4iPbWHEs="
+            else
+              "sha256-0pJQ5R54CwSn+f1wSt3Y5zPzV2A5WA2EC5flOAdhBd0=";
           modBuildPhase = ''
             runHook preBuild
 
@@ -55,27 +59,33 @@
               goModVendorFlags+=(-v)
             fi
             go mod vendor "''${goModVendorFlags[@]}"
-            patch -p1 -d vendor/github.com/wailsapp/wails/v3 < ${./patches/wails-status-notifier-icon-name.patch}
+            ${lib.optionalString pkgs.stdenv.isLinux ''
+              patch -p1 -d vendor/github.com/wailsapp/wails/v3 < ${./patches/wails-status-notifier-icon-name.patch}
+            ''}
 
             mkdir -p vendor
             runHook postBuild
           '';
-          tags = [ "production" "nocgo" "gtk4" ];
+          tags = [ "production" "nocgo" ] ++ lib.optionals pkgs.stdenv.isLinux [ "gtk4" ];
           ldflags = [ "-s" "-w" ];
           subPackages = [ "." ];
           doCheck = false; # Tests need libmpv.so at runtime
 
           nativeBuildInputs = with pkgs; [
             pkg-config
+          ] ++ lib.optionals pkgs.stdenv.isLinux [
             wrapGAppsHook4
             imagemagick
             desktop-file-utils
           ];
 
           buildInputs = with pkgs; [
+            mpv
+          ] ++ lib.optionals pkgs.stdenv.isLinux [
             gtk4
             webkitgtk_6_0
-            mpv
+          ] ++ lib.optionals pkgs.stdenv.isDarwin [
+            pkgs.apple-sdk_14
           ];
 
           preBuild = ''
@@ -84,7 +94,7 @@
             cp -r ${frontend}/* frontend/dist/
           '';
 
-          postInstall = ''
+          postInstall = lib.optionalString pkgs.stdenv.isLinux ''
             for size in 16 24 32 48 64 128 256 512; do
               install -d "$out/share/icons/hicolor/''${size}x''${size}/apps"
               magick build/appicon.png -resize "''${size}x''${size}" \
@@ -113,7 +123,7 @@
             desktop-file-validate $out/share/applications/io.github.willfish.forte.desktop
           '';
 
-          preFixup = ''
+          preFixup = lib.optionalString pkgs.stdenv.isLinux ''
             gappsWrapperArgs+=(
               --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.mpv ]}"
             )
@@ -124,7 +134,7 @@
             homepage = "https://github.com/willfish/forte";
             license = licenses.gpl3Only;
             maintainers = [ ];
-            platforms = platforms.linux;
+            platforms = platforms.linux ++ platforms.darwin;
             mainProgram = "forte";
           };
         };
@@ -284,22 +294,26 @@
           buildInputs = with pkgs; [
             go_1_25
             nodejs_22
-            playwright-driver
             go-task
             golangci-lint
             govulncheck
             ffmpeg
             pkg-config
+            mpv
+          ] ++ lib.optionals pkgs.stdenv.isLinux [
+            playwright-driver
             gtk3
             webkitgtk_4_1
             gtk4
             webkitgtk_6_0
-            mpv
+          ] ++ lib.optionals pkgs.stdenv.isDarwin [
+            apple-sdk_14
           ];
 
           shellHook = ''
             export GOPATH="$PWD/.go"
             export PATH="$GOPATH/bin:$PATH"
+          '' + lib.optionalString pkgs.stdenv.isLinux ''
             export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.mpv ]}:$LD_LIBRARY_PATH"
             export PLAYWRIGHT_BROWSERS_PATH="${pkgs.playwright-driver.browsers}"
             export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
