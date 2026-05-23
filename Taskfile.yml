@@ -38,3 +38,8 @@ tasks:
     summary: Seeds the database with fixture data for screenshots
     cmds:
       - go run -tags nocgo ./cmd/demo
+
+  prove:distro-install:
+    summary: Proves Ubuntu and Arch packages install and launch
+    cmds:
+      - scripts/prove-distro-install.sh {{.CLI_ARGS}}

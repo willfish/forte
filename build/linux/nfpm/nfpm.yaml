@@ -11,37 +11,49 @@ section: "default"
 priority: "extra"
 maintainer: ${GIT_COMMITTER_NAME} <${GIT_COMMITTER_EMAIL}>
 description: "A forte application"
-vendor: "My Company"
-homepage: "https://wails.io"
+vendor: "willfish"
+homepage: "https://github.com/willfish/forte"
 license: "MIT"
 release: "1"
 
 contents:
   - src: "./bin/forte"
     dst: "/usr/local/bin/forte"
+  - src: "./build/logo.svg"
+    dst: "/usr/share/icons/hicolor/scalable/apps/io.github.willfish.forte.svg"
+  - src: "./build/logo.svg"
+    dst: "/usr/share/icons/hicolor/scalable/apps/forte.svg"
+  - src: "./build/tray-idle.svg"
+    dst: "/usr/share/icons/hicolor/scalable/apps/io.github.willfish.forte-tray-idle.svg"
+  - src: "./build/tray-playing.svg"
+    dst: "/usr/share/icons/hicolor/scalable/apps/io.github.willfish.forte-tray-playing.svg"
   - src: "./build/appicon.png"
     dst: "/usr/share/icons/hicolor/128x128/apps/io.github.willfish.forte.png"
   - src: "./build/linux/forte.desktop"
     dst: "/usr/share/applications/io.github.willfish.forte.desktop"
 
-# Default dependencies for Debian 12/Ubuntu 22.04+ with WebKit 4.1
+# Default dependencies for Debian/Ubuntu builds using GTK4 and WebKitGTK 6.
 depends:
-  - libgtk-3-0
-  - libwebkit2gtk-4.1-0
+  - libgtk-4-1
+  - libwebkitgtk-6.0-4
+  - libmpv2
+  - hicolor-icon-theme
 
-# Distribution-specific overrides for different package formats and WebKit versions
+# Distribution-specific overrides for different package formats.
 overrides:
-  # RPM packages for RHEL/CentOS/AlmaLinux/Rocky Linux (WebKit 4.0)
   rpm:
     depends:
-      - gtk3
-      - webkit2gtk4.1
+      - gtk4
+      - webkitgtk6.0
+      - mpv-libs
+      - hicolor-icon-theme
   
-  # Arch Linux packages (WebKit 4.1)  
   archlinux:
     depends:
-      - gtk3
-      - webkit2gtk-4.1
+      - gtk4
+      - webkitgtk-6.0
+      - mpv
+      - hicolor-icon-theme
 
 # scripts section to ensure desktop database is updated after install
 scripts:
