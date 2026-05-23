@@ -64,10 +64,10 @@ test('adds and plays a custom station', async ({ page }) => {
   await page.getByLabel('Stream URL').fill('https://stream.example.com/mine');
   await page.getByLabel('Tags').fill('ambient');
   await page.getByRole('button', { name: 'Add Station' }).click();
-  await expect(page.getByText('My Stream')).toBeVisible();
+  await expect(page.getByRole('listitem').filter({ hasText: 'My Stream' })).toBeVisible();
 
   await page.locator('.tabs').getByRole('button', { name: 'History', exact: true }).click();
-  await expect(page.getByText('My Stream')).toBeVisible();
+  await expect(page.getByRole('listitem').filter({ hasText: 'My Stream' })).toBeVisible();
 });
 
 test('shows radio history from the Radio tab', async ({ page }) => {
@@ -96,4 +96,18 @@ test('shows play buttons for stations', async ({ page }) => {
   await radioNavButton(page).click();
   const playButtons = page.getByRole('button', { name: /Play / });
   await expect(playButtons.first()).toBeVisible();
+});
+
+test('double-clicking the current radio station toggles play and pause', async ({ page }) => {
+  await radioNavButton(page).click();
+
+  const station = page.getByRole('listitem').filter({ hasText: 'Ishq - Iqqoa' });
+  await station.dblclick();
+  await expect(station.getByText('Playing')).toBeVisible();
+
+  await station.dblclick();
+  await expect(station.getByText('Paused')).toBeVisible();
+
+  await station.dblclick();
+  await expect(station.getByText('Playing')).toBeVisible();
 });

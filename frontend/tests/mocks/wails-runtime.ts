@@ -30,6 +30,7 @@ let playbackStatus = {
   repeat: "off",
   mediaPath: "",
   radioMode: false,
+  radioUuid: "",
   radioStation: "",
   radioArtwork: "",
 };
@@ -259,19 +260,18 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   // PlayRadioStation
   3331506535: (stationUuid: string, name: string, streamUrl: string, artworkUrl: string, tags: string) => {
     upsertHistory(stationUuid, name, streamUrl, artworkUrl, tags);
-    if (stationUuid === "somafm-missioncontrol") {
-      playbackStatus = {
-        ...playbackStatus,
-        state: "playing",
-        title: name,
-        artist: "SomaFM Mission Control (128k MP3)",
-        album: "",
-        mediaPath: streamUrl,
-        radioMode: true,
-        radioStation: "SomaFM Mission Control (128k MP3)",
-        radioArtwork: artworkUrl,
-      };
-    }
+    playbackStatus = {
+      ...playbackStatus,
+      state: "playing",
+      title: name,
+      artist: stationUuid === "somafm-missioncontrol" ? "SomaFM Mission Control (128k MP3)" : "Radio",
+      album: "",
+      mediaPath: streamUrl,
+      radioMode: true,
+      radioUuid: stationUuid,
+      radioStation: stationUuid === "somafm-missioncontrol" ? "SomaFM Mission Control (128k MP3)" : name,
+      radioArtwork: artworkUrl,
+    };
   },
   // StopRadio
   3776601259: () => undefined,
@@ -284,12 +284,20 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   // Play
   1808111650: () => undefined,
   // Pause
-  191671602: () => undefined,
+  191671602: () => {
+    if (playbackStatus.state === "playing") {
+      playbackStatus = { ...playbackStatus, state: "paused" };
+    }
+  },
   // Resume
-  4192344979: () => undefined,
+  4192344979: () => {
+    if (playbackStatus.state === "paused") {
+      playbackStatus = { ...playbackStatus, state: "playing" };
+    }
+  },
   // Stop
   2311398648: () => {
-    playbackStatus = { ...playbackStatus, state: "stopped", title: "", artist: "", album: "", mediaPath: "" };
+    playbackStatus = { ...playbackStatus, state: "stopped", title: "", artist: "", album: "", mediaPath: "", radioMode: false, radioUuid: "" };
   },
   // Seek
   1479346536: () => undefined,
