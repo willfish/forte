@@ -51,7 +51,7 @@ const demoStations = [
   { uuid: "st-radio-paradise", name: "Radio Paradise Main Mix (EU) 320k AAC", streamUrl: "https://stream.example.com/rp", favicon: stationIcon("RP", "f8fafc", "334155"), country: "The United States Of America", tags: "california,eclectic,free,internet", bitrate: 320, codec: "AAC" },
   { uuid: "st-classic-vinyl", name: "Classic Vinyl HD", streamUrl: "https://stream.example.com/classic-vinyl", favicon: stationIcon("CV", "dc2626"), country: "The United States Of America", tags: "1930,1940,1950,1960", bitrate: 320, codec: "MP3" },
   { uuid: "st-jazz-underground", name: "Adroit Jazz Underground", streamUrl: "https://stream.example.com/jazz", favicon: stationIcon("JZ", "7c3aed"), country: "The United States Of America", tags: "avant-garde,bebop,big band,bop", bitrate: 320, codec: "MP3" },
-  { uuid: "st-bbc-world", name: "BBC World Service", streamUrl: "https://stream.example.com/bbc", favicon: stationIcon("BBC", "ef4444"), country: "The United Kingdom Of Great Britain And Northern Ireland", tags: "news,talk", bitrate: 56, codec: "MP3" },
+  { uuid: "st-bbc-world", name: "BBC World Service", streamUrl: "https://stream.example.com/bbc", favicon: stationIcon("BBC", "ef4444"), country: "United Kingdom", tags: "news,talk,eclectic", bitrate: 56, codec: "MP3" },
   { uuid: "st-walm-old-time", name: "WALM - Old Time Radio", streamUrl: "https://stream.example.com/walm", favicon: stationIcon("OTR", "22c55e", "052e16"), country: "The United States Of America", tags: "78,78-rpm,classic", bitrate: 64, codec: "MP3" },
 ];
 
@@ -74,6 +74,31 @@ function upsertHistory(stationUuid: string, name: string, streamUrl: string, fav
     playCount: 1,
     lastPlayedAt: "2024-01-03 10:00:00",
   });
+}
+
+function hasTag(tags: string, tag: string) {
+  if (!tag) return true;
+  return tags.split(",").map((t) => t.trim().toLowerCase()).includes(tag.toLowerCase());
+}
+
+function filteredDemoStations(country = "", codec = "", tag = "") {
+  const countryNames: Record<string, string[]> = {
+    US: ["The United States Of America", "United States"],
+    GB: ["United Kingdom", "The United Kingdom Of Great Britain And Northern Ireland"],
+    DE: ["Germany"],
+    FR: ["France"],
+    CA: ["Canada"],
+    AU: ["Australia"],
+  };
+  const matchesCountry = (stationCountry: string) => {
+    if (!country) return true;
+    return (countryNames[country] || [country]).includes(stationCountry);
+  };
+  return demoStations.filter((station) =>
+    matchesCountry(station.country) &&
+    (!codec || station.codec.toLowerCase() === codec.toLowerCase()) &&
+    hasTag(station.tags, tag)
+  );
 }
 
 const fixtures: Record<number, (...args: any[]) => any> = {
@@ -193,7 +218,7 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   // GetTopClickedRadioStations
   46869912: () => demoStations.map((station, index) => ({ ...station, votes: 200 - index * 10, clicks: 500 - index * 20 })),
   // SearchRadioStationsFiltered
-  2804279923: () => demoStations.map((station, index) => ({ ...station, votes: 200 - index * 10, clicks: 500 - index * 20 })),
+  2804279923: (country: string, codec: string, tag: string) => filteredDemoStations(country, codec, tag).map((station, index) => ({ ...station, votes: 200 - index * 10, clicks: 500 - index * 20 })),
   // GetRadioStationsByTag
   3897998615: () => [],
   // GetRadioStationsByCountry
@@ -249,6 +274,8 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   1128588116: (prefs: typeof appPreferences) => {
     appPreferences = { ...appPreferences, ...prefs };
   },
+  // SetThemePreference
+  3763400674: () => undefined,
 
   // --- PlayerService ---
   // GetPlaybackStatus

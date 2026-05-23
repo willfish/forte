@@ -23,6 +23,34 @@ test.describe("Search", () => {
     await expect(page.locator(".album-title").first()).toBeVisible();
   });
 
+  test("escape blurs search without clearing the query", async ({ page }) => {
+    await openLibrary(page);
+    const search = page.locator(".search-input");
+    await search.fill("Airbag");
+    await expect(page.getByText("Airbag").first()).toBeVisible({ timeout: 2000 });
+
+    await page.keyboard.press("Escape");
+    await expect(search).not.toBeFocused();
+    await expect(search).toHaveValue("Airbag");
+    await expect(page.getByText("Airbag").first()).toBeVisible();
+
+    await page.keyboard.press("f");
+    await expect(page.locator(".action-hint").first()).toBeVisible();
+  });
+
+  test("selecting an artist tag opens radio Browse for that tag", async ({ page }) => {
+    await openLibrary(page);
+    await page.locator(".search-input").fill("Airbag");
+    await expect(page.getByText("Airbag").first()).toBeVisible({ timeout: 2000 });
+
+    await page.getByText("Radiohead", { exact: true }).click();
+    await page.getByRole("button", { name: "alternative" }).click();
+
+    await expect(page.getByRole("heading", { name: "Radio" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Browse" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByText("Tag: alternative")).toBeVisible();
+  });
+
   test("search is not visible in settings view", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Settings" }).click();

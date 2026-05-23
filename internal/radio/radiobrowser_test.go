@@ -155,6 +155,40 @@ func TestClientTopVoted(t *testing.T) {
 	}
 }
 
+func TestClientSearchFilteredCombinesFilters(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/json/stations/search" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("countrycode"); got != "GB" {
+			t.Errorf("countrycode = %q, want GB", got)
+		}
+		if got := r.URL.Query().Get("codec"); got != "MP3" {
+			t.Errorf("codec = %q, want MP3", got)
+		}
+		if got := r.URL.Query().Get("tag"); got != "eclectic" {
+			t.Errorf("tag = %q, want eclectic", got)
+		}
+
+		stations := []Station{
+			{UUID: "uk-eclectic", Name: "UK Eclectic", Country: "United Kingdom", Tags: "eclectic", Codec: "MP3"},
+		}
+		_ = json.NewEncoder(w).Encode(stations)
+	}))
+	defer server.Close()
+
+	c := NewClient()
+	c.servers = []string{server.URL}
+
+	stations, err := c.SearchFiltered("GB", "MP3", "eclectic", 10)
+	if err != nil {
+		t.Fatalf("SearchFiltered: %v", err)
+	}
+	if len(stations) != 1 {
+		t.Fatalf("expected 1 station, got %d", len(stations))
+	}
+}
+
 func TestClientFallback(t *testing.T) {
 	// First server returns error, second succeeds.
 	badServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

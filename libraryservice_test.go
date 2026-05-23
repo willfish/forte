@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/willfish/forte/internal/library"
+	"github.com/willfish/forte/internal/radio"
 )
 
 // openTestService creates a LibraryService backed by a temp SQLite database.
@@ -36,6 +37,20 @@ func mustExecService(t *testing.T, s *LibraryService, query string, args ...any)
 	t.Helper()
 	if _, err := s.db.Exec(query, args...); err != nil {
 		t.Fatalf("exec %q: %v", query, err)
+	}
+}
+
+func TestStationsToJSONNormalizesStaleTimesRadioURL(t *testing.T) {
+	stations := stationsToJSON([]radio.Station{
+		{
+			UUID:      "times-radio-uk",
+			Name:      "Times Radio UK",
+			StreamURL: "http://timesradio.wireless.radio/stream",
+		},
+	})
+
+	if got, want := stations[0].StreamURL, "https://times.live.stream.broadcasting.news/stream"; got != want {
+		t.Fatalf("StreamURL = %q, want %q", got, want)
 	}
 }
 

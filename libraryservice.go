@@ -28,11 +28,12 @@ import (
 
 // LibraryService exposes the music library to the frontend.
 type LibraryService struct {
-	db          *library.DB
-	lifecycleMu sync.Mutex
-	health      *library.HealthMonitor
-	syncCancel  context.CancelFunc
-	syncDone    chan struct{}
+	db            *library.DB
+	lifecycleMu   sync.Mutex
+	health        *library.HealthMonitor
+	syncCancel    context.CancelFunc
+	syncDone      chan struct{}
+	onThemeChange func(theme string)
 }
 
 // ServiceStartup opens the library database when the application starts.
@@ -949,7 +950,7 @@ func stationsToJSON(stations []radio.Station) []RadioStationJSON {
 		result[i] = RadioStationJSON{
 			UUID:      s.UUID,
 			Name:      s.Name,
-			StreamURL: s.StreamURL,
+			StreamURL: normalizeRadioStreamURL(s.StreamURL),
 			Favicon:   favicon,
 			Country:   s.Country,
 			Tags:      s.Tags,
@@ -960,6 +961,19 @@ func stationsToJSON(stations []radio.Station) []RadioStationJSON {
 		}
 	}
 	return result
+}
+
+func normalizeRadioStreamURL(streamURL string) string {
+	u, err := url.Parse(streamURL)
+	if err != nil {
+		return streamURL
+	}
+	switch strings.ToLower(u.Hostname()) {
+	case "timesradio.wireless.radio":
+		return "https://times.live.stream.broadcasting.news/stream"
+	default:
+		return streamURL
+	}
 }
 
 var radioClient = radio.NewClient()
@@ -973,9 +987,9 @@ func (s *LibraryService) SearchRadioStations(query string, limit int) ([]RadioSt
 	return stationsToJSON(stations), nil
 }
 
-// SearchRadioStationsFiltered searches with optional country and codec filters.
-func (s *LibraryService) SearchRadioStationsFiltered(country, codec string, limit int) ([]RadioStationJSON, error) {
-	stations, err := radioClient.SearchFiltered(country, codec, limit)
+// SearchRadioStationsFiltered searches with optional country, codec, and tag filters.
+func (s *LibraryService) SearchRadioStationsFiltered(country, codec, tag string, limit int) ([]RadioStationJSON, error) {
+	stations, err := radioClient.SearchFiltered(country, codec, tag, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -1259,6 +1273,20 @@ func (s *LibraryService) SaveAppPreferences(prefs AppPreferencesJSON) error {
 		s.stopLibraryRuntimeLocked()
 	} else if next.LibraryEnabled {
 		s.startLibraryRuntimeLocked()
+	}
+	return nil
+}
+
+// SetThemePreference applies the current frontend theme to native desktop chrome.
+func (s *LibraryService) SetThemePreference(theme string) error {
+	switch theme {
+	case "green-dark", "green-light", "blue-dark", "blue-light", "financial-times-dark", "financial-times-light":
+	default:
+		return fmt.Errorf("unknown theme preference %q", theme)
+	}
+
+	if s.onThemeChange != nil {
+		s.onThemeChange(theme)
 	}
 	return nil
 }

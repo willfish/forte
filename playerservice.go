@@ -8,8 +8,11 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -192,7 +195,7 @@ func (p *PlayerService) startLastRadioStation() {
 	}
 	last := history[0]
 	go func() {
-		if err := p.playRadioStation(last.StationUUID, last.Name, last.StreamURL, last.FaviconURL, last.Tags, false); err != nil {
+		if err := p.playRadioStation(last.StationUUID, last.Name, last.StreamURL, last.FaviconURL, last.Tags, false, true); err != nil {
 			log.Printf("start last radio station: %v", err)
 		}
 	}()
@@ -639,8 +642,37 @@ func (p *PlayerService) MediaTitle() string {
 	streamURL := p.radioStreamURL
 	p.radioMu.RUnlock()
 
-	if isRadio && t == streamURL {
+	if isRadio {
+		return cleanRadioMediaTitle(t, streamURL)
+	}
+	return t
+}
+
+func cleanRadioMediaTitle(title, streamURL string) string {
+	t := strings.TrimSpace(title)
+	if t == "" {
 		return ""
+	}
+	lowerTitle := strings.ToLower(t)
+	lowerStreamURL := strings.ToLower(strings.TrimSpace(streamURL))
+	if lowerStreamURL != "" && lowerTitle == lowerStreamURL {
+		return ""
+	}
+	if strings.HasPrefix(lowerTitle, "http://") || strings.HasPrefix(lowerTitle, "https://") {
+		return ""
+	}
+	for _, ext := range []string{".m3u8", ".m3u", ".pls", ".xspf", ".asx"} {
+		if strings.Contains(lowerTitle, ext) {
+			return ""
+		}
+	}
+	if streamURL != "" {
+		if u, err := url.Parse(streamURL); err == nil {
+			base := strings.ToLower(path.Base(u.Path))
+			if base != "." && base != "/" && base != "" && lowerTitle == base {
+				return ""
+			}
+		}
 	}
 	return t
 }
@@ -1099,15 +1131,15 @@ func (p *PlayerService) flushListenBrainzQueue() {
 // PlayRadio starts playback of a radio stream. It saves the current library
 // queue and enters radio mode where next/prev/shuffle/repeat are disabled.
 func (p *PlayerService) PlayRadio(stationName, streamURL, artworkURL string) error {
-	return p.playRadioStation(library.CustomRadioStationUUID(streamURL), stationName, streamURL, artworkURL, "", true)
+	return p.playRadioStation(library.CustomRadioStationUUID(streamURL), stationName, streamURL, artworkURL, "", true, true)
 }
 
 // PlayRadioStation starts playback of a radio stream with stable station metadata.
 func (p *PlayerService) PlayRadioStation(stationUUID, stationName, streamURL, artworkURL, tags string) error {
-	return p.playRadioStation(stationUUID, stationName, streamURL, artworkURL, tags, true)
+	return p.playRadioStation(stationUUID, stationName, streamURL, artworkURL, tags, true, true)
 }
 
-func (p *PlayerService) playRadioStation(stationUUID, stationName, streamURL, artworkURL, tags string, countPlay bool) error {
+func (p *PlayerService) playRadioStation(stationUUID, stationName, streamURL, artworkURL, tags string, countPlay, resetReconnect bool) error {
 	if stationUUID == "" {
 		stationUUID = library.CustomRadioStationUUID(streamURL)
 	}
@@ -1127,7 +1159,9 @@ func (p *PlayerService) playRadioStation(stationUUID, stationName, streamURL, ar
 	p.radioArtworkURL = artworkURL
 	p.radioTags = tags
 	p.radioLastTitle = ""
-	p.radioReconnectPending = false
+	if resetReconnect {
+		p.radioReconnectPending = false
+	}
 	p.radioMu.Unlock()
 
 	if artworkURL != "" {
@@ -1253,11 +1287,7 @@ func (p *PlayerService) checkRadioTitle() {
 	lastTitle := p.radioLastTitle
 	p.radioMu.RUnlock()
 
-	t := p.engine.MediaTitle()
-	// Filter out raw stream URL (shown when no ICY metadata is available).
-	if t == streamURL {
-		t = ""
-	}
+	t := cleanRadioMediaTitle(p.engine.MediaTitle(), streamURL)
 
 	if t == lastTitle {
 		return
@@ -1340,7 +1370,10 @@ func (p *PlayerService) handleRadioStreamError() {
 			if !stillCurrent {
 				return
 			}
-			if err := p.playRadioStation(stationUUID, name, streamURL, artworkURL, tags, false); err == nil {
+			if err := p.playRadioStation(stationUUID, name, streamURL, artworkURL, tags, false, false); err == nil {
+				p.radioMu.Lock()
+				p.radioReconnectPending = false
+				p.radioMu.Unlock()
 				p.toasts.Push("Radio reconnected", "info")
 				return
 			}

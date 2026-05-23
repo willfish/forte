@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { LibraryService, PlayerService } from "../bindings/github.com/willfish/forte";
   import { onPlaybackStatusChange, refreshPlaybackStatus } from './lib/playback';
+  import { getRadioTagFilter, onRadioTagFilterChange } from './lib/stores';
   import type { PlaybackState } from './lib/types';
 
   type Station = {
@@ -70,22 +72,24 @@
   let radioMode = $state(false);
   let currentStationUuid = $state('');
   let playbackState = $state<PlaybackState>('stopped');
+  let searchInputRef: HTMLInputElement | undefined = $state();
 
   // Active filters.
-  let activeTag = $state('');
+  let activeTags = $state<string[]>([]);
   let activeSource = $state<'all' | 'somafm'>('all');
   let activeCountry = $state('');
   let activeCodec = $state('');
 
   const countries = [
-    { code: 'The United States Of America', label: 'US' },
-    { code: 'United Kingdom', label: 'UK' },
-    { code: 'Germany', label: 'DE' },
-    { code: 'France', label: 'FR' },
-    { code: 'Canada', label: 'CA' },
-    { code: 'Australia', label: 'AU' },
+    { code: 'US', label: 'US', names: ['The United States Of America', 'United States'] },
+    { code: 'GB', label: 'UK', names: ['United Kingdom', 'The United Kingdom Of Great Britain And Northern Ireland'] },
+    { code: 'DE', label: 'DE', names: ['Germany'] },
+    { code: 'FR', label: 'FR', names: ['France'] },
+    { code: 'CA', label: 'CA', names: ['Canada'] },
+    { code: 'AU', label: 'AU', names: ['Australia'] },
   ];
   const codecs = ['MP3', 'AAC', 'OGG'];
+  const radioTabs: Array<typeof tab> = ['featured', 'favourites', 'history', 'custom'];
 
   function describeError(err: unknown): string {
     if (err instanceof Error && err.message) return err.message;
@@ -100,6 +104,12 @@
 
   function clearRadioError() {
     radioError = '';
+  }
+
+  function isEditableTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    const tag = target.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
   }
 
   // Proxied image cache: external URL -> data URI.
@@ -147,8 +157,14 @@
 
   const isSearchActive = $derived(searchQuery.trim().length > 0);
   const hasFilter = $derived(
-    activeTag !== '' || activeSource !== 'all' ||
+    activeTags.length > 0 || activeSource !== 'all' ||
     activeCountry !== '' || activeCodec !== ''
+  );
+  const activeFilterCount = $derived(
+    activeTags.length +
+    (activeSource !== 'all' ? 1 : 0) +
+    (activeCountry !== '' ? 1 : 0) +
+    (activeCodec !== '' ? 1 : 0)
   );
 
   $effect(() => {
@@ -165,6 +181,23 @@
     return raw.slice(0, limit);
   }
 
+  function stationHasTag(station: Station, tag: string): boolean {
+    if (!tag) return true;
+    return formatTags(station.tags).some(t => t.toLowerCase() === tag.toLowerCase());
+  }
+
+  function stationMatchesCountry(station: Station, countryCode: string): boolean {
+    if (!countryCode) return true;
+    const country = countries.find(c => c.code === countryCode);
+    return country ? country.names.includes(station.country) : station.country === countryCode;
+  }
+
+  function stationMatchesActiveFilters(station: Station): boolean {
+    return stationMatchesCountry(station, activeCountry) &&
+      (!activeCodec || station.codec.toLowerCase() === activeCodec.toLowerCase()) &&
+      activeTags.every(tag => stationHasTag(station, tag));
+  }
+
   async function loadFeatured() {
     loading = true;
     try {
@@ -172,7 +205,7 @@
       // then merge and deduplicate for a mainstream default view.
       const perCountry = await Promise.all(
         countries.map(c =>
-          LibraryService.SearchRadioStationsFiltered(c.code, '', 20)
+          LibraryService.SearchRadioStationsFiltered(c.code, '', '', 20)
             .then(r => (r || []).map(mapStation))
             .catch(() => [] as Station[])
         )
@@ -196,23 +229,11 @@
     }
   }
 
-  async function loadByTag(tag: string) {
-    loading = true;
-    try {
-      const result = await LibraryService.GetRadioStationsByTag(tag, 100);
-      stations = await proxyAndFilter((result || []).map(mapStation), 50);
-    } catch {
-      stations = [];
-    } finally {
-      loading = false;
-    }
-  }
-
-  async function loadSomaFM() {
+  async function loadSomaFMFiltered() {
     loading = true;
     try {
       const result = await LibraryService.GetSomaFMStations();
-      const mapped = (result || []).map(mapStation);
+      const mapped = (result || []).map(mapStation).filter(stationMatchesActiveFilters);
       await proxyStationIcons(mapped.map(s => s.favicon));
       stations = mapped;
     } catch {
@@ -225,10 +246,14 @@
   async function loadFiltered() {
     loading = true;
     try {
+      if (activeSource === 'somafm') {
+        await loadSomaFMFiltered();
+        return;
+      }
       const result = await LibraryService.SearchRadioStationsFiltered(
-        activeCountry, activeCodec, 100
+        activeCountry, activeCodec, activeTags[0] || '', 100
       );
-      stations = await proxyAndFilter((result || []).map(mapStation), 50);
+      stations = await proxyAndFilter((result || []).map(mapStation).filter(stationMatchesActiveFilters), 50);
     } catch {
       stations = [];
     } finally {
@@ -311,7 +336,7 @@
   function handleSearchInput(e: Event) {
     const value = (e.target as HTMLInputElement).value;
     searchQuery = value;
-    activeTag = '';
+    activeTags = [];
     activeSource = 'all';
     activeCountry = '';
     activeCodec = '';
@@ -342,8 +367,27 @@
     loadFeatured();
   }
 
+  function handleSearchKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape') {
+      searchInputRef?.blur();
+    }
+  }
+
+  async function focusBrowseSearch() {
+    tab = 'featured';
+    await tick();
+    searchInputRef?.focus();
+    searchInputRef?.select();
+  }
+
+  function moveTab(direction: 1 | -1) {
+    const currentIndex = radioTabs.indexOf(tab);
+    const nextIndex = (currentIndex + direction + radioTabs.length) % radioTabs.length;
+    tab = radioTabs[nextIndex];
+  }
+
   function clearFilters() {
-    activeTag = '';
+    activeTags = [];
     activeSource = 'all';
     activeCountry = '';
     activeCodec = '';
@@ -352,54 +396,65 @@
     loadFeatured();
   }
 
+  function removeFilter(filter: 'source' | 'country' | 'codec') {
+    if (filter === 'source') activeSource = 'all';
+    if (filter === 'country') activeCountry = '';
+    if (filter === 'codec') activeCodec = '';
+    reloadBrowseStations();
+  }
+
+  function removeTagFilter(tag: string) {
+    activeTags = activeTags.filter(activeTag => activeTag !== tag);
+    reloadBrowseStations();
+  }
+
+  function reloadBrowseStations() {
+    if (hasFilter) {
+      loadFiltered();
+    } else {
+      loadFeatured();
+    }
+  }
+
   function filterByTag(tag: string) {
     searchQuery = '';
     if (debounceTimer) clearTimeout(debounceTimer);
-    activeSource = 'all';
-    activeCountry = '';
-    activeCodec = '';
-    activeTag = tag;
-    loadByTag(tag);
+    tab = 'featured';
+    activeTags = activeTags.includes(tag)
+      ? activeTags.filter(activeTag => activeTag !== tag)
+      : [...activeTags, tag];
+    reloadBrowseStations();
+  }
+
+  function addTagFilter(tag: string) {
+    searchQuery = '';
+    if (debounceTimer) clearTimeout(debounceTimer);
+    tab = 'featured';
+    if (!activeTags.includes(tag)) {
+      activeTags = [...activeTags, tag];
+    }
+    reloadBrowseStations();
   }
 
   function filterBySource(source: 'all' | 'somafm') {
     searchQuery = '';
     if (debounceTimer) clearTimeout(debounceTimer);
-    activeTag = '';
-    activeCountry = '';
-    activeCodec = '';
     activeSource = source;
-    if (source === 'somafm') {
-      loadSomaFM();
-    } else {
-      loadFeatured();
-    }
+    reloadBrowseStations();
   }
 
   function filterByCountry(country: string) {
     searchQuery = '';
     if (debounceTimer) clearTimeout(debounceTimer);
-    activeTag = '';
-    activeSource = 'all';
     activeCountry = activeCountry === country ? '' : country;
-    if (activeCountry === '' && activeCodec === '') {
-      loadFeatured();
-    } else {
-      loadFiltered();
-    }
+    reloadBrowseStations();
   }
 
   function filterByCodec(codec: string) {
     searchQuery = '';
     if (debounceTimer) clearTimeout(debounceTimer);
-    activeTag = '';
-    activeSource = 'all';
     activeCodec = activeCodec === codec ? '' : codec;
-    if (activeCountry === '' && activeCodec === '') {
-      loadFeatured();
-    } else {
-      loadFiltered();
-    }
+    reloadBrowseStations();
   }
 
   async function playStation(stationUuid: string, name: string, url: string, favicon: string, tags: string) {
@@ -459,6 +514,23 @@
     }
     event.preventDefault();
     await playStation(stationUuid, name, url, favicon, tags);
+  }
+
+  function handleGlobalKeydown(event: KeyboardEvent) {
+    if (isEditableTarget(event.target)) {
+      return;
+    }
+
+    if (event.key === '/') {
+      event.preventDefault();
+      void focusBrowseSearch();
+      return;
+    }
+
+    if (event.key === 'h' || event.key === 'l') {
+      event.preventDefault();
+      moveTab(event.key === 'l' ? 1 : -1);
+    }
   }
 
   function isPlayingStation(stationUuid: string): boolean {
@@ -578,7 +650,17 @@
   $effect(() => {
     tab = initialTab;
   });
+
+  $effect(() => {
+    const pendingTag = getRadioTagFilter();
+    if (pendingTag) {
+      addTagFilter(pendingTag);
+    }
+    return onRadioTagFilterChange(addTagFilter);
+  });
 </script>
+
+<svelte:window onkeydown={handleGlobalKeydown} />
 
 <div class="radio-view">
   <h2>Radio</h2>
@@ -590,11 +672,11 @@
     <button class="tab" class:active={tab === 'favourites'} role="tab" aria-selected={tab === 'favourites'} aria-controls="radio-panel-favourites" id="radio-tab-favourites" onclick={() => tab = 'favourites'}>
       Favourites ({favourites.length})
     </button>
-    <button class="tab" class:active={tab === 'custom'} role="tab" aria-selected={tab === 'custom'} aria-controls="radio-panel-custom" id="radio-tab-custom" onclick={() => tab = 'custom'}>
-      Custom ({customStations.length})
-    </button>
     <button class="tab" class:active={tab === 'history'} role="tab" aria-selected={tab === 'history'} aria-controls="radio-panel-history" id="radio-tab-history" onclick={() => tab = 'history'}>
       History
+    </button>
+    <button class="tab" class:active={tab === 'custom'} role="tab" aria-selected={tab === 'custom'} aria-controls="radio-panel-custom" id="radio-tab-custom" onclick={() => tab = 'custom'}>
+      Custom ({customStations.length})
     </button>
   </div>
 
@@ -616,11 +698,13 @@
         <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
       </svg>
       <input
+        bind:this={searchInputRef}
         type="text"
         class="search-input"
         placeholder="Search stations by name..."
         value={searchQuery}
         oninput={handleSearchInput}
+        onkeydown={handleSearchKeydown}
       />
       {#if isSearchActive}
         <button class="search-clear" onclick={clearSearch} aria-label="Clear search">
@@ -635,7 +719,7 @@
       <div class="filter-group">
         <button
           class="filter-pill"
-          class:active={activeSource === 'all' && activeTag === '' && activeCountry === '' && activeCodec === ''}
+          class:active={activeSource === 'all' && activeTags.length === 0 && activeCountry === '' && activeCodec === ''}
           onclick={() => filterBySource('all')}
         >All</button>
         <button
@@ -663,16 +747,42 @@
         {/each}
       </div>
       {#if hasFilter}
-        <div class="active-filter">
-          {#if activeTag}<span class="filter-label">Tag: {activeTag}</span>{/if}
-          {#if activeSource === 'somafm'}<span class="filter-label">Source: SomaFM</span>{/if}
-          {#if activeCountry}<span class="filter-label">Country: {countries.find(c => c.code === activeCountry)?.label}</span>{/if}
-          {#if activeCodec}<span class="filter-label">Codec: {activeCodec}</span>{/if}
-          <button class="filter-clear" onclick={clearFilters} aria-label="Clear filter">
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-            </svg>
-          </button>
+        <div class="active-filters" aria-label="Active radio filters">
+          {#each activeTags as tag}
+            <button class="active-filter" onclick={() => removeTagFilter(tag)} aria-label={`Remove tag filter ${tag}`}>
+              <span class="filter-label">Tag: {tag}</span>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+              </svg>
+            </button>
+          {/each}
+          {#if activeSource === 'somafm'}
+            <button class="active-filter" onclick={() => removeFilter('source')} aria-label="Remove source filter SomaFM">
+              <span class="filter-label">Source: SomaFM</span>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+              </svg>
+            </button>
+          {/if}
+          {#if activeCountry}
+            <button class="active-filter" onclick={() => removeFilter('country')} aria-label={`Remove country filter ${countries.find(c => c.code === activeCountry)?.label}`}>
+              <span class="filter-label">Country: {countries.find(c => c.code === activeCountry)?.label}</span>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+              </svg>
+            </button>
+          {/if}
+          {#if activeCodec}
+            <button class="active-filter" onclick={() => removeFilter('codec')} aria-label={`Remove codec filter ${activeCodec}`}>
+              <span class="filter-label">Codec: {activeCodec}</span>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+              </svg>
+            </button>
+          {/if}
+          {#if activeFilterCount > 1}
+            <button class="filter-clear" onclick={clearFilters} aria-label="Clear all filters">Clear all</button>
+          {/if}
         </div>
       {/if}
     </div>
@@ -684,8 +794,8 @@
         {#if isSearchActive}
           <p>No stations found for "{searchQuery.trim()}"</p>
           <button type="button" onclick={clearSearch}>Clear search</button>
-        {:else if activeTag}
-          <p>No stations found for tag "{activeTag}"</p>
+        {:else if activeTags.length > 0}
+          <p>No stations found for tags "{activeTags.join(', ')}"</p>
           <button type="button" onclick={clearFilters}>Clear filter</button>
         {:else if activeCountry || activeCodec}
           <p>No stations found for this filter</p>
@@ -748,7 +858,7 @@
               {#if formatTags(station.tags).length > 0}
                 <div class="station-tags">
                   {#each formatTags(station.tags) as tag}
-                    <button class="tag" class:active={activeTag === tag} onclick={() => filterByTag(tag)}>{tag}</button>
+                    <button class="tag" class:active={activeTags.includes(tag)} onclick={() => filterByTag(tag)}>{tag}</button>
                   {/each}
                 </div>
               {/if}
@@ -827,7 +937,7 @@
               {#if formatTags(fav.tags).length > 0}
                 <div class="station-tags">
                   {#each formatTags(fav.tags) as tag}
-                    <span class="tag">{tag}</span>
+                    <button class="tag" onclick={() => filterByTag(tag)}>{tag}</button>
                   {/each}
                 </div>
               {/if}
@@ -929,7 +1039,7 @@
               {#if formatTags(station.tags).length > 0}
                 <div class="station-tags">
                   {#each formatTags(station.tags) as tag}
-                    <span class="tag">{tag}</span>
+                    <button class="tag" onclick={() => filterByTag(tag)}>{tag}</button>
                   {/each}
                 </div>
               {/if}
@@ -1004,7 +1114,7 @@
               {#if formatTags(item.tags).length > 0}
                 <div class="station-tags">
                   {#each formatTags(item.tags) as tag}
-                    <span class="tag">{tag}</span>
+                    <button class="tag" onclick={() => filterByTag(tag)}>{tag}</button>
                   {/each}
                 </div>
               {/if}
@@ -1185,15 +1295,33 @@
     border-color: var(--accent);
   }
 
+  .active-filters {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+  }
+
   .active-filter {
     display: flex;
     align-items: center;
     gap: 0.25rem;
     padding: 0.2rem 0.5rem;
+    border: none;
     border-radius: 12px;
     background: var(--bg-hover);
     font-size: 0.75rem;
     color: var(--text-secondary);
+    cursor: pointer;
+  }
+
+  .active-filter:hover {
+    background: var(--bg-elevated, var(--bg-hover));
+    color: var(--text-primary);
+  }
+
+  .active-filter svg {
+    flex: 0 0 auto;
   }
 
   .filter-label {
@@ -1204,12 +1332,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border: none;
+    border: 1px solid var(--border);
     background: transparent;
     color: var(--text-secondary);
     cursor: pointer;
-    padding: 0.1rem;
-    border-radius: 50%;
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
   }
 
   .filter-clear:hover {

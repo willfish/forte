@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -130,10 +131,10 @@ func (c *Client) get(path string, params url.Values) ([]byte, error) {
 // Search searches for stations by name.
 func (c *Client) Search(query string, limit int) ([]Station, error) {
 	params := url.Values{
-		"name":     {query},
-		"limit":    {fmt.Sprintf("%d", limit)},
-		"order":    {"votes"},
-		"reverse":  {"true"},
+		"name":       {query},
+		"limit":      {fmt.Sprintf("%d", limit)},
+		"order":      {"votes"},
+		"reverse":    {"true"},
 		"hidebroken": {"true"},
 	}
 	return c.fetchStations("/json/stations/search", params)
@@ -142,10 +143,10 @@ func (c *Client) Search(query string, limit int) ([]Station, error) {
 // ByTag returns stations matching a tag (genre).
 func (c *Client) ByTag(tag string, limit int) ([]Station, error) {
 	params := url.Values{
-		"tag":     {tag},
-		"limit":   {fmt.Sprintf("%d", limit)},
-		"order":   {"votes"},
-		"reverse": {"true"},
+		"tag":        {tag},
+		"limit":      {fmt.Sprintf("%d", limit)},
+		"order":      {"votes"},
+		"reverse":    {"true"},
 		"hidebroken": {"true"},
 	}
 	return c.fetchStations("/json/stations/search", params)
@@ -154,17 +155,17 @@ func (c *Client) ByTag(tag string, limit int) ([]Station, error) {
 // ByCountry returns stations matching a country.
 func (c *Client) ByCountry(country string, limit int) ([]Station, error) {
 	params := url.Values{
-		"country":  {country},
-		"limit":    {fmt.Sprintf("%d", limit)},
-		"order":    {"votes"},
-		"reverse":  {"true"},
+		"country":    {country},
+		"limit":      {fmt.Sprintf("%d", limit)},
+		"order":      {"votes"},
+		"reverse":    {"true"},
 		"hidebroken": {"true"},
 	}
 	return c.fetchStations("/json/stations/search", params)
 }
 
-// SearchFiltered searches for stations with optional country and codec filters.
-func (c *Client) SearchFiltered(country, codec string, limit int) ([]Station, error) {
+// SearchFiltered searches for stations with optional country, codec, and tag filters.
+func (c *Client) SearchFiltered(country, codec, tag string, limit int) ([]Station, error) {
 	params := url.Values{
 		"limit":      {fmt.Sprintf("%d", limit)},
 		"order":      {"votes"},
@@ -172,10 +173,17 @@ func (c *Client) SearchFiltered(country, codec string, limit int) ([]Station, er
 		"hidebroken": {"true"},
 	}
 	if country != "" {
-		params.Set("country", country)
+		if len(country) == 2 {
+			params.Set("countrycode", strings.ToUpper(country))
+		} else {
+			params.Set("country", country)
+		}
 	}
 	if codec != "" {
 		params.Set("codec", codec)
+	}
+	if tag != "" {
+		params.Set("tag", tag)
 	}
 	return c.fetchStations("/json/stations/search", params)
 }
