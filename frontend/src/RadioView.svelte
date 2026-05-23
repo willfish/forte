@@ -89,7 +89,7 @@
     { code: 'Australia', label: 'AU' },
   ];
   const codecs = ['MP3', 'AAC', 'OGG'];
-  const radioTabs: Array<typeof tab> = ['featured', 'favourites', 'custom', 'history'];
+  const radioTabs: Array<typeof tab> = ['featured', 'favourites', 'history', 'custom'];
 
   function describeError(err: unknown): string {
     if (err instanceof Error && err.message) return err.message;
@@ -660,11 +660,11 @@
     <button class="tab" class:active={tab === 'favourites'} role="tab" aria-selected={tab === 'favourites'} aria-controls="radio-panel-favourites" id="radio-tab-favourites" onclick={() => tab = 'favourites'}>
       Favourites ({favourites.length})
     </button>
-    <button class="tab" class:active={tab === 'custom'} role="tab" aria-selected={tab === 'custom'} aria-controls="radio-panel-custom" id="radio-tab-custom" onclick={() => tab = 'custom'}>
-      Custom ({customStations.length})
-    </button>
     <button class="tab" class:active={tab === 'history'} role="tab" aria-selected={tab === 'history'} aria-controls="radio-panel-history" id="radio-tab-history" onclick={() => tab = 'history'}>
       History
+    </button>
+    <button class="tab" class:active={tab === 'custom'} role="tab" aria-selected={tab === 'custom'} aria-controls="radio-panel-custom" id="radio-tab-custom" onclick={() => tab = 'custom'}>
+      Custom ({customStations.length})
     </button>
   </div>
 

@@ -82,10 +82,13 @@ test('h and l move across radio tabs', async ({ page }) => {
   await expect(page.getByRole('tab', { name: /Favourites/ })).toHaveAttribute('aria-selected', 'true');
 
   await page.keyboard.press('l');
+  await expect(page.locator('.tabs').getByRole('tab', { name: 'History', exact: true })).toHaveAttribute('aria-selected', 'true');
+
+  await page.keyboard.press('l');
   await expect(page.getByRole('tab', { name: /Custom/ })).toHaveAttribute('aria-selected', 'true');
 
   await page.keyboard.press('h');
-  await expect(page.getByRole('tab', { name: /Favourites/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('.tabs').getByRole('tab', { name: 'History', exact: true })).toHaveAttribute('aria-selected', 'true');
 });
 
 test('pressing f shows button hints and activates the first station', async ({ page }) => {
