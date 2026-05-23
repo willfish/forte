@@ -93,6 +93,7 @@ func main() {
 
 	// System tray with playback controls.
 	tray := app.SystemTray.New()
+	tray.SetLabel("Forte")
 
 	menu := app.NewMenu()
 	menu.Add("Play/Pause").OnClick(func(_ *application.Context) {
