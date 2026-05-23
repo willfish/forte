@@ -32,7 +32,7 @@
           version = "0.1.0";
           src = ./.;
           go = pkgs.go_1_25;
-          vendorHash = "sha256-SX43UbVi1YEC323j/rvE6OgjA8G/RfaXoNACVhL7B44=";
+          vendorHash = "sha256-0pJQ5R54CwSn+f1wSt3Y5zPzV2A5WA2EC5flOAdhBd0=";
           modBuildPhase = ''
             runHook preBuild
 
@@ -101,6 +101,12 @@
                 "$out/share/icons/hicolor/''${size}x''${size}/apps/io.github.willfish.forte-tray-idle.png"
               install -Dm644 "build/tray-playing-''${size}.png" \
                 "$out/share/icons/hicolor/''${size}x''${size}/apps/io.github.willfish.forte-tray-playing.png"
+            done
+            for theme in green-dark green-light blue-dark blue-light financial-times-dark financial-times-light; do
+              install -Dm644 "build/tray-''${theme}-idle-32.png" \
+                "$out/share/icons/hicolor/32x32/apps/io.github.willfish.forte-tray-''${theme}-idle.png"
+              install -Dm644 "build/tray-''${theme}-playing-32.png" \
+                "$out/share/icons/hicolor/32x32/apps/io.github.willfish.forte-tray-''${theme}-playing.png"
             done
             install -Dm644 build/appicon.png $out/share/pixmaps/forte.png
             install -Dm644 build/linux/forte.desktop $out/share/applications/io.github.willfish.forte.desktop
@@ -228,6 +234,7 @@
               machine.succeed("desktop-file-validate /run/current-system/sw/share/applications/io.github.willfish.forte.desktop")
               machine.succeed("test -e /run/current-system/sw/share/icons/hicolor/scalable/apps/io.github.willfish.forte.svg")
               machine.succeed("test -e /run/current-system/sw/share/icons/hicolor/scalable/apps/io.github.willfish.forte-tray-idle.svg")
+              machine.succeed("test -e /run/current-system/sw/share/icons/hicolor/32x32/apps/io.github.willfish.forte-tray-financial-times-light-playing.png")
 
               base_env = "XDG_RUNTIME_DIR=/run/user/1000 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
               machine.succeed(

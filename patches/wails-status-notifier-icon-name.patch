@@ -29,7 +29,7 @@
  
  		"IconName": {
 -			Value:    "",
-+			Value:    "io.github.willfish.forte-tray-idle",
++			Value:    "",
  			Writable: false,
  			Emit:     prop.EmitTrue,
  			Callback: nil,

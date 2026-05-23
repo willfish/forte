@@ -940,18 +940,13 @@ var somafmClient = radio.NewSomaFMClient()
 
 func stationsToJSON(stations []radio.Station) []RadioStationJSON {
 	result := make([]RadioStationJSON, len(stations))
+	favicons := resolveStationFavicons(stations)
 	for i, s := range stations {
-		favicon := s.Favicon
-		if favicon == "" {
-			if art := somafmClient.LookupArtwork(s.Homepage); art != "" {
-				favicon = art
-			}
-		}
 		result[i] = RadioStationJSON{
 			UUID:      s.UUID,
 			Name:      s.Name,
 			StreamURL: normalizeRadioStreamURL(s.StreamURL),
-			Favicon:   favicon,
+			Favicon:   favicons[i],
 			Country:   s.Country,
 			Tags:      s.Tags,
 			Bitrate:   s.Bitrate,
@@ -961,6 +956,24 @@ func stationsToJSON(stations []radio.Station) []RadioStationJSON {
 		}
 	}
 	return result
+}
+
+func resolveStationFavicons(stations []radio.Station) []string {
+	favicons := make([]string, len(stations))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 8)
+	for i, station := range stations {
+		i, station := i, station
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			favicons[i] = resolveRadioArtwork(station.Favicon, station.Homepage)
+		}()
+	}
+	wg.Wait()
+	return favicons
 }
 
 func normalizeRadioStreamURL(streamURL string) string {

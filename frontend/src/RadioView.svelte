@@ -155,6 +155,18 @@
     return proxiedIcons[url] || '';
   }
 
+  function stationInitials(name: string): string {
+    const cleaned = name
+      .replace(/\([^)]*\)/g, ' ')
+      .replace(/[^a-zA-Z0-9]+/g, ' ')
+      .trim();
+    if (!cleaned) return 'R';
+    const words = cleaned.split(/\s+/).filter(word => !/^\d+$/.test(word));
+    const source = words.length > 0 ? words : cleaned.split(/\s+/);
+    if (source.length === 1) return source[0].slice(0, 2).toUpperCase();
+    return `${source[0][0]}${source[1][0]}`.toUpperCase();
+  }
+
   const isSearchActive = $derived(searchQuery.trim().length > 0);
   const hasFilter = $derived(
     activeTags.length > 0 || activeSource !== 'all' ||
@@ -838,9 +850,7 @@
               <img class="station-icon" src={resolvedIcon(station.favicon)} alt="" />
             {:else}
               <div class="station-icon placeholder">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                  <path d="M3.24 6.15C2.51 6.43 2 7.17 2 8v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8c0-.83-.49-1.57-1.24-1.85L12 2 3.24 6.15zM12 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"/>
-                </svg>
+                <span>{stationInitials(station.name)}</span>
               </div>
             {/if}
             <div class="station-info">
@@ -922,9 +932,7 @@
               <img class="station-icon" src={resolvedIcon(fav.faviconUrl)} alt="" />
             {:else}
               <div class="station-icon placeholder">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                  <path d="M3.24 6.15C2.51 6.43 2 7.17 2 8v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8c0-.83-.49-1.57-1.24-1.85L12 2 3.24 6.15zM12 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"/>
-                </svg>
+                <span>{stationInitials(fav.name)}</span>
               </div>
             {/if}
             <div class="station-info">
@@ -1023,9 +1031,7 @@
               <img class="station-icon" src={resolvedIcon(station.faviconUrl)} alt="" />
             {:else}
               <div class="station-icon placeholder">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                  <path d="M3.24 6.15C2.51 6.43 2 7.17 2 8v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8c0-.83-.49-1.57-1.24-1.85L12 2 3.24 6.15zM12 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"/>
-                </svg>
+                <span>{stationInitials(station.name)}</span>
               </div>
             {/if}
             <div class="station-info">
@@ -1097,9 +1103,7 @@
               <img class="station-icon" src={resolvedIcon(item.faviconUrl)} alt="" />
             {:else}
               <div class="station-icon placeholder">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                  <path d="M3.24 6.15C2.51 6.43 2 7.17 2 8v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8c0-.83-.49-1.57-1.24-1.85L12 2 3.24 6.15zM12 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"/>
-                </svg>
+                <span>{stationInitials(item.name)}</span>
               </div>
             {/if}
             <div class="station-info">
@@ -1427,8 +1431,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--bg-hover);
-    color: var(--text-secondary);
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, var(--bg-elevated)) 0%, var(--bg-hover) 100%);
+    color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0;
   }
 
   .station-info {
