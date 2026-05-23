@@ -1,153 +1,123 @@
 # Forte
 
-A desktop music player for Linux built with Go and Wails. Plays local files, streams from Subsonic and Jellyfin servers, and scrobbles to Last.fm and ListenBrainz.
+Forte is a Linux desktop music player built with Go, Wails, Svelte, mpv, and SQLite. It plays internet radio out of the box, and can optionally manage a local music library with Subsonic and Jellyfin servers in the same collection.
 
-<img width="2880" height="1920" alt="image" src="https://github.com/user-attachments/assets/66c1d36c-2993-4396-bec0-a91337252f83" />
+![Forte radio playback](docs/demo.png)
 
-## Features
+## What It Does
 
-- **Local library** - scan directories for FLAC, MP3, Ogg, Opus, and WAV files with automatic metadata extraction
-- **Streaming servers** - connect to Subsonic-compatible and Jellyfin servers alongside your local library
-- **Playback** - gapless playback via mpv with queue management, shuffle, repeat, and ReplayGain support
-- **Scrobbling** - Last.fm and ListenBrainz integration with offline queue for missed scrobbles
-- **Search** - full-text search across titles, artists, albums, and genres
-- **Playlists** - create, reorder, and manage playlists mixing local and streamed tracks
-- **Stats** - listening history with top artists, albums, and tracks over configurable time periods
-- **Artist info** - biographies and metadata from Last.fm and MusicBrainz, cached locally
-- **Keyboard shortcuts** - full keyboard navigation (space to play/pause, arrows to seek, etc.)
-- **Desktop notifications** - track change notifications via D-Bus
-- **Dark/light/system themes** - follows your desktop preference or set manually
+- **Radio first** - browse Radio Browser and SomaFM stations, filter by country or codec, save favourites, pin stations, add custom streams, and keep playback history.
+- **Library mode when you want it** - scan local FLAC, MP3, Ogg, Opus, and WAV files, then browse albums, artists, tracks, playlists, and listening stats.
+- **Streaming libraries** - connect Subsonic-compatible and Jellyfin servers, test credentials, sync catalogues, and play remote tracks alongside local files.
+- **Playback built on mpv** - queue management, shuffle, repeat, seeking, volume control, ReplayGain support, and gapless-style queue preloading.
+- **Desktop integration** - MPRIS controls, desktop notifications, a COSMIC-friendly tray icon, launcher icons, and dark/light/system themes.
+- **Scrobbling** - Last.fm and ListenBrainz support with now-playing updates and a retry queue for missed scrobbles.
+- **Metadata extras** - full-text search, CUE sheet parsing, play history, top artists/albums/tracks, and cached artist information from Last.fm and MusicBrainz.
 
-## Architecture
+## Installation
 
-```
-frontend/          Svelte 5 UI (TypeScript)
-  src/             Components, stores, theme
-  bindings/        Auto-generated Wails RPC bindings
-internal/
-  library/         SQLite database, queries, migrations
-  player/          mpv wrapper, queue, MPRIS D-Bus
-  metadata/        Audio file tag reading
-  artistinfo/      Last.fm + MusicBrainz metadata fetching
-  scrobbling/      Last.fm and ListenBrainz clients
-  streaming/       Subsonic and Jellyfin API clients
-  cue/             CUE sheet parser
-  system/          Desktop notifications
-libraryservice.go  Wails service: library operations
-playerservice.go   Wails service: playback controls
-main.go            Application entry point
+### Nix
+
+Build and run the current release from GitHub:
+
+```sh
+nix run github:willfish/forte
 ```
 
-The Go backend handles all I/O (database, network, playback). The Svelte frontend communicates via Wails RPC bindings. SQLite stores the library, playlists, play history, and configuration in a single `library.db` file.
-
-## Building from source
-
-### Prerequisites
-
-- Go 1.25+
-- Node.js 22+
-- System libraries: GTK4, WebKitGTK 6.0, mpv, pkg-config
-- [go-task](https://taskfile.dev) (or use `go install` directly)
-- [Wails 3](https://wails.io): `go install github.com/wailsapp/wails/v3/cmd/wails3@latest`
-
-### Install with Nix
+Or build the package:
 
 ```sh
 nix build github:willfish/forte
 ```
 
-Or add to a NixOS/home-manager configuration:
+In a NixOS or Home Manager flake, add the package from the Forte flake:
 
 ```nix
+inputs.forte.url = "github:willfish/forte";
+
 environment.systemPackages = [
-  (builtins.getFlake "github:willfish/forte").packages.${system}.default
+  inputs.forte.packages.${pkgs.system}.default
 ];
 ```
 
-### With Nix (development)
+### From Source
 
-The repository includes a `flake.nix` that provides all dependencies:
+Forte is Linux-only at the moment. For local development, the Nix shell is the easiest route because it includes Go, Node, Wails, GTK/WebKit, mpv, Playwright, and linting tools.
 
 ```sh
-# Enter the dev shell (or use direnv)
 nix develop
-
-# Build
 task build
-
-# Run in development mode (hot reload)
-task dev
+./bin/forte
 ```
 
-### Without Nix
+Without Nix, install:
 
-Install the system dependencies for your distribution:
-
-**Fedora/RHEL:**
-```sh
-sudo dnf install gtk4-devel webkitgtk6.0-devel mpv-devel pkg-config
-```
-
-**Debian/Ubuntu:**
-```sh
-sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev libmpv-dev pkg-config
-```
-
-**Arch:**
-```sh
-sudo pacman -S gtk4 webkitgtk-6.0 mpv pkg-config
-```
+- Go 1.25+
+- Node.js 22+
+- GTK4
+- WebKitGTK 6.0
+- mpv
+- pkg-config
+- [go-task](https://taskfile.dev)
+- Wails 3: `go install github.com/wailsapp/wails/v3/cmd/wails3@latest`
 
 Then build:
 
 ```sh
-cd frontend && npm ci && cd ..
+cd frontend
+npm ci
+cd ..
 task build
 ```
-
-The binary is written to `bin/forte`.
-
-## Demo mode
-
-Seed the database with fixture data for screenshots and testing:
-
-```sh
-task demo
-```
-
-This creates 23 albums, 236 tracks, 3 playlists, and play history. Safe to run multiple times.
 
 ## Development
 
 ```sh
-# Run with hot reload
+# Hot reload with Wails and Vite
 task dev
 
-# Run Go tests
-nix develop --command go test -tags 'nocgo gtk4' ./...
+# Build the Linux desktop app
+task build
 
-# Run frontend type checking
+# Seed demo data for screenshots and UI testing
+task demo
+
+# Go tests
+go test -tags nocgo ./...
+
+# Frontend type checking
 cd frontend && npm run check
 
-# Run Playwright e2e tests (needs Chrome/Chromium)
-cd frontend && CHROME_PATH=$(which google-chrome-stable) npm run test:e2e
-
-# Lint
+# Lint and vulnerability checks
 golangci-lint run --build-tags nocgo
-
-# Security scan
 govulncheck -tags nocgo ./...
 ```
 
-## Contributing
+The demo task creates a fixture library with albums, tracks, playlists, play history, and radio data. It is safe to run more than once.
 
-1. Fork the repository
-2. Create a feature branch from `master`
-3. Make your changes
-4. Run tests and lint
-5. Open a pull request
+## Architecture
 
-Issues and feature requests: [github.com/willfish/forte/issues](https://github.com/willfish/forte/issues)
+```
+frontend/          Svelte 5 UI, Vite build, Wails bindings
+internal/library/  SQLite schema, scans, search, playlists, stats, servers
+internal/player/   mpv engine and queue logic
+internal/radio/    Radio Browser and SomaFM clients
+internal/system/   MPRIS and desktop notifications
+internal/metadata/ Audio tag reading
+internal/scrobbling/
+                   Last.fm and ListenBrainz clients
+internal/streaming/
+                   Subsonic and Jellyfin clients
+libraryservice.go  Library, radio, settings, and integration RPC methods
+playerservice.go   Playback, queue, tray, MPRIS, radio, and scrobbling runtime
+main.go            Wails application setup
+```
+
+The backend owns I/O, playback, database access, desktop integration, and external services. The frontend is a Svelte app that talks to the backend through generated Wails bindings. User data is stored in SQLite under the app configuration directory.
+
+## Project Status
+
+Forte is a personal Linux desktop app and is evolving quickly. Issues and feature requests are welcome at [github.com/willfish/forte/issues](https://github.com/willfish/forte/issues).
 
 ## License
 
