@@ -32,4 +32,9 @@ test.describe("Now playing view", () => {
     await page.keyboard.press("Escape");
     await expect(page.locator(".npv-backdrop")).toHaveCount(0);
   });
+
+  test("volume slider is exposed to assistive technology", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("slider", { name: "Volume" })).toBeVisible();
+  });
 });

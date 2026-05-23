@@ -259,6 +259,9 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   1236378929: () => undefined,
   // PlayRadioStation
   3331506535: (stationUuid: string, name: string, streamUrl: string, artworkUrl: string, tags: string) => {
+    if (globalThis.localStorage?.getItem("forte.failPlayRadioStation") === "true") {
+      throw new Error("stream unavailable");
+    }
     upsertHistory(stationUuid, name, streamUrl, artworkUrl, tags);
     playbackStatus = {
       ...playbackStatus,
