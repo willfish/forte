@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -172,7 +173,11 @@ func (c *Client) SearchFiltered(country, codec, tag string, limit int) ([]Statio
 		"hidebroken": {"true"},
 	}
 	if country != "" {
-		params.Set("country", country)
+		if len(country) == 2 {
+			params.Set("countrycode", strings.ToUpper(country))
+		} else {
+			params.Set("country", country)
+		}
 	}
 	if codec != "" {
 		params.Set("codec", codec)

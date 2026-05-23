@@ -160,8 +160,8 @@ func TestClientSearchFilteredCombinesFilters(t *testing.T) {
 		if r.URL.Path != "/json/stations/search" {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
-		if got := r.URL.Query().Get("country"); got != "United Kingdom" {
-			t.Errorf("country = %q, want United Kingdom", got)
+		if got := r.URL.Query().Get("countrycode"); got != "GB" {
+			t.Errorf("countrycode = %q, want GB", got)
 		}
 		if got := r.URL.Query().Get("codec"); got != "MP3" {
 			t.Errorf("codec = %q, want MP3", got)
@@ -180,7 +180,7 @@ func TestClientSearchFilteredCombinesFilters(t *testing.T) {
 	c := NewClient()
 	c.servers = []string{server.URL}
 
-	stations, err := c.SearchFiltered("United Kingdom", "MP3", "eclectic", 10)
+	stations, err := c.SearchFiltered("GB", "MP3", "eclectic", 10)
 	if err != nil {
 		t.Fatalf("SearchFiltered: %v", err)
 	}

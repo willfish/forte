@@ -82,8 +82,20 @@ function hasTag(tags: string, tag: string) {
 }
 
 function filteredDemoStations(country = "", codec = "", tag = "") {
+  const countryNames: Record<string, string[]> = {
+    US: ["The United States Of America", "United States"],
+    GB: ["United Kingdom", "The United Kingdom Of Great Britain And Northern Ireland"],
+    DE: ["Germany"],
+    FR: ["France"],
+    CA: ["Canada"],
+    AU: ["Australia"],
+  };
+  const matchesCountry = (stationCountry: string) => {
+    if (!country) return true;
+    return (countryNames[country] || [country]).includes(stationCountry);
+  };
   return demoStations.filter((station) =>
-    (!country || station.country === country) &&
+    matchesCountry(station.country) &&
     (!codec || station.codec.toLowerCase() === codec.toLowerCase()) &&
     hasTag(station.tags, tag)
   );

@@ -81,12 +81,12 @@
   let activeCodec = $state('');
 
   const countries = [
-    { code: 'The United States Of America', label: 'US' },
-    { code: 'United Kingdom', label: 'UK' },
-    { code: 'Germany', label: 'DE' },
-    { code: 'France', label: 'FR' },
-    { code: 'Canada', label: 'CA' },
-    { code: 'Australia', label: 'AU' },
+    { code: 'US', label: 'US', names: ['The United States Of America', 'United States'] },
+    { code: 'GB', label: 'UK', names: ['United Kingdom', 'The United Kingdom Of Great Britain And Northern Ireland'] },
+    { code: 'DE', label: 'DE', names: ['Germany'] },
+    { code: 'FR', label: 'FR', names: ['France'] },
+    { code: 'CA', label: 'CA', names: ['Canada'] },
+    { code: 'AU', label: 'AU', names: ['Australia'] },
   ];
   const codecs = ['MP3', 'AAC', 'OGG'];
   const radioTabs: Array<typeof tab> = ['featured', 'favourites', 'history', 'custom'];
@@ -160,6 +160,12 @@
     activeTags.length > 0 || activeSource !== 'all' ||
     activeCountry !== '' || activeCodec !== ''
   );
+  const activeFilterCount = $derived(
+    activeTags.length +
+    (activeSource !== 'all' ? 1 : 0) +
+    (activeCountry !== '' ? 1 : 0) +
+    (activeCodec !== '' ? 1 : 0)
+  );
 
   $effect(() => {
     return onPlaybackStatusChange(status => {
@@ -180,8 +186,14 @@
     return formatTags(station.tags).some(t => t.toLowerCase() === tag.toLowerCase());
   }
 
+  function stationMatchesCountry(station: Station, countryCode: string): boolean {
+    if (!countryCode) return true;
+    const country = countries.find(c => c.code === countryCode);
+    return country ? country.names.includes(station.country) : station.country === countryCode;
+  }
+
   function stationMatchesActiveFilters(station: Station): boolean {
-    return (!activeCountry || station.country === activeCountry) &&
+    return stationMatchesCountry(station, activeCountry) &&
       (!activeCodec || station.codec.toLowerCase() === activeCodec.toLowerCase()) &&
       activeTags.every(tag => stationHasTag(station, tag));
   }
@@ -768,11 +780,9 @@
               </svg>
             </button>
           {/if}
-          <button class="filter-clear" onclick={clearFilters} aria-label="Clear all filters">
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-            </svg>
-          </button>
+          {#if activeFilterCount > 1}
+            <button class="filter-clear" onclick={clearFilters} aria-label="Clear all filters">Clear all</button>
+          {/if}
         </div>
       {/if}
     </div>
@@ -1322,12 +1332,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border: none;
+    border: 1px solid var(--border);
     background: transparent;
     color: var(--text-secondary);
     cursor: pointer;
-    padding: 0.1rem;
-    border-radius: 50%;
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
   }
 
   .filter-clear:hover {

@@ -164,6 +164,8 @@ test('combines country and tag filters on Browse', async ({ page }) => {
   await radioNavButton(page).click();
 
   await page.getByRole('button', { name: 'UK', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Clear all filters' })).toHaveCount(0);
+
   await page.getByRole('button', { name: 'eclectic', exact: true }).click();
   await page.getByRole('button', { name: 'talk', exact: true }).click();
 
