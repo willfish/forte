@@ -18,6 +18,8 @@ let _libraryEnabled = false;
 const _libraryPreferenceListeners: Array<(enabled: boolean) => void> = [];
 let _titlebarEnabled = false;
 const _titlebarPreferenceListeners: Array<(enabled: boolean) => void> = [];
+let _radioTagFilter = '';
+const _radioTagFilterListeners: Array<(tag: string) => void> = [];
 
 export function getCurrentView(): View {
   return _currentView;
@@ -104,5 +106,25 @@ export function onTitlebarEnabledChange(fn: (enabled: boolean) => void): () => v
   return () => {
     const idx = _titlebarPreferenceListeners.indexOf(fn);
     if (idx >= 0) _titlebarPreferenceListeners.splice(idx, 1);
+  };
+}
+
+export function getRadioTagFilter(): string {
+  return _radioTagFilter;
+}
+
+export function browseRadioTag(tag: string) {
+  _radioTagFilter = tag;
+  setCurrentView('radio');
+  for (const fn of _radioTagFilterListeners) {
+    fn(tag);
+  }
+}
+
+export function onRadioTagFilterChange(fn: (tag: string) => void): () => void {
+  _radioTagFilterListeners.push(fn);
+  return () => {
+    const idx = _radioTagFilterListeners.indexOf(fn);
+    if (idx >= 0) _radioTagFilterListeners.splice(idx, 1);
   };
 }

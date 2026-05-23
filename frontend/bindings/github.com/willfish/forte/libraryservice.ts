@@ -435,6 +435,13 @@ export function SetScrobbleEnabled(enabled: boolean): $CancellablePromise<void> 
 }
 
 /**
+ * SetThemePreference applies the current frontend theme to native desktop chrome.
+ */
+export function SetThemePreference(theme: string): $CancellablePromise<void> {
+    return $Call.ByID(3763400674, theme);
+}
+
+/**
  * StartLastFmAuth begins the Last.fm auth flow: requests a token and opens
  * the browser for user approval. Returns the token for use with CompleteLastFmAuth.
  */

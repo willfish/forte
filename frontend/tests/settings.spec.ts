@@ -10,7 +10,25 @@ test.describe("Settings", () => {
   test("shows theme options", async ({ page }) => {
     await expect(page.getByText("Dark", { exact: true })).toBeVisible();
     await expect(page.getByText("Light", { exact: true })).toBeVisible();
-    await expect(page.getByText("System", { exact: true })).toBeVisible();
+    await expect(page.getByText("Green", { exact: true })).toBeVisible();
+    await expect(page.getByText("Blue", { exact: true })).toBeVisible();
+    await expect(page.getByText("Financial Times", { exact: true })).toBeVisible();
+  });
+
+  test("combines theme mode and colour", async ({ page }) => {
+    await page.locator('input[name="theme-mode"][value="light"]').check();
+    await page.locator('input[name="theme-colour"][value="blue"]').check();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "blue-light");
+    await expect(page.locator(".brand-mark rect")).toHaveCSS("fill", "rgb(243, 247, 252)");
+    await expect(page.locator(".brand-mark path")).toHaveCSS("stroke", "rgb(37, 99, 235)");
+
+    await page.locator('input[name="theme-mode"][value="dark"]').check();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "blue-dark");
+    await expect(page.locator(".brand-mark rect")).toHaveCSS("fill", "rgb(16, 27, 43)");
+
+    await page.locator('input[name="theme-colour"][value="financial-times"]').check();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "financial-times-dark");
+    await expect(page.locator(".brand-mark path")).toHaveCSS("stroke", "rgb(199, 66, 106)");
   });
 
   test("shows servers section", async ({ page }) => {

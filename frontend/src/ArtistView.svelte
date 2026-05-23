@@ -1,5 +1,6 @@
 <script lang="ts">
   import { LibraryService } from "../bindings/github.com/willfish/forte";
+  import { browseRadioTag } from './lib/stores';
 
   type ArtistInfo = {
     name: string;
@@ -96,7 +97,7 @@
         {#if info.tags}
           <div class="tags">
             {#each info.tags.split(', ') as tag}
-              <span class="tag">{tag}</span>
+              <button class="tag" onclick={() => browseRadioTag(tag)}>{tag}</button>
             {/each}
           </div>
         {/if}
@@ -261,9 +262,16 @@
   .tag {
     font-size: 0.7rem;
     padding: 0.15rem 0.5rem;
+    border: none;
     border-radius: 10px;
     background: var(--bg-hover);
     color: var(--text-secondary);
+    cursor: pointer;
+  }
+
+  .tag:hover {
+    color: var(--text-primary);
+    background: var(--bg-elevated, var(--bg-hover));
   }
 
   section h3 {

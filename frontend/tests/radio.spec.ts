@@ -44,10 +44,117 @@ test('shows search bar on Browse tab', async ({ page }) => {
   await expect(page.getByPlaceholder('Search stations by name...')).toBeVisible();
 });
 
+test('pressing slash focuses Browse search', async ({ page }) => {
+  await radioNavButton(page).click();
+  const search = page.getByPlaceholder('Search stations by name...');
+
+  await page.keyboard.press('/');
+  await expect(search).toBeFocused();
+});
+
+test('escape from Browse search returns to normal mode without clearing text', async ({ page }) => {
+  await radioNavButton(page).click();
+  const search = page.getByPlaceholder('Search stations by name...');
+
+  await page.keyboard.press('/');
+  await search.fill('jazz');
+  await page.keyboard.press('Escape');
+  await expect(search).not.toBeFocused();
+  await expect(search).toHaveValue('jazz');
+
+  await page.keyboard.press('f');
+  await expect(page.locator('.action-hint').first()).toBeVisible();
+});
+
+test('pressing slash from any radio tab returns to Browse search', async ({ page }) => {
+  await radioNavButton(page).click();
+  await page.getByRole('tab', { name: /Favourites/ }).click();
+
+  await page.keyboard.press('/');
+  await expect(page.getByRole('tab', { name: 'Browse' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByPlaceholder('Search stations by name...')).toBeFocused();
+});
+
+test('h and l move across radio tabs', async ({ page }) => {
+  await radioNavButton(page).click();
+
+  await page.keyboard.press('l');
+  await expect(page.getByRole('tab', { name: /Favourites/ })).toHaveAttribute('aria-selected', 'true');
+
+  await page.keyboard.press('l');
+  await expect(page.getByRole('tab', { name: /Custom/ })).toHaveAttribute('aria-selected', 'true');
+
+  await page.keyboard.press('h');
+  await expect(page.getByRole('tab', { name: /Favourites/ })).toHaveAttribute('aria-selected', 'true');
+});
+
+test('pressing f shows button hints and activates the first station', async ({ page }) => {
+  await radioNavButton(page).click();
+  const station = page.getByRole('listitem').filter({ hasText: 'Ishq - Iqqoa' });
+  await expect(station).toBeVisible();
+
+  await page.keyboard.press('f');
+  await expect(page.locator('.action-hint', { hasText: 'aa' })).toBeVisible();
+  const visibleViewportButtonCount = await page.locator('.content-area').evaluate((scope) => {
+    const viewport = scope.getBoundingClientRect();
+    return Array.from(scope.querySelectorAll('button'))
+      .filter((button) => {
+        const style = window.getComputedStyle(button);
+        const rect = button.getBoundingClientRect();
+        return !button.hasAttribute('disabled') &&
+          style.visibility !== 'hidden' &&
+          style.display !== 'none' &&
+          rect.width > 0 &&
+          rect.height > 0 &&
+          rect.bottom >= viewport.top &&
+          rect.top <= viewport.bottom &&
+          rect.right >= viewport.left &&
+          rect.left <= viewport.right;
+      }).length;
+  });
+  await expect(page.locator('.action-hint')).toHaveCount(visibleViewportButtonCount);
+
+  await page.keyboard.press('a');
+  await page.keyboard.press('a');
+  await expect(station.getByText('Playing')).toBeVisible();
+});
+
+test('j and k scroll the current view like vertical arrows', async ({ page }) => {
+  await radioNavButton(page).click();
+  const initialScrollTop = await page.locator('.content').evaluate((el) => el.scrollTop);
+
+  await page.keyboard.press('j');
+  await expect.poll(async () => page.locator('.content').evaluate((el) => el.scrollTop)).toBeGreaterThan(initialScrollTop);
+
+  const scrolledTop = await page.locator('.content').evaluate((el) => el.scrollTop);
+  await page.keyboard.press('k');
+  await expect.poll(async () => page.locator('.content').evaluate((el) => el.scrollTop)).toBeLessThan(scrolledTop);
+});
+
+test('G and gg scroll the current view to bottom and top', async ({ page }) => {
+  await radioNavButton(page).click();
+
+  await page.keyboard.press('G');
+  await expect.poll(async () => page.locator('.content').evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+
+  await page.keyboard.press('g');
+  await page.keyboard.press('g');
+  await expect.poll(async () => page.locator('.content').evaluate((el) => el.scrollTop)).toBe(0);
+});
+
 test('displays favourite stations on Favourites tab', async ({ page }) => {
   await radioNavButton(page).click();
   await page.getByRole('tab', { name: /Favourites/ }).click();
   await expect(page.getByText('Jazz FM')).toBeVisible();
+});
+
+test('selecting a tag from another radio tab opens Browse for that tag', async ({ page }) => {
+  await radioNavButton(page).click();
+  await page.getByRole('tab', { name: /Favourites/ }).click();
+
+  await page.getByRole('button', { name: 'jazz', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'Browse' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByText('Tag: jazz')).toBeVisible();
 });
 
 test('pins favourite stations', async ({ page }) => {

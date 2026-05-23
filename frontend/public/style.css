@@ -35,8 +35,9 @@
     --radius-full: 50%;
 }
 
-/* --- Colour tokens: dark theme (default) --- */
+/* --- Colour tokens: green dark theme (default) --- */
 :root,
+[data-theme="green-dark"],
 [data-theme="dark"] {
     --bg-main: #10251c;
     --bg-sidebar: #0c1d16;
@@ -51,12 +52,16 @@
     --text-on-accent: #ffffff;
 
     --accent: #2fa866;
+    --mark-bg: #10251c;
+    --mark-text: #e0e0e0;
+    --mark-accent: #2fa866;
     --error: #ee5555;
     --success: #44cc88;
     --warning: #f59e0b;
 }
 
-/* --- Colour tokens: light theme --- */
+/* --- Colour tokens: green light theme --- */
+[data-theme="green-light"],
 [data-theme="light"] {
     --bg-main: #f3f7f4;
     --bg-sidebar: #e7eee9;
@@ -71,9 +76,104 @@
     --text-on-accent: #ffffff;
 
     --accent: #218653;
+    --mark-bg: #f3f7f4;
+    --mark-text: #1a1a1a;
+    --mark-accent: #218653;
     --error: #dc2626;
     --success: #16a34a;
     --warning: #d97706;
+}
+
+/* --- Colour tokens: blue dark theme --- */
+[data-theme="blue-dark"] {
+    --bg-main: #101b2b;
+    --bg-sidebar: #0b1422;
+    --bg-bar: #0b1422;
+    --bg-elevated: #17283f;
+    --bg-hover: rgba(255, 255, 255, 0.06);
+    --bg-active: rgba(64, 156, 255, 0.16);
+    --border: #284260;
+
+    --text-primary: #e5edf7;
+    --text-secondary: #9cb1c8;
+    --text-on-accent: #ffffff;
+
+    --accent: #409cff;
+    --mark-bg: #101b2b;
+    --mark-text: #e5edf7;
+    --mark-accent: #409cff;
+    --error: #f87171;
+    --success: #34d399;
+    --warning: #fbbf24;
+}
+
+/* --- Colour tokens: blue light theme --- */
+[data-theme="blue-light"] {
+    --bg-main: #f3f7fc;
+    --bg-sidebar: #e6eef8;
+    --bg-bar: #e6eef8;
+    --bg-elevated: #ffffff;
+    --bg-hover: rgba(15, 23, 42, 0.05);
+    --bg-active: rgba(37, 99, 235, 0.12);
+    --border: #cbd8e8;
+
+    --text-primary: #102033;
+    --text-secondary: #5a6d82;
+    --text-on-accent: #ffffff;
+
+    --accent: #2563eb;
+    --mark-bg: #f3f7fc;
+    --mark-text: #102033;
+    --mark-accent: #2563eb;
+    --error: #dc2626;
+    --success: #059669;
+    --warning: #d97706;
+}
+
+/* --- Colour tokens: Financial Times dark theme --- */
+[data-theme="financial-times-dark"] {
+    --bg-main: #241d1a;
+    --bg-sidebar: #1a1412;
+    --bg-bar: #1a1412;
+    --bg-elevated: #302622;
+    --bg-hover: rgba(255, 241, 229, 0.07);
+    --bg-active: rgba(153, 15, 61, 0.22);
+    --border: #5c463d;
+
+    --text-primary: #fff1e5;
+    --text-secondary: #c8a99a;
+    --text-on-accent: #ffffff;
+
+    --accent: #c7426a;
+    --mark-bg: #241d1a;
+    --mark-text: #fff1e5;
+    --mark-accent: #c7426a;
+    --error: #f87171;
+    --success: #48b884;
+    --warning: #f2a900;
+}
+
+/* --- Colour tokens: Financial Times light theme --- */
+[data-theme="financial-times-light"] {
+    --bg-main: #fff1e5;
+    --bg-sidebar: #f2dfce;
+    --bg-bar: #f2dfce;
+    --bg-elevated: #fff8f2;
+    --bg-hover: rgba(38, 42, 51, 0.06);
+    --bg-active: rgba(153, 15, 61, 0.13);
+    --border: #d6c1b1;
+
+    --text-primary: #262a33;
+    --text-secondary: #6b5d55;
+    --text-on-accent: #ffffff;
+
+    --accent: #990f3d;
+    --mark-bg: #fff1e5;
+    --mark-text: #262a33;
+    --mark-accent: #990f3d;
+    --error: #c53030;
+    --success: #0f7b55;
+    --warning: #b45309;
 }
 
 /* ============================================================

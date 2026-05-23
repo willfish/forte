@@ -249,6 +249,8 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   1128588116: (prefs: typeof appPreferences) => {
     appPreferences = { ...appPreferences, ...prefs };
   },
+  // SetThemePreference
+  3763400674: () => undefined,
 
   // --- PlayerService ---
   // GetPlaybackStatus

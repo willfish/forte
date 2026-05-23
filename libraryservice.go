@@ -28,11 +28,12 @@ import (
 
 // LibraryService exposes the music library to the frontend.
 type LibraryService struct {
-	db          *library.DB
-	lifecycleMu sync.Mutex
-	health      *library.HealthMonitor
-	syncCancel  context.CancelFunc
-	syncDone    chan struct{}
+	db            *library.DB
+	lifecycleMu   sync.Mutex
+	health        *library.HealthMonitor
+	syncCancel    context.CancelFunc
+	syncDone      chan struct{}
+	onThemeChange func(theme string)
 }
 
 // ServiceStartup opens the library database when the application starts.
@@ -1259,6 +1260,20 @@ func (s *LibraryService) SaveAppPreferences(prefs AppPreferencesJSON) error {
 		s.stopLibraryRuntimeLocked()
 	} else if next.LibraryEnabled {
 		s.startLibraryRuntimeLocked()
+	}
+	return nil
+}
+
+// SetThemePreference applies the current frontend theme to native desktop chrome.
+func (s *LibraryService) SetThemePreference(theme string) error {
+	switch theme {
+	case "green-dark", "green-light", "blue-dark", "blue-light", "financial-times-dark", "financial-times-light":
+	default:
+		return fmt.Errorf("unknown theme preference %q", theme)
+	}
+
+	if s.onThemeChange != nil {
+		s.onThemeChange(theme)
 	}
 	return nil
 }
