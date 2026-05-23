@@ -2,7 +2,7 @@
 
 A desktop music player for Linux built with Go and Wails. Plays local files, streams from Subsonic and Jellyfin servers, and scrobbles to Last.fm and ListenBrainz.
 
-![Forte radio playback](docs/demo.png)
+<img width="2880" height="1920" alt="image" src="https://github.com/user-attachments/assets/66c1d36c-2993-4396-bec0-a91337252f83" />
 
 ## Features
 
