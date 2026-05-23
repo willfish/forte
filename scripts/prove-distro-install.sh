@@ -4,14 +4,16 @@ set -euo pipefail
 artifact_dir="${ARTIFACT_DIR:-/tmp/forte-distro-proof}"
 host_uid="$(id -u)"
 host_gid="$(id -g)"
+repo_root="$(git rev-parse --show-toplevel)"
 
 usage() {
   cat <<'USAGE'
 Usage: scripts/prove-distro-install.sh [ubuntu|arch|all]
 
-Builds Forte inside fresh distro containers, installs the resulting package
-inside fresh containers, validates desktop integration, and proves the app can
-launch under Xvfb without relying on Nix-linked host artifacts.
+Builds Forte packages inside fresh distro containers, installs them through the
+same installer entrypoint users run, validates desktop integration, and proves
+the installed app can launch under Xvfb without relying on Nix-linked host
+artifacts.
 USAGE
 }
 
@@ -19,7 +21,7 @@ prepare_source() {
   local source_dir
   source_dir="$(mktemp -d)"
 
-  git ls-files -z | tar --null -T - -cf - | tar -x -C "$source_dir"
+  git -C "$repo_root" ls-files -z | tar -C "$repo_root" --null -T - -cf - | tar -x -C "$source_dir"
   printf '%s\n' "$source_dir"
 }
 
@@ -80,13 +82,15 @@ EOF
 prove_ubuntu() {
   docker run --rm --privileged -i \
     -v "$artifact_dir:/artifacts:ro" \
+    -v "$repo_root/scripts/install.sh:/install-forte.sh:ro" \
     ubuntu:latest \
     bash -s <<'EOF'
 set -euxo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y /artifacts/forte-ubuntu.deb desktop-file-utils xvfb dbus-x11 procps
+apt-get install -y ca-certificates desktop-file-utils xvfb dbus-x11 procps
+FORTE_PACKAGE_URL=file:///artifacts/forte-ubuntu.deb sh /install-forte.sh
 
 command -v forte
 desktop-file-validate /usr/share/applications/io.github.willfish.forte.desktop
@@ -95,12 +99,20 @@ test -e /usr/share/icons/hicolor/scalable/apps/io.github.willfish.forte-tray-idl
 ldd /usr/local/bin/forte | tee /tmp/forte-ldd.txt >/dev/null
 ! grep -q /nix/store /tmp/forte-ldd.txt
 
+xvfb-run -a dbus-run-session sh -s <<'LAUNCH'
+set -eu
+env WEBKIT_DISABLE_DMABUF_RENDERER=1 forte >/tmp/forte.log 2>&1 &
+forte_pid="$!"
+sleep 10
+kill -0 "$forte_pid"
+kill "$forte_pid"
 set +e
-timeout 15s xvfb-run -a dbus-run-session env WEBKIT_DISABLE_DMABUF_RENDERER=1 forte >/tmp/forte.log 2>&1
-status=$?
+wait "$forte_pid"
+status="$?"
 set -e
-cat /tmp/forte.log
-test "$status" -eq 124
+test "$status" -eq 0 || test "$status" -eq 143
+LAUNCH
+sed -n '1,160p' /tmp/forte.log
 EOF
 }
 
@@ -151,13 +163,14 @@ EOF
 prove_arch() {
   docker run --rm --privileged -i \
     -v "$artifact_dir:/artifacts:ro" \
+    -v "$repo_root/scripts/install.sh:/install-forte.sh:ro" \
     archlinux:latest \
     bash -s <<'EOF'
 set -euxo pipefail
 
 pacman -Syu --noconfirm
-pacman -U --noconfirm /artifacts/forte-arch.pkg.tar.zst
-pacman -S --noconfirm --needed desktop-file-utils xorg-server-xvfb xorg-xauth dbus procps-ng
+pacman -S --noconfirm --needed ca-certificates desktop-file-utils xorg-server-xvfb xorg-xauth dbus procps-ng
+FORTE_PACKAGE_URL=file:///artifacts/forte-arch.pkg.tar.zst sh /install-forte.sh
 
 command -v forte
 desktop-file-validate /usr/share/applications/io.github.willfish.forte.desktop
@@ -166,12 +179,20 @@ test -e /usr/share/icons/hicolor/scalable/apps/io.github.willfish.forte-tray-idl
 ldd /usr/local/bin/forte | tee /tmp/forte-ldd.txt >/dev/null
 ! grep -q /nix/store /tmp/forte-ldd.txt
 
+xvfb-run -a dbus-run-session sh -s <<'LAUNCH'
+set -eu
+env WEBKIT_DISABLE_DMABUF_RENDERER=1 forte >/tmp/forte.log 2>&1 &
+forte_pid="$!"
+sleep 10
+kill -0 "$forte_pid"
+kill "$forte_pid"
 set +e
-timeout 15s xvfb-run -a dbus-run-session env WEBKIT_DISABLE_DMABUF_RENDERER=1 forte >/tmp/forte.log 2>&1
-status=$?
+wait "$forte_pid"
+status="$?"
 set -e
-cat /tmp/forte.log
-test "$status" -eq 124
+test "$status" -eq 0 || test "$status" -eq 143
+LAUNCH
+sed -n '1,160p' /tmp/forte.log
 EOF
 }
 
