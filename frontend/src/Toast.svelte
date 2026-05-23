@@ -13,6 +13,13 @@
   let nextId = 0;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
+  function toastGroup(message: string): string {
+    if (message.startsWith('Radio stream ') || message === 'Radio reconnected') {
+      return 'radio-stream';
+    }
+    return message;
+  }
+
   function startPolling() {
     if (pollTimer) return;
     pollTimer = setInterval(async () => {
@@ -21,6 +28,8 @@
         if (items && items.length > 0) {
           const now = Date.now();
           for (const item of items) {
+            const group = toastGroup(item.message);
+            toasts = toasts.filter(t => toastGroup(t.message) !== group);
             toasts.push({
               id: nextId++,
               message: item.message,

@@ -195,7 +195,7 @@ func (p *PlayerService) startLastRadioStation() {
 	}
 	last := history[0]
 	go func() {
-		if err := p.playRadioStation(last.StationUUID, last.Name, last.StreamURL, last.FaviconURL, last.Tags, false); err != nil {
+		if err := p.playRadioStation(last.StationUUID, last.Name, last.StreamURL, last.FaviconURL, last.Tags, false, true); err != nil {
 			log.Printf("start last radio station: %v", err)
 		}
 	}()
@@ -1131,15 +1131,15 @@ func (p *PlayerService) flushListenBrainzQueue() {
 // PlayRadio starts playback of a radio stream. It saves the current library
 // queue and enters radio mode where next/prev/shuffle/repeat are disabled.
 func (p *PlayerService) PlayRadio(stationName, streamURL, artworkURL string) error {
-	return p.playRadioStation(library.CustomRadioStationUUID(streamURL), stationName, streamURL, artworkURL, "", true)
+	return p.playRadioStation(library.CustomRadioStationUUID(streamURL), stationName, streamURL, artworkURL, "", true, true)
 }
 
 // PlayRadioStation starts playback of a radio stream with stable station metadata.
 func (p *PlayerService) PlayRadioStation(stationUUID, stationName, streamURL, artworkURL, tags string) error {
-	return p.playRadioStation(stationUUID, stationName, streamURL, artworkURL, tags, true)
+	return p.playRadioStation(stationUUID, stationName, streamURL, artworkURL, tags, true, true)
 }
 
-func (p *PlayerService) playRadioStation(stationUUID, stationName, streamURL, artworkURL, tags string, countPlay bool) error {
+func (p *PlayerService) playRadioStation(stationUUID, stationName, streamURL, artworkURL, tags string, countPlay, resetReconnect bool) error {
 	if stationUUID == "" {
 		stationUUID = library.CustomRadioStationUUID(streamURL)
 	}
@@ -1159,7 +1159,9 @@ func (p *PlayerService) playRadioStation(stationUUID, stationName, streamURL, ar
 	p.radioArtworkURL = artworkURL
 	p.radioTags = tags
 	p.radioLastTitle = ""
-	p.radioReconnectPending = false
+	if resetReconnect {
+		p.radioReconnectPending = false
+	}
 	p.radioMu.Unlock()
 
 	if artworkURL != "" {
@@ -1368,7 +1370,10 @@ func (p *PlayerService) handleRadioStreamError() {
 			if !stillCurrent {
 				return
 			}
-			if err := p.playRadioStation(stationUUID, name, streamURL, artworkURL, tags, false); err == nil {
+			if err := p.playRadioStation(stationUUID, name, streamURL, artworkURL, tags, false, false); err == nil {
+				p.radioMu.Lock()
+				p.radioReconnectPending = false
+				p.radioMu.Unlock()
 				p.toasts.Push("Radio reconnected", "info")
 				return
 			}
