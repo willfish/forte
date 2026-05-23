@@ -2,6 +2,8 @@
 
 A desktop music player for Linux built with Go and Wails. Plays local files, streams from Subsonic and Jellyfin servers, and scrobbles to Last.fm and ListenBrainz.
 
+![Forte radio playback](docs/demo.png)
+
 ## Features
 
 - **Local library** - scan directories for FLAC, MP3, Ogg, Opus, and WAV files with automatic metadata extraction
@@ -15,10 +17,6 @@ A desktop music player for Linux built with Go and Wails. Plays local files, str
 - **Keyboard shortcuts** - full keyboard navigation (space to play/pause, arrows to seek, etc.)
 - **Desktop notifications** - track change notifications via D-Bus
 - **Dark/light/system themes** - follows your desktop preference or set manually
-
-## Demo
-
-![Forte radio playback](docs/demo.png)
 
 ## Architecture
 
