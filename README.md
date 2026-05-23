@@ -95,6 +95,10 @@ govulncheck -tags nocgo ./...
 
 The demo task creates a fixture library with albums, tracks, playlists, play history, and radio data. It is safe to run more than once.
 
+### VM Validation
+
+Forte has NixOS desktop VM checks for the flake package. The planned non-Nix install validation is described in [docs/distro-install-vm-validation.md](docs/distro-install-vm-validation.md).
+
 ## Architecture
 
 ```
