@@ -76,7 +76,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: DeterminateSystems/nix-installer-action@v20
+      - uses: DeterminateSystems/nix-installer-action@v22
 
       - name: Build Darwin package
         run: nix build .#packages.aarch64-darwin.default -L --no-write-lock-file
