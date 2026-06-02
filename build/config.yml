@@ -29,11 +29,11 @@ dev_mode:
       - "*.ts"
     git_ignore: true
   executes:
-    - cmd: wails3 build DEV=true EXTRA_TAGS=gtk4
+    - cmd: ./.go/bin/wails3 build DEV=true EXTRA_TAGS=gtk4
       type: blocking
-    - cmd: wails3 task common:dev:frontend
+    - cmd: ./.go/bin/wails3 task common:dev:frontend
       type: background
-    - cmd: wails3 task run
+    - cmd: ./.go/bin/wails3 task run
       type: primary
 
 fileAssociations: []

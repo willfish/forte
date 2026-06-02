@@ -41,7 +41,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: var(--bg-sidebar);
+    background: color-mix(in srgb, var(--bg-sidebar) var(--theme-surface-opacity), transparent);
     border-bottom: 1px solid var(--border);
     color: var(--text-secondary);
     --wails-draggable: drag;

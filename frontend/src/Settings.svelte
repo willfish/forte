@@ -1,14 +1,18 @@
 <script lang="ts">
   import {
     getPreference,
+    getTransparencyPreference,
     onPreferenceChange,
+    onTransparencyPreferenceChange,
     setPreference,
+    setTransparencyPreference,
     themeColour,
     themeMode,
     themePreference,
     type ThemeColour,
     type ThemeMode,
-    type ThemePreference
+    type ThemePreference,
+    type ThemeTransparencyPreference
   } from './lib/theme';
   import { setLibraryEnabled, setTitlebarEnabled } from './lib/stores';
   import { LibraryService } from "../bindings/github.com/willfish/forte";
@@ -21,6 +25,7 @@
 
   // Theme state
   let preference = $state<ThemePreference>(getPreference());
+  let transparencyPreference = $state<ThemeTransparencyPreference>(getTransparencyPreference());
   let appPreferences = $state({
     libraryEnabled: false,
     startLastStation: true,
@@ -32,9 +37,23 @@
     return onPreferenceChange((p) => { preference = p; });
   });
 
+  $effect(() => {
+    return onTransparencyPreferenceChange((p) => { transparencyPreference = p; });
+  });
+
   function handleChange(pref: ThemePreference) {
     setPreference(pref);
     preference = pref;
+  }
+
+  function handleTransparencyEnabledChange(enabled: boolean) {
+    setTransparencyPreference({ enabled });
+    transparencyPreference = getTransparencyPreference();
+  }
+
+  function handleOpacityChange(opacity: number) {
+    setTransparencyPreference({ opacity });
+    transparencyPreference = getTransparencyPreference();
   }
 
   async function loadAppPreferences() {
@@ -408,6 +427,38 @@
           {/each}
         </div>
       </div>
+
+      <div class="theme-control-group">
+        <h4>Transparency</h4>
+        <div class="preference-list">
+          <label class="preference-row">
+            <span>
+              <span class="option-label">Transparent theme</span>
+              <span class="option-desc">Let Forte's main surfaces show the desktop behind the window</span>
+            </span>
+            <input
+              type="checkbox"
+              checked={transparencyPreference.enabled}
+              onchange={(e) => handleTransparencyEnabledChange((e.target as HTMLInputElement).checked)}
+            />
+          </label>
+          <label class="opacity-row">
+            <span>
+              <span class="option-label">Theme opacity</span>
+              <span class="option-desc">{transparencyPreference.opacity.toFixed(2)}</span>
+            </span>
+            <input
+              type="range"
+              min="0.2"
+              max="1"
+              step="0.05"
+              value={transparencyPreference.opacity}
+              disabled={!transparencyPreference.enabled}
+              oninput={(e) => handleOpacityChange(Number((e.target as HTMLInputElement).value))}
+            />
+          </label>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -770,6 +821,31 @@
   .preference-row input {
     flex-shrink: 0;
     accent-color: var(--accent);
+  }
+
+  .opacity-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(10rem, 14rem);
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  .opacity-row > span {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .opacity-row input {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+
+  .opacity-row input:disabled {
+    opacity: 0.45;
   }
 
   .option-content {

@@ -1,11 +1,59 @@
 version: '3'
 
+vars:
+  WAILS_VERSION: v3.0.0-alpha.95
+  WAILS_BIN: '{{.ROOT_DIR}}/.go/bin/wails3'
+
 tasks:
+  ensure:wails3:
+    summary: Installs the pinned Wails 3 CLI for local build tasks
+    internal: true
+    preconditions:
+      - sh: go version
+        msg: "Go is required to install wails3. Install Go 1.25+ or enter `nix develop`."
+    cmds:
+      - |
+        if [ -x '{{.WAILS_BIN}}' ] && [ "$('{{.WAILS_BIN}}' version)" = '{{.WAILS_VERSION}}' ]; then
+          exit 0
+        fi
+        mkdir -p '{{.ROOT_DIR}}/.go/bin'
+        GOBIN='{{.ROOT_DIR}}/.go/bin' go install github.com/wailsapp/wails/v3/cmd/wails3@{{.WAILS_VERSION}}
+
   go:mod:tidy:
     summary: Runs `go mod tidy`
     internal: true
     cmds:
       - go mod tidy
+
+  patch:wails:
+    summary: Applies Forte's local Wails patches to the module cache
+    internal: true
+    cmds:
+      - |
+        lock_dir='{{.ROOT_DIR}}/.go/wails-patch.lock'
+        mkdir -p "$(dirname "$lock_dir")"
+        while ! mkdir "$lock_dir" 2>/dev/null; do
+          sleep 0.2
+        done
+        trap 'rmdir "$lock_dir"' EXIT
+
+        module_dir="$(go env GOMODCACHE)/github.com/wailsapp/wails/v3@{{.WAILS_VERSION}}"
+        test -d "$module_dir"
+        chmod -R u+w "$module_dir"
+
+        for patch_file in \
+          '{{.ROOT_DIR}}/patches/wails-status-notifier-icon-name.patch' \
+          '{{.ROOT_DIR}}/patches/wails-gtk4-transparent-window.patch'
+        do
+          if patch -p1 -d "$module_dir" --forward --dry-run < "$patch_file" >/dev/null 2>&1; then
+            patch -p1 -d "$module_dir" < "$patch_file"
+          elif patch -p1 -d "$module_dir" --reverse --dry-run < "$patch_file" >/dev/null 2>&1; then
+            :
+          else
+            echo "Failed to apply or verify Wails patch: $patch_file" >&2
+            exit 1
+          fi
+        done
 
   install:frontend:deps:
     summary: Install frontend dependencies
@@ -48,6 +96,8 @@ tasks:
     summary: Generates bindings for the frontend
     deps:
       - task: go:mod:tidy
+      - task: patch:wails
+      - task: ensure:wails3
     sources:
       - "**/*.[jt]s"
       - exclude: frontend/**/*
@@ -58,7 +108,7 @@ tasks:
     generates:
       - frontend/bindings/**/*
     cmds:
-      - wails3 generate bindings -f '{{.BUILD_FLAGS}}' -clean=true -ts
+      - '{{.WAILS_BIN}} generate bindings -f ''{{.BUILD_FLAGS}}'' -clean=true -ts'
 
   dev:frontend:
     summary: Runs the frontend in development mode
@@ -71,5 +121,7 @@ tasks:
   update:build-assets:
     summary: Updates the build assets
     dir: build
+    deps:
+      - task: ensure:wails3
     cmds:
-      - wails3 update build-assets -name "{{.APP_NAME}}" -binaryname "{{.APP_NAME}}" -config config.yml -dir .
+      - '{{.WAILS_BIN}} update build-assets -name "{{.APP_NAME}}" -binaryname "{{.APP_NAME}}" -config config.yml -dir .'

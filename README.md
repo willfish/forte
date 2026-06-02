@@ -69,7 +69,9 @@ Without Nix, install:
 - mpv
 - pkg-config
 - [go-task](https://taskfile.dev)
-- Wails 3: `go install github.com/wailsapp/wails/v3/cmd/wails3@latest`
+
+The build tasks install the pinned Wails 3 CLI into the repo-local `.go/bin`
+directory when needed.
 
 Then build:
 

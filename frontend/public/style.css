@@ -33,6 +33,9 @@
     --radius-lg:   6px;
     --radius-xl:   8px;
     --radius-full: 50%;
+
+    --theme-opacity: 1;
+    --theme-surface-opacity: 100%;
 }
 
 /* --- Colour tokens: green dark theme (default) --- */
@@ -184,7 +187,7 @@ body {
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-size: var(--text-base);
-    background: var(--bg-main);
+    background: transparent;
     color: var(--text-primary);
     overflow: hidden;
 }
@@ -198,6 +201,7 @@ body {
     display: flex;
     flex-direction: column;
     height: 100vh;
+    background: transparent;
 }
 
 .top {
@@ -209,7 +213,7 @@ body {
 .sidebar-wrap {
     width: 200px;
     flex-shrink: 0;
-    background: var(--bg-sidebar);
+    background: color-mix(in srgb, var(--bg-sidebar) var(--theme-surface-opacity), transparent);
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
@@ -222,6 +226,7 @@ body {
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    background: color-mix(in srgb, var(--bg-main) var(--theme-surface-opacity), transparent);
 }
 
 /* View transition animation applied to content views */
