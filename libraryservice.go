@@ -25,6 +25,7 @@ import (
 	"github.com/willfish/forte/internal/scrobbling/listenbrainz"
 	"github.com/willfish/forte/internal/streaming/jellyfin"
 	"github.com/willfish/forte/internal/streaming/subsonic"
+	"github.com/willfish/forte/internal/userconfig"
 )
 
 // LibraryService exposes the music library to the frontend.
@@ -54,6 +55,10 @@ func (s *LibraryService) ServiceStartup(_ context.Context, _ application.Service
 		return fmt.Errorf("library startup: %w", err)
 	}
 	s.db = db
+
+	if _, err := userconfig.ImportDefaultIfPresent(db); err != nil {
+		log.Printf("user config import: %v", err)
+	}
 
 	prefs, err := db.GetAppPreferences()
 	if err != nil {

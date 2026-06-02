@@ -78,7 +78,8 @@ func (db *DB) AddRadioFavourite(f RadioFavourite) error {
 			country = CASE WHEN excluded.country != '' THEN excluded.country ELSE radio_favourites.country END,
 			codec = CASE WHEN excluded.codec != '' THEN excluded.codec ELSE radio_favourites.codec END,
 			bitrate = CASE WHEN excluded.bitrate > 0 THEN excluded.bitrate ELSE radio_favourites.bitrate END,
-			tags = excluded.tags`,
+			tags = excluded.tags,
+			pinned = excluded.pinned`,
 		f.StationUUID, f.Name, f.StreamURL, f.FaviconURL, f.Homepage, f.Country, f.Codec, f.Bitrate, f.Tags, boolToInt(f.Pinned),
 	)
 	if err != nil {

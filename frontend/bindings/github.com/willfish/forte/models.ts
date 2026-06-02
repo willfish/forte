@@ -949,8 +949,57 @@ export class StatEntryJSON {
     }
 }
 
+/**
+ * UserConfigImportResultJSON reports the outcome of a config import.
+ */
+export class UserConfigImportResultJSON {
+    "path": string;
+    "sectionsApplied": string[];
+    "sectionsSkipped": string[];
+    "warnings": string[];
+
+    /** Creates a new UserConfigImportResultJSON instance. */
+    constructor($$source: Partial<UserConfigImportResultJSON> = {}) {
+        if (!("path" in $$source)) {
+            this["path"] = "";
+        }
+        if (!("sectionsApplied" in $$source)) {
+            this["sectionsApplied"] = [];
+        }
+        if (!("sectionsSkipped" in $$source)) {
+            this["sectionsSkipped"] = [];
+        }
+        if (!("warnings" in $$source)) {
+            this["warnings"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new UserConfigImportResultJSON instance from a string or object.
+     */
+    static createFrom($$source: any = {}): UserConfigImportResultJSON {
+        const $$createField1_0 = $$createType4;
+        const $$createField2_0 = $$createType4;
+        const $$createField3_0 = $$createType4;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("sectionsApplied" in $$parsedSource) {
+            $$parsedSource["sectionsApplied"] = $$createField1_0($$parsedSource["sectionsApplied"]);
+        }
+        if ("sectionsSkipped" in $$parsedSource) {
+            $$parsedSource["sectionsSkipped"] = $$createField2_0($$parsedSource["sectionsSkipped"]);
+        }
+        if ("warnings" in $$parsedSource) {
+            $$parsedSource["warnings"] = $$createField3_0($$parsedSource["warnings"]);
+        }
+        return new UserConfigImportResultJSON($$parsedSource as Partial<UserConfigImportResultJSON>);
+    }
+}
+
 // Private type creation functions
 const $$createType0 = SimilarArtistJSON.createFrom;
 const $$createType1 = $Create.Array($$createType0);
 const $$createType2 = Album.createFrom;
 const $$createType3 = $Create.Array($$createType2);
+const $$createType4 = $Create.Array($Create.Any);
