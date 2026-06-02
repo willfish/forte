@@ -30,18 +30,28 @@ tasks:
     internal: true
     cmds:
       - |
+        lock_dir='{{.ROOT_DIR}}/.go/wails-patch.lock'
+        mkdir -p "$(dirname "$lock_dir")"
+        while ! mkdir "$lock_dir" 2>/dev/null; do
+          sleep 0.2
+        done
+        trap 'rmdir "$lock_dir"' EXIT
+
         module_dir="$(go env GOMODCACHE)/github.com/wailsapp/wails/v3@{{.WAILS_VERSION}}"
         test -d "$module_dir"
+        chmod -R u+w "$module_dir"
 
         for patch_file in \
           '{{.ROOT_DIR}}/patches/wails-status-notifier-icon-name.patch' \
           '{{.ROOT_DIR}}/patches/wails-gtk4-transparent-window.patch'
         do
           if patch -p1 -d "$module_dir" --forward --dry-run < "$patch_file" >/dev/null 2>&1; then
-            chmod -R u+w "$module_dir"
             patch -p1 -d "$module_dir" < "$patch_file"
+          elif patch -p1 -d "$module_dir" --reverse --dry-run < "$patch_file" >/dev/null 2>&1; then
+            :
           else
-            patch -p1 -d "$module_dir" --reverse --dry-run < "$patch_file" >/dev/null 2>&1
+            echo "Failed to apply or verify Wails patch: $patch_file" >&2
+            exit 1
           fi
         done
 
