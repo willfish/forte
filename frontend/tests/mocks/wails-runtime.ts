@@ -227,9 +227,31 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   // GetRadioFavourites
   590575721: () => radioFavourites,
   // AddRadioFavourite
-  3744144887: (stationUuid: string, name: string, streamUrl: string, faviconUrl: string, homepage: string, tags: string) => {
+  3744144887: (
+    stationUuid: string,
+    name: string,
+    streamUrl: string,
+    faviconUrl: string,
+    homepage: string,
+    tags: string,
+    country = "",
+    codec = "",
+    bitrate = 0
+  ) => {
     if (!radioFavourites.some((f) => f.stationUuid === stationUuid)) {
-      radioFavourites.push({ stationUuid, name, streamUrl, faviconUrl, homepage, tags, addedAt: "2024-01-03 10:00:00", pinned: false });
+      radioFavourites.push({
+        stationUuid,
+        name,
+        streamUrl,
+        faviconUrl,
+        homepage,
+        tags,
+        country,
+        codec,
+        bitrate,
+        addedAt: "2024-01-03 10:00:00",
+        pinned: false,
+      });
     }
   },
   // GetRadioStationByUUID
@@ -254,15 +276,18 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   },
   // IsRadioFavourite
   329793224: (stationUuid: string) => radioFavourites.some((f) => f.stationUuid === stationUuid),
+  // GetRadioFavouritePinned
+  4094481906: (stationUuid: string) => radioFavourites.find((f) => f.stationUuid === stationUuid)?.pinned ?? false,
   // GetCustomRadioStations
   2495430549: () => customStations,
   // AddCustomRadioStation
-  3781401643: (name: string, streamUrl: string, faviconUrl: string, tags: string) => {
+  3781401643: (name: string, streamUrl: string, faviconUrl: string, homepage: string, tags: string) => {
     const station = {
       stationUuid: `custom-${customStations.length + 1}`,
       name,
       streamUrl,
       faviconUrl,
+      homepage: homepage || (streamUrl.includes("example.org") ? "https://example.org/" : ""),
       tags,
       createdAt: "2024-01-03 10:00:00",
     };
@@ -296,7 +321,17 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   // PlayRadio
   1236378929: () => undefined,
   // PlayRadioStation
-  3331506535: (stationUuid: string, name: string, streamUrl: string, artworkUrl: string, homepage: string, tags: string) => {
+  3331506535: (
+    stationUuid: string,
+    name: string,
+    streamUrl: string,
+    artworkUrl: string,
+    homepage: string,
+    tags: string,
+    _country = "",
+    _codec = "",
+    _bitrate = 0
+  ) => {
     if (globalThis.localStorage?.getItem("forte.failPlayRadioStation") === "true") {
       throw new Error("stream unavailable");
     }
@@ -304,7 +339,7 @@ const fixtures: Record<number, (...args: any[]) => any> = {
     playbackStatus = {
       ...playbackStatus,
       state: "playing",
-      title: name,
+      title: stationUuid === "st-jazz-fm" ? "Live at Ronnie Scott's" : name,
       artist: stationUuid === "somafm-missioncontrol" ? "SomaFM Mission Control (128k MP3)" : "Radio",
       album: "",
       mediaPath: streamUrl,

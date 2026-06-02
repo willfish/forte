@@ -408,6 +408,9 @@ export class RadioCustomStationJSON {
     "streamUrl": string;
     "faviconUrl": string;
     "homepage": string;
+    "country": string;
+    "codec": string;
+    "bitrate": number;
     "tags": string;
     "createdAt": string;
     "updatedAt": string;
@@ -428,6 +431,15 @@ export class RadioCustomStationJSON {
         }
         if (!("homepage" in $$source)) {
             this["homepage"] = "";
+        }
+        if (!("country" in $$source)) {
+            this["country"] = "";
+        }
+        if (!("codec" in $$source)) {
+            this["codec"] = "";
+        }
+        if (!("bitrate" in $$source)) {
+            this["bitrate"] = 0;
         }
         if (!("tags" in $$source)) {
             this["tags"] = "";
@@ -460,6 +472,9 @@ export class RadioFavouriteJSON {
     "streamUrl": string;
     "faviconUrl": string;
     "homepage": string;
+    "country": string;
+    "codec": string;
+    "bitrate": number;
     "tags": string;
     "addedAt": string;
     "pinned": boolean;
@@ -480,6 +495,15 @@ export class RadioFavouriteJSON {
         }
         if (!("homepage" in $$source)) {
             this["homepage"] = "";
+        }
+        if (!("country" in $$source)) {
+            this["country"] = "";
+        }
+        if (!("codec" in $$source)) {
+            this["codec"] = "";
+        }
+        if (!("bitrate" in $$source)) {
+            this["bitrate"] = 0;
         }
         if (!("tags" in $$source)) {
             this["tags"] = "";
@@ -512,6 +536,9 @@ export class RadioHistoryJSON {
     "streamUrl": string;
     "faviconUrl": string;
     "homepage": string;
+    "country": string;
+    "codec": string;
+    "bitrate": number;
     "tags": string;
     "trackTitle": string;
     "playCount": number;
@@ -534,6 +561,15 @@ export class RadioHistoryJSON {
         }
         if (!("homepage" in $$source)) {
             this["homepage"] = "";
+        }
+        if (!("country" in $$source)) {
+            this["country"] = "";
+        }
+        if (!("codec" in $$source)) {
+            this["codec"] = "";
+        }
+        if (!("bitrate" in $$source)) {
+            this["bitrate"] = 0;
         }
         if (!("tags" in $$source)) {
             this["tags"] = "";

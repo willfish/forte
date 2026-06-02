@@ -1,173 +1,144 @@
 <script lang="ts">
-  import { LibraryService, PlayerService } from "../bindings/github.com/willfish/forte";
-  import { refreshPlaybackStatus, onPlaybackStatusChange } from './lib/playback';
+  import { onMount } from 'svelte';
+  import { LibraryService, PlayerService } from '../bindings/github.com/willfish/forte';
+  import { RadioStationJSON } from '../bindings/github.com/willfish/forte/models';
+  import { onPlaybackStatusChange } from './lib/playback';
+  import type { PlaybackStatus } from './lib/types';
   import type { RadioStationHint } from './lib/stores';
-  import { browseRadioTag } from './lib/stores';
 
-  type StationDetail = {
-    uuid: string;
-    name: string;
-    streamUrl: string;
-    homepage: string;
-    favicon: string;
-    country: string;
-    tags: string;
-    bitrate: number;
-    codec: string;
-    votes: number;
-    clicks: number;
-  };
-
-  const {
-    stationUuid,
-    hint = null,
-    onback,
-  }: {
+  type Props = {
     stationUuid: string;
     hint?: RadioStationHint | null;
     onback: () => void;
-  } = $props();
+  };
 
-  let station = $state<StationDetail | null>(null);
+  let { stationUuid, hint = null, onback }: Props = $props();
+
+  let station = $state<RadioStationJSON | null>(null);
   let loading = $state(true);
   let error = $state('');
-  let favourite = $state(false);
-  let proxiedIcon = $state('');
-  let linkMessage = $state('');
-  let playbackState = $state('stopped');
+  let isFavourite = $state(false);
+  let isPinned = $state(false);
+  let playbackState = $state<'stopped' | 'playing' | 'paused'>('stopped');
   let currentStationUuid = $state('');
-  let radioMode = $state(false);
+  let playbackTitle = $state('');
+  let actionError = $state('');
 
-  $effect(() => {
-    return onPlaybackStatusChange(status => {
-      radioMode = status.radioMode;
-      currentStationUuid = status.radioUuid;
+  onMount(() => {
+    void loadStation();
+    return onPlaybackStatusChange((status: PlaybackStatus) => {
       playbackState = status.state;
+      currentStationUuid = status.radioUuid;
+      playbackTitle = status.title;
     });
   });
 
-  $effect(() => {
-    void loadStation(stationUuid, hint);
-  });
-
-  async function loadStation(uuid: string, initial: RadioStationHint | null) {
+  async function loadStation() {
     loading = true;
     error = '';
-    linkMessage = '';
-    if (initial) {
-      station = hintToDetail(initial);
-    }
-
+    actionError = '';
     try {
-      const result = await LibraryService.GetRadioStationByUUID(uuid);
-      if (result) {
-        station = {
-          uuid: result.uuid,
-          name: result.name,
-          streamUrl: result.streamUrl,
-          homepage: result.homepage || '',
-          favicon: result.favicon || '',
-          country: result.country || '',
-          tags: result.tags || '',
-          bitrate: result.bitrate || 0,
-          codec: result.codec || '',
-          votes: result.votes || 0,
-          clicks: result.clicks || 0,
-        };
-        favourite = await LibraryService.IsRadioFavourite(uuid);
-        if (station.favicon) {
-          try {
-            proxiedIcon = await LibraryService.ProxyImageURL(station.favicon);
-          } catch {
-            proxiedIcon = '';
-          }
-        } else {
-          proxiedIcon = '';
-        }
+      station = await LibraryService.GetRadioStationByUUID(stationUuid);
+      isFavourite = await LibraryService.IsRadioFavourite(stationUuid);
+      if (isFavourite) {
+        isPinned = await LibraryService.GetRadioFavouritePinned(stationUuid);
+      } else {
+        isPinned = false;
       }
     } catch (err) {
-      if (!station) {
-        error = err instanceof Error ? err.message : String(err);
+      if (hint?.name) {
+        station = RadioStationJSON.createFrom({
+          uuid: stationUuid,
+          name: hint.name,
+          streamUrl: hint.streamUrl ?? '',
+          favicon: hint.favicon ?? '',
+          homepage: hint.homepage ?? '',
+          country: hint.country ?? '',
+          tags: hint.tags ?? '',
+          codec: hint.codec ?? '',
+          bitrate: hint.bitrate ?? 0,
+        });
+        isFavourite = await LibraryService.IsRadioFavourite(stationUuid).catch(() => false);
+        if (isFavourite) {
+          isPinned = await LibraryService.GetRadioFavouritePinned(stationUuid).catch(() => false);
+        }
+        error = '';
+      } else {
+        station = null;
+        error = err instanceof Error ? err.message : 'Could not load station details.';
       }
     } finally {
       loading = false;
     }
   }
 
-  function hintToDetail(initial: RadioStationHint): StationDetail {
-    return {
-      uuid: initial.uuid,
-      name: initial.name || 'Radio station',
-      streamUrl: initial.streamUrl || '',
-      homepage: initial.homepage || '',
-      favicon: initial.favicon || '',
-      country: initial.country || '',
-      tags: initial.tags || '',
-      bitrate: initial.bitrate || 0,
-      codec: initial.codec || '',
-      votes: 0,
-      clicks: 0,
-    };
+  function isThisStationPlaying(): boolean {
+    return playbackState === 'playing' && currentStationUuid === stationUuid;
   }
 
-  function formatTags(tags: string): string[] {
-    if (!tags) return [];
-    return tags.split(',').map(t => t.trim()).filter(Boolean);
+  function isThisStationPaused(): boolean {
+    return playbackState === 'paused' && currentStationUuid === stationUuid;
   }
 
-  function stationInitials(name: string): string {
-    const cleaned = name.replace(/\([^)]*\)/g, ' ').replace(/[^a-zA-Z0-9]+/g, ' ').trim();
-    if (!cleaned) return 'R';
-    const words = cleaned.split(/\s+/).filter(word => !/^\d+$/.test(word));
-    const source = words.length > 0 ? words : cleaned.split(/\s+/);
-    if (source.length === 1) return source[0].slice(0, 2).toUpperCase();
-    return `${source[0][0]}${source[1][0]}`.toUpperCase();
+  function isThisStationActive(): boolean {
+    return currentStationUuid === stationUuid && playbackState !== 'stopped';
   }
 
-  function isCurrentStation(): boolean {
-    return radioMode && currentStationUuid === stationUuid;
+  function nowPlayingTrack(): string {
+    if (!isThisStationActive() || !playbackTitle) {
+      return '';
+    }
+    const name = station?.name ?? '';
+    if (playbackTitle === name) {
+      return '';
+    }
+    return playbackTitle;
   }
 
-  function isPlaying(): boolean {
-    return isCurrentStation() && playbackState === 'playing';
-  }
-
-  function isPaused(): boolean {
-    return isCurrentStation() && playbackState === 'paused';
+  function playLabel(): string {
+    if (isThisStationPlaying()) return 'Pause';
+    if (isThisStationPaused()) return 'Resume';
+    return 'Play';
   }
 
   async function togglePlay() {
     if (!station) return;
+    actionError = '';
     try {
-      if (isCurrentStation()) {
+      if (isThisStationActive()) {
         if (playbackState === 'playing') {
           await PlayerService.Pause();
-        } else if (playbackState === 'paused') {
+        } else {
           await PlayerService.Resume();
         }
-      } else {
-        const art = station.favicon ? await LibraryService.ProxyImageURL(station.favicon) : '';
-        await PlayerService.PlayRadioStation(
-          station.uuid,
-          station.name,
-          station.streamUrl,
-          art,
-          station.homepage,
-          station.tags
-        );
+        return;
       }
-      await refreshPlaybackStatus();
+
+      const art = station.favicon ? await LibraryService.ProxyImageURL(station.favicon) : '';
+      await PlayerService.PlayRadioStation(
+        station.uuid,
+        station.name,
+        station.streamUrl,
+        art,
+        station.homepage,
+        station.tags,
+        station.country,
+        station.codec,
+        station.bitrate
+      );
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      actionError = err instanceof Error ? err.message : 'Could not change playback.';
     }
   }
 
   async function toggleFavourite() {
     if (!station) return;
+    actionError = '';
     try {
-      if (favourite) {
+      if (isFavourite) {
         await LibraryService.RemoveRadioFavourite(station.uuid);
-        favourite = false;
+        isFavourite = false;
+        isPinned = false;
       } else {
         await LibraryService.AddRadioFavourite(
           station.uuid,
@@ -175,124 +146,138 @@
           station.streamUrl,
           station.favicon,
           station.homepage,
-          station.tags
+          station.tags,
+          station.country,
+          station.codec,
+          station.bitrate
         );
-        favourite = true;
+        isFavourite = true;
+        isPinned = false;
       }
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      actionError = err instanceof Error ? err.message : 'Could not update favourite.';
     }
   }
 
-  async function openLink(url: string) {
+  async function togglePin() {
+    if (!station || !isFavourite) return;
+    actionError = '';
+    try {
+      const next = !isPinned;
+      await LibraryService.SetRadioFavouritePinned(station.uuid, next);
+      isPinned = next;
+    } catch (err) {
+      actionError = err instanceof Error ? err.message : 'Could not update pin.';
+    }
+  }
+
+  async function openExternalURL(url: string) {
     if (!url) return;
     try {
       await LibraryService.OpenURL(url);
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      actionError = err instanceof Error ? err.message : 'Could not open link.';
     }
   }
 
-  async function copyLink(url: string, label: string) {
-    if (!url) return;
+  function handleExternalLink(event: MouseEvent, url: string) {
+    event.preventDefault();
+    void openExternalURL(url);
+  }
+
+  async function copyToClipboard(value: string, label: string) {
+    if (!value) return;
     try {
-      await navigator.clipboard.writeText(url);
-      linkMessage = `${label} copied`;
-      setTimeout(() => { linkMessage = ''; }, 2000);
+      await navigator.clipboard.writeText(value);
     } catch {
-      linkMessage = 'Could not copy link';
+      actionError = `Could not copy ${label}.`;
     }
   }
 </script>
 
 <div class="station-view">
-  <button class="back-btn" type="button" onclick={onback}>
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-      <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-    </svg>
-    Radio
-  </button>
+  <div class="station-toolbar">
+    <button type="button" class="back-btn" onclick={onback}>Radio</button>
+  </div>
 
-  {#if loading && !station}
-    <div class="loading" role="status">Loading station...</div>
-  {:else if error && !station}
-    <div class="error-state" role="alert">{error}</div>
+  {#if loading}
+    <p class="status">Loading station…</p>
+  {:else if error}
+    <p class="status error" role="alert">{error}</p>
   {:else if station}
-    {@const detail = station}
-    <div class="station-header">
-      {#if proxiedIcon}
-        <img class="station-art" src={proxiedIcon} alt="" />
+    {@const s = station}
+    <header class="station-header">
+      {#if s.favicon}
+        <img class="station-art" src={s.favicon} alt="" />
       {:else}
-        <div class="station-art placeholder">
-          <span>{stationInitials(station.name)}</span>
-        </div>
+        <div class="station-art placeholder" aria-hidden="true">📻</div>
       {/if}
       <div class="station-meta">
-        <h1>{station.name}</h1>
-        <div class="badges">
-          {#if isPlaying()}<span class="badge playing">Playing</span>{/if}
-          {#if isPaused()}<span class="badge">Paused</span>{/if}
-          {#if station.country}<span>{station.country}</span>{/if}
-          {#if station.codec}
-            <span>{station.codec}{#if station.bitrate} · {station.bitrate} kbps{/if}</span>
-          {/if}
-        </div>
-        {#if formatTags(station.tags).length > 0}
-          <div class="tags">
-            {#each formatTags(station.tags) as tag}
-              <button class="tag" type="button" onclick={() => browseRadioTag(tag)}>{tag}</button>
-            {/each}
-          </div>
+        <h1>{s.name}</h1>
+        {#if s.country}
+          <p class="country">{s.country}</p>
+        {/if}
+        {#if s.codec || s.bitrate}
+          <p class="technical">{s.codec}{#if s.codec && s.bitrate} · {/if}{#if s.bitrate}{s.bitrate} kbps{/if}</p>
+        {/if}
+        {#if s.tags}
+          <p class="tags">{s.tags}</p>
+        {/if}
+        {#if nowPlayingTrack()}
+          <p class="now-playing-track" aria-live="polite">Now playing: {nowPlayingTrack()}</p>
         {/if}
       </div>
-    </div>
+    </header>
 
-    <div class="actions">
-      <button class="primary-btn" type="button" onclick={togglePlay}>
-        {isPlaying() ? 'Pause' : isPaused() ? 'Resume' : 'Play'}
+    <div class="station-actions">
+      <button type="button" class="primary" onclick={togglePlay}>{playLabel()}</button>
+      <button type="button" class="secondary" onclick={toggleFavourite}>
+        {isFavourite ? 'Remove favourite' : 'Add favourite'}
       </button>
-      <button class="secondary-btn" class:active={favourite} type="button" onclick={toggleFavourite}>
-        {favourite ? 'Remove favourite' : 'Add favourite'}
-      </button>
+      {#if isFavourite}
+        <button type="button" class="secondary" onclick={togglePin}>
+          {isPinned ? 'Unpin' : 'Pin'}
+        </button>
+      {/if}
     </div>
 
     <section class="links">
       <h2>Links</h2>
-      {#if linkMessage}
-        <p class="link-message" role="status">{linkMessage}</p>
-      {/if}
-      {#if detail.homepage}
+      {#if s.homepage}
         <div class="link-row">
-          <span class="link-label">Website</span>
-          <a class="link-url" href={detail.homepage} onclick={(e) => { e.preventDefault(); void openLink(detail.homepage); }}>
-            {detail.homepage}
-          </a>
-          <button class="link-action" type="button" onclick={() => copyLink(detail.homepage, 'Website')}>Copy</button>
+          <span class="label">Website</span>
+          <a
+            class="url"
+            href={s.homepage}
+            rel="noopener noreferrer"
+            target="_blank"
+            onclick={(e) => handleExternalLink(e, s.homepage)}
+          >{s.homepage}</a>
+          <button type="button" class="ghost" onclick={() => openExternalURL(s.homepage)}>Open</button>
+          <button type="button" class="ghost" onclick={() => copyToClipboard(s.homepage, 'website URL')}>Copy</button>
         </div>
+      {:else}
+        <p class="muted">No website listed for this station.</p>
       {/if}
-      {#if detail.streamUrl}
+
+      {#if s.streamUrl}
         <div class="link-row">
-          <span class="link-label">Stream</span>
-          <span class="link-url mono">{detail.streamUrl}</span>
-          <button class="link-action" type="button" onclick={() => copyLink(detail.streamUrl, 'Stream URL')}>Copy</button>
+          <span class="label">Stream URL</span>
+          <a
+            class="url"
+            href={s.streamUrl}
+            rel="noopener noreferrer"
+            target="_blank"
+            onclick={(e) => handleExternalLink(e, s.streamUrl)}
+          >{s.streamUrl}</a>
+          <button type="button" class="ghost" onclick={() => openExternalURL(s.streamUrl)}>Open</button>
+          <button type="button" class="ghost" onclick={() => copyToClipboard(s.streamUrl, 'stream URL')}>Copy</button>
         </div>
-      {/if}
-      {#if !detail.homepage && !detail.streamUrl}
-        <p class="empty-links">No links available for this station.</p>
       {/if}
     </section>
 
-    <section class="details">
-      <h2>Details</h2>
-      <dl>
-        <div><dt>Station ID</dt><dd class="mono">{station.uuid}</dd></div>
-        {#if station.votes > 0}<div><dt>Votes</dt><dd>{station.votes}</dd></div>{/if}
-        {#if station.clicks > 0}<div><dt>Clicks</dt><dd>{station.clicks}</dd></div>{/if}
-      </dl>
-    </section>
-
-    {#if error}
-      <div class="error-state" role="alert">{error}</div>
+    {#if actionError}
+      <p class="status error" role="alert">{actionError}</p>
     {/if}
   {/if}
 </div>
@@ -301,245 +286,123 @@
   .station-view {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
-    animation: view-enter 0.2s ease-out;
+    gap: 1rem;
+    min-height: 0;
+  }
+
+  .station-toolbar {
+    display: flex;
+    align-items: center;
   }
 
   .back-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
     border: none;
     background: transparent;
-    color: var(--text-secondary);
+    color: var(--accent);
     cursor: pointer;
+    font: inherit;
     padding: 0;
-    font-size: 0.9rem;
-  }
-
-  .back-btn:hover {
-    color: var(--text-primary);
-  }
-
-  .loading,
-  .error-state,
-  .empty-links {
-    color: var(--text-secondary);
-    font-size: 0.9rem;
-  }
-
-  .error-state {
-    color: var(--error);
   }
 
   .station-header {
     display: flex;
-    gap: 1.25rem;
+    gap: 1rem;
     align-items: flex-start;
   }
 
   .station-art {
-    width: 120px;
-    height: 120px;
-    border-radius: 8px;
+    width: 96px;
+    height: 96px;
+    border-radius: 12px;
     object-fit: cover;
     flex-shrink: 0;
   }
 
   .station-art.placeholder {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, var(--bg-elevated)) 0%, var(--bg-hover) 100%);
-    color: var(--accent);
-    border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
-    font-size: 1.4rem;
-    font-weight: 700;
+    display: grid;
+    place-items: center;
+    background: var(--surface-2);
+    font-size: 2rem;
   }
 
-  .station-meta {
-    min-width: 0;
-    flex: 1;
-  }
-
-  h1 {
-    margin: 0;
+  .station-meta h1 {
+    margin: 0 0 0.35rem;
     font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--text-primary);
   }
 
-  h2 {
-    margin: 0 0 0.6rem;
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--text-primary);
+  .country,
+  .technical,
+  .tags,
+  .now-playing-track {
+    margin: 0.15rem 0;
+    color: var(--text-muted);
   }
 
-  .badges {
+  .now-playing-track {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .station-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-    margin-top: 0.4rem;
-    font-size: 0.85rem;
-    color: var(--text-secondary);
   }
 
-  .badge.playing {
-    color: var(--accent);
-    font-weight: 600;
-  }
-
-  .tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-    margin-top: 0.6rem;
-  }
-
-  .tag {
-    font-size: 0.75rem;
-    padding: 0.15rem 0.45rem;
-    border-radius: 3px;
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-    border: none;
-    cursor: pointer;
-  }
-
-  .tag:hover {
-    color: var(--text-primary);
-    background: var(--bg-elevated, var(--bg-hover));
-  }
-
-  .actions {
-    display: flex;
-    gap: 0.6rem;
-    flex-wrap: wrap;
-  }
-
-  .primary-btn,
-  .secondary-btn,
-  .link-action {
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    padding: 0.45rem 0.8rem;
-  }
-
-  .primary-btn {
-    border: none;
-    background: var(--accent);
-    color: white;
-  }
-
-  .secondary-btn {
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--text-secondary);
-  }
-
-  .secondary-btn.active,
-  .secondary-btn:hover {
-    color: var(--text-primary);
-    background: var(--bg-hover);
-  }
-
-  .secondary-btn.active {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-
-  .links,
-  .details {
-    border: 1px solid var(--border);
+  .primary,
+  .secondary,
+  .ghost {
     border-radius: 8px;
-    padding: 0.9rem 1rem;
+    padding: 0.45rem 0.75rem;
+    font: inherit;
+    cursor: pointer;
   }
 
-  .link-message {
+  .primary {
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: var(--accent-contrast, #fff);
+  }
+
+  .secondary,
+  .ghost {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  .links h2 {
     margin: 0 0 0.5rem;
-    font-size: 0.8rem;
-    color: var(--accent);
+    font-size: 1rem;
   }
 
   .link-row {
     display: grid;
-    grid-template-columns: 5.5rem minmax(0, 1fr) auto;
-    gap: 0.5rem 0.75rem;
-    align-items: center;
-    padding: 0.35rem 0;
-  }
-
-  .link-row + .link-row {
-    border-top: 1px solid var(--border);
-  }
-
-  .link-label {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-  }
-
-  .link-url {
-    min-width: 0;
-    font-size: 0.85rem;
-    color: var(--accent);
-    text-decoration: none;
-    word-break: break-all;
-  }
-
-  .link-url:hover {
-    text-decoration: underline;
-  }
-
-  .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 0.8rem;
-    word-break: break-all;
-  }
-
-  .link-action {
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--text-secondary);
-  }
-
-  .link-action:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-  }
-
-  dl {
-    margin: 0;
-    display: grid;
+    grid-template-columns: auto 1fr auto auto;
     gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.65rem;
   }
 
-  dl > div {
-    display: grid;
-    grid-template-columns: 6rem minmax(0, 1fr);
-    gap: 0.75rem;
-  }
-
-  dt {
-    margin: 0;
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-  }
-
-  dd {
-    margin: 0;
+  .label {
+    color: var(--text-muted);
     font-size: 0.85rem;
-    color: var(--text-primary);
   }
 
-  @media (max-width: 640px) {
-    .station-header {
-      flex-direction: column;
-    }
+  .url {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--accent);
+    font-size: 0.85rem;
+  }
 
-    .link-row {
-      grid-template-columns: 1fr;
-    }
+  .muted,
+  .status {
+    color: var(--text-muted);
+  }
+
+  .status.error {
+    color: var(--danger, #c0392b);
   }
 </style>

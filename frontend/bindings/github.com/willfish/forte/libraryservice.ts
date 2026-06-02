@@ -17,8 +17,8 @@ import * as $models from "./models.js";
 /**
  * AddCustomRadioStation saves a user-defined radio station.
  */
-export function AddCustomRadioStation(name: string, streamURL: string, faviconURL: string, tags: string): $CancellablePromise<$models.RadioCustomStationJSON> {
-    return $Call.ByID(3781401643, name, streamURL, faviconURL, tags).then(($result: any) => {
+export function AddCustomRadioStation(name: string, streamURL: string, faviconURL: string, homepage: string, tags: string): $CancellablePromise<$models.RadioCustomStationJSON> {
+    return $Call.ByID(3781401643, name, streamURL, faviconURL, homepage, tags).then(($result: any) => {
         return $$createType0($result);
     });
 }
@@ -26,8 +26,8 @@ export function AddCustomRadioStation(name: string, streamURL: string, faviconUR
 /**
  * AddRadioFavourite saves a radio station to favourites.
  */
-export function AddRadioFavourite(stationUUID: string, name: string, streamURL: string, faviconURL: string, homepage: string, tags: string): $CancellablePromise<void> {
-    return $Call.ByID(3744144887, stationUUID, name, streamURL, faviconURL, homepage, tags);
+export function AddRadioFavourite(stationUUID: string, name: string, streamURL: string, faviconURL: string, homepage: string, tags: string, country: string, codec: string, bitrate: number): $CancellablePromise<void> {
+    return $Call.ByID(3744144887, stationUUID, name, streamURL, faviconURL, homepage, tags, country, codec, bitrate);
 }
 
 /**
@@ -193,6 +193,13 @@ export function GetPlaylists(): $CancellablePromise<$models.Playlist[]> {
     return $Call.ByID(1524576557).then(($result: any) => {
         return $$createType12($result);
     });
+}
+
+/**
+ * GetRadioFavouritePinned reports whether a favourite station is pinned.
+ */
+export function GetRadioFavouritePinned(stationUUID: string): $CancellablePromise<boolean> {
+    return $Call.ByID(4094481906, stationUUID);
 }
 
 /**
