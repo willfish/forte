@@ -49,7 +49,7 @@ func (s *LibraryService) ExportUserConfigToPath(path string) error {
 	return userconfig.WriteFile(path, cfg)
 }
 
-// ImportUserConfig loads and applies the canonical config file.
+// ImportUserConfig loads and merges the canonical config file (same rules as startup).
 func (s *LibraryService) ImportUserConfig() (UserConfigImportResultJSON, error) {
 	if s.db == nil {
 		return UserConfigImportResultJSON{}, fmt.Errorf("library not initialised")
@@ -58,7 +58,15 @@ func (s *LibraryService) ImportUserConfig() (UserConfigImportResultJSON, error) 
 	if err != nil {
 		return UserConfigImportResultJSON{}, err
 	}
-	return s.ImportUserConfigFromPath(path)
+	result, err := userconfig.ImportFile(s.db, path, userconfig.MergeOptions)
+	if err != nil {
+		return importResultToJSON(result), err
+	}
+	jsonResult := importResultToJSON(result)
+	if err := s.applyImportedAppPreferences(); err != nil {
+		return jsonResult, err
+	}
+	return jsonResult, nil
 }
 
 // ImportUserConfigFromPath loads and applies a config file from path.
@@ -66,7 +74,8 @@ func (s *LibraryService) ImportUserConfigFromPath(path string) (UserConfigImport
 	if s.db == nil {
 		return UserConfigImportResultJSON{}, fmt.Errorf("library not initialised")
 	}
-	result, err := userconfig.ImportFile(s.db, path)
+	// Explicit file import: upsert so a chosen backup can restore metadata and pin state.
+	result, err := userconfig.ImportFile(s.db, path, userconfig.ReplaceOptions)
 	if err != nil {
 		return importResultToJSON(result), err
 	}

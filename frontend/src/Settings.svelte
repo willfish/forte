@@ -137,24 +137,39 @@
     loadUserConfigPath();
   });
 
-  async function exportUserConfig() {
+  async function saveUserConfigHome() {
     userConfigBusy = true;
     userConfigStatus = null;
     try {
-      const defaultPath = userConfigPath || await LibraryService.GetUserConfigPath();
+      const path = await LibraryService.ExportUserConfig();
+      userConfigPath = path;
+      userConfigStatus = {
+        ok: true,
+        message: `Saved to ${path}. Restart merges new stations from this file without overwriting favourites already in the database.`,
+      };
+    } catch (err) {
+      userConfigStatus = { ok: false, message: err instanceof Error ? err.message : 'Save failed' };
+    } finally {
+      userConfigBusy = false;
+    }
+  }
+
+  async function exportUserConfigCopy() {
+    userConfigBusy = true;
+    userConfigStatus = null;
+    try {
       const savePath = await Dialogs.SaveFile({
-        Title: 'Export Forte configuration',
+        Title: 'Export Forte configuration copy',
         Filename: 'config.toml',
         Filters: [{ DisplayName: 'TOML configuration', Pattern: '*.toml' }],
       });
-      const path = (typeof savePath === 'string' && savePath) ? savePath : defaultPath;
+      const path = typeof savePath === 'string' ? savePath : '';
       if (!path) {
         userConfigStatus = { ok: false, message: 'Export cancelled' };
         return;
       }
       await LibraryService.ExportUserConfigToPath(path);
-      userConfigPath = path;
-      userConfigStatus = { ok: true, message: `Exported to ${path}` };
+      userConfigStatus = { ok: true, message: `Exported copy to ${path}` };
     } catch (err) {
       userConfigStatus = { ok: false, message: err instanceof Error ? err.message : 'Export failed' };
     } finally {
@@ -633,18 +648,22 @@
   <section class="section">
     <h3>Configuration file</h3>
     <p class="section-desc">
-      Export favourites, custom stations, and app preferences to a portable TOML file.
-      On startup Forte imports <code>config.toml</code> from your config directory when present.
+      Save favourites, custom stations, and app preferences to <code>config.toml</code> in your config directory.
+      On startup Forte merges in stations from that file (adds missing UUIDs; does not overwrite favourites already in the database).
+      Use Import to apply a chosen file and overwrite matching stations.
     </p>
     {#if userConfigPath}
       <p class="config-path">Default path: <span>{userConfigPath}</span></p>
     {/if}
     <div class="config-actions">
-      <button class="btn-save" type="button" onclick={exportUserConfig} disabled={userConfigBusy}>
-        Export configuration
+      <button class="btn-save" type="button" onclick={saveUserConfigHome} disabled={userConfigBusy}>
+        Save to config directory
       </button>
-      <button class="btn-save" type="button" onclick={importUserConfig} disabled={userConfigBusy}>
-        Import configuration
+      <button class="btn-cancel" type="button" onclick={exportUserConfigCopy} disabled={userConfigBusy}>
+        Export copy…
+      </button>
+      <button class="btn-cancel" type="button" onclick={importUserConfig} disabled={userConfigBusy}>
+        Import from file…
       </button>
     </div>
     {#if userConfigStatus}

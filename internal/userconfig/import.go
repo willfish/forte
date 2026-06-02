@@ -12,10 +12,10 @@ import (
 // ApplyToDB imports supported sections from cfg into the library database.
 //
 // Merge rules (schema v1):
-//   - app: overwrites app_preferences.
-//   - radio.favourites: upserts by stationUuid; pinned state from file wins.
-//   - radio.customStations: upserts by stationUuid.
-func ApplyToDB(db *library.DB, cfg File) (ImportResult, error) {
+//   - app: always overwrites app_preferences.
+//   - radio: when opts.MergeRadio is true, inserts only new stationUuid values;
+//     when false, upserts by stationUuid (file wins for matches).
+func ApplyToDB(db *library.DB, cfg File, opts ApplyOptions) (ImportResult, error) {
 	if err := ValidateSchema(cfg); err != nil {
 		return ImportResult{}, err
 	}
@@ -28,7 +28,7 @@ func ApplyToDB(db *library.DB, cfg File) (ImportResult, error) {
 	result.SectionsApplied = append(result.SectionsApplied, "app")
 
 	if len(cfg.Radio.Favourites) > 0 || len(cfg.Radio.CustomStations) > 0 {
-		if err := importRadio(db, cfg.Radio); err != nil {
+		if err := importRadio(db, cfg.Radio, opts); err != nil {
 			return result, fmt.Errorf("import radio: %w", err)
 		}
 		result.SectionsApplied = append(result.SectionsApplied, "radio")
@@ -37,13 +37,13 @@ func ApplyToDB(db *library.DB, cfg File) (ImportResult, error) {
 	return result, nil
 }
 
-// ImportFile loads path and applies supported sections.
-func ImportFile(db *library.DB, path string) (ImportResult, error) {
+// ImportFile loads path and applies supported sections using opts.
+func ImportFile(db *library.DB, path string, opts ApplyOptions) (ImportResult, error) {
 	cfg, err := LoadFile(path)
 	if err != nil {
 		return ImportResult{}, err
 	}
-	result, err := ApplyToDB(db, cfg)
+	result, err := ApplyToDB(db, cfg, opts)
 	result.Path = path
 	return result, err
 }
@@ -61,7 +61,7 @@ func ImportDefaultIfPresent(db *library.DB) (ImportResult, error) {
 		}
 		return ImportResult{}, fmt.Errorf("stat config: %w", err)
 	}
-	result, err := ImportFile(db, path)
+	result, err := ImportFile(db, path, MergeOptions)
 	if err != nil {
 		logx.Logger().Warn("user config import failed", "path", path, "error", err)
 		return result, err
@@ -86,10 +86,30 @@ func importApp(db *library.DB, app AppSection) error {
 	})
 }
 
-func importRadio(db *library.DB, radio RadioSection) error {
+func importRadio(db *library.DB, radio RadioSection, opts ApplyOptions) error {
+	customExisting := map[string]struct{}{}
+	if opts.MergeRadio {
+		stations, err := db.GetCustomRadioStations()
+		if err != nil {
+			return err
+		}
+		for _, st := range stations {
+			customExisting[st.StationUUID] = struct{}{}
+		}
+	}
+
 	for _, fav := range radio.Favourites {
 		if strings.TrimSpace(fav.StationUUID) == "" || strings.TrimSpace(fav.StreamURL) == "" {
 			continue
+		}
+		if opts.MergeRadio {
+			exists, err := db.IsRadioFavourite(fav.StationUUID)
+			if err != nil {
+				return err
+			}
+			if exists {
+				continue
+			}
 		}
 		if err := db.AddRadioFavourite(library.RadioFavourite{
 			StationUUID: fav.StationUUID,
@@ -110,8 +130,17 @@ func importRadio(db *library.DB, radio RadioSection) error {
 		if strings.TrimSpace(st.StreamURL) == "" {
 			continue
 		}
+		uuid := st.StationUUID
+		if uuid == "" {
+			uuid = library.CustomRadioStationUUID(st.StreamURL)
+		}
+		if opts.MergeRadio {
+			if _, ok := customExisting[uuid]; ok {
+				continue
+			}
+		}
 		if _, err := db.AddCustomRadioStation(library.RadioCustomStation{
-			StationUUID: st.StationUUID,
+			StationUUID: uuid,
 			Name:        st.Name,
 			StreamURL:   st.StreamURL,
 			FaviconURL:  st.FaviconURL,

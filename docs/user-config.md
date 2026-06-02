@@ -15,18 +15,22 @@ Forte can export and import portable user settings as a sectioned TOML file.
 
 ### Sections (schema v1)
 
-| Section | TOML | Merge on import |
-|---------|------|-----------------|
-| App preferences | `[app]` | Overwrites `app_preferences` |
-| Radio favourites | `[[radio.favourites]]` | Upsert by `stationUuid`; `pinned` from file wins |
-| Custom stations | `[[radio.customStations]]` | Upsert by `stationUuid` |
+| Section | TOML | Startup import (`config.toml`) | Settings → Import from file |
+|---------|------|-------------------------------|----------------------------|
+| App preferences | `[app]` | Overwrites `app_preferences` | Overwrites `app_preferences` |
+| Radio favourites | `[[radio.favourites]]` | **Merge** — insert only new `stationUuid` | **Replace** — upsert; file wins |
+| Custom stations | `[[radio.customStations]]` | **Merge** — insert only new UUID | **Replace** — upsert; file wins |
+
+**Merge** means stations already in the database are left unchanged (pins, names, and metadata are not rolled back by an older export). **Replace** is for restoring from a backup you explicitly chose.
 
 Unknown top-level sections in a future file should be ignored (not implemented yet). Unsupported `schemaVersion` fails import with a clear error; startup logs the error and continues with existing DB state.
 
 ## Behaviour
 
-- **Startup:** if `config.toml` exists, Forte imports it before loading preferences.
-- **Settings:** Export / Import open a save/open dialog (TOML filter). Export writes the current DB state; Import applies the chosen file and refreshes app preferences in the UI.
+- **Startup:** if `config.toml` exists, Forte merges radio sections then loads preferences.
+- **Settings → Save to config directory:** writes `~/.config/forte/config.toml` (primary dotfiles workflow).
+- **Settings → Export copy:** save-as elsewhere (backups, sharing).
+- **Settings → Import from file:** upsert from the chosen path (restore / migrate).
 
 ## Adding a new section
 

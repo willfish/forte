@@ -62,7 +62,7 @@ func TestExportImportRoundTrip(t *testing.T) {
 	}
 
 	fresh := openTestDB(t)
-	if _, err := userconfig.ImportFile(fresh, path); err != nil {
+	if _, err := userconfig.ImportFile(fresh, path, userconfig.ReplaceOptions); err != nil {
 		t.Fatalf("ImportFile: %v", err)
 	}
 
@@ -88,6 +88,62 @@ func TestExportImportRoundTrip(t *testing.T) {
 	}
 	if len(custom) != 1 || custom[0].Name != "My Stream" {
 		t.Fatalf("custom stations mismatch: %#v", custom)
+	}
+}
+
+func TestMergeRadioPreservesExistingFavourites(t *testing.T) {
+	db := openTestDB(t)
+
+	if err := db.AddRadioFavourite(library.RadioFavourite{
+		StationUUID: "in-db",
+		Name:        "Live station",
+		StreamURL:   "https://stream.example/live",
+		Pinned:      true,
+	}); err != nil {
+		t.Fatalf("AddRadioFavourite: %v", err)
+	}
+
+	path := filepath.Join(t.TempDir(), "config.toml")
+	cfg := userconfig.File{
+		SchemaVersion: userconfig.SchemaVersion,
+		Radio: userconfig.RadioSection{
+			Favourites: []userconfig.FavouriteEntry{{
+				StationUUID: "from-file",
+				Name:        "File station",
+				StreamURL:   "https://stream.example/file",
+				Pinned:      false,
+			}, {
+				StationUUID: "in-db",
+				Name:        "Stale name",
+				StreamURL:   "https://stream.example/stale",
+				Pinned:      false,
+			}},
+		},
+	}
+	if err := userconfig.WriteFile(path, cfg); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	if _, err := userconfig.ImportFile(db, path, userconfig.MergeOptions); err != nil {
+		t.Fatalf("ImportFile merge: %v", err)
+	}
+
+	favs, err := db.GetRadioFavourites()
+	if err != nil {
+		t.Fatalf("GetRadioFavourites: %v", err)
+	}
+	if len(favs) != 2 {
+		t.Fatalf("want 2 favourites, got %#v", favs)
+	}
+	byUUID := map[string]library.RadioFavourite{}
+	for _, f := range favs {
+		byUUID[f.StationUUID] = f
+	}
+	if byUUID["in-db"].Name != "Live station" || !byUUID["in-db"].Pinned {
+		t.Fatalf("existing favourite was clobbered: %#v", byUUID["in-db"])
+	}
+	if byUUID["from-file"].Name != "File station" {
+		t.Fatalf("file favourite not added: %#v", byUUID["from-file"])
 	}
 }
 
