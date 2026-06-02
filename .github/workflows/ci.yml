@@ -73,7 +73,7 @@ jobs:
           npm ci
           npm run build
 
-      - uses: golangci/golangci-lint-action@v9.2.0
+      - uses: golangci/golangci-lint-action@v9.2.1
         with:
           version: "v2.10"
           args: --build-tags nocgo
