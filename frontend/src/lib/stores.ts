@@ -21,6 +21,22 @@ const _titlebarPreferenceListeners: Array<(enabled: boolean) => void> = [];
 let _radioTagFilter = '';
 const _radioTagFilterListeners: Array<(tag: string) => void> = [];
 
+export type RadioStationHint = {
+  uuid: string;
+  name?: string;
+  streamUrl?: string;
+  favicon?: string;
+  homepage?: string;
+  tags?: string;
+  country?: string;
+  bitrate?: number;
+  codec?: string;
+};
+
+let _radioStationDetail: string | null = null;
+let _radioStationHint: RadioStationHint | null = null;
+const _radioStationDetailListeners: Array<(uuid: string | null, hint: RadioStationHint | null) => void> = [];
+
 export function getCurrentView(): View {
   return _currentView;
 }
@@ -126,5 +142,40 @@ export function onRadioTagFilterChange(fn: (tag: string) => void): () => void {
   return () => {
     const idx = _radioTagFilterListeners.indexOf(fn);
     if (idx >= 0) _radioTagFilterListeners.splice(idx, 1);
+  };
+}
+
+export function getRadioStationDetail(): string | null {
+  return _radioStationDetail;
+}
+
+export function getRadioStationHint(): RadioStationHint | null {
+  return _radioStationHint;
+}
+
+export function openRadioStation(uuid: string, hint: Omit<RadioStationHint, 'uuid'> = {}) {
+  _radioStationDetail = uuid;
+  _radioStationHint = { uuid, ...hint };
+  setCurrentView('radio');
+  for (const fn of _radioStationDetailListeners) {
+    fn(uuid, _radioStationHint);
+  }
+}
+
+export function clearRadioStationDetail() {
+  _radioStationDetail = null;
+  _radioStationHint = null;
+  for (const fn of _radioStationDetailListeners) {
+    fn(null, null);
+  }
+}
+
+export function onRadioStationDetailChange(
+  fn: (uuid: string | null, hint: RadioStationHint | null) => void
+): () => void {
+  _radioStationDetailListeners.push(fn);
+  return () => {
+    const idx = _radioStationDetailListeners.indexOf(fn);
+    if (idx >= 0) _radioStationDetailListeners.splice(idx, 1);
   };
 }

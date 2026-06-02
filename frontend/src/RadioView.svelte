@@ -2,13 +2,23 @@
   import { tick } from 'svelte';
   import { LibraryService, PlayerService } from "../bindings/github.com/willfish/forte";
   import { onPlaybackStatusChange, refreshPlaybackStatus } from './lib/playback';
-  import { getRadioTagFilter, onRadioTagFilterChange } from './lib/stores';
+  import {
+    clearRadioStationDetail,
+    getRadioStationDetail,
+    getRadioStationHint,
+    onRadioStationDetailChange,
+    onRadioTagFilterChange,
+    getRadioTagFilter,
+    type RadioStationHint,
+  } from './lib/stores';
+  import RadioStationView from './RadioStationView.svelte';
   import type { PlaybackState } from './lib/types';
 
   type Station = {
     uuid: string;
     name: string;
     streamUrl: string;
+    homepage: string;
     favicon: string;
     country: string;
     tags: string;
@@ -23,6 +33,7 @@
     name: string;
     streamUrl: string;
     faviconUrl: string;
+    homepage: string;
     tags: string;
     addedAt: string;
     pinned: boolean;
@@ -42,6 +53,7 @@
     name: string;
     streamUrl: string;
     faviconUrl: string;
+    homepage: string;
     tags: string;
     lastTitle: string;
     lastError: string;
@@ -73,6 +85,8 @@
   let currentStationUuid = $state('');
   let playbackState = $state<PlaybackState>('stopped');
   let searchInputRef: HTMLInputElement | undefined = $state();
+  let selectedStationUuid = $state<string | null>(getRadioStationDetail());
+  let selectedStationHint = $state<RadioStationHint | null>(getRadioStationHint());
 
   // Active filters.
   let activeTags = $state<string[]>([]);
@@ -281,6 +295,7 @@
         name: f.name,
         streamUrl: f.streamUrl,
         faviconUrl: f.faviconUrl,
+        homepage: f.homepage || '',
         tags: f.tags,
         addedAt: f.addedAt,
         pinned: Boolean(f.pinned),
@@ -318,6 +333,7 @@
         name: h.name,
         streamUrl: h.streamUrl,
         faviconUrl: h.faviconUrl,
+        homepage: h.homepage || '',
         tags: h.tags,
         lastTitle: h.lastTitle,
         lastError: h.lastError,
@@ -335,6 +351,7 @@
       uuid: s.uuid,
       name: s.name,
       streamUrl: s.streamUrl,
+      homepage: s.homepage || '',
       favicon: s.favicon,
       country: s.country,
       tags: s.tags,
@@ -342,6 +359,42 @@
       codec: s.codec,
       votes: s.votes,
       clicks: s.clicks,
+    };
+  }
+
+  function stationHintFromStation(station: Station): RadioStationHint {
+    return {
+      uuid: station.uuid,
+      name: station.name,
+      streamUrl: station.streamUrl,
+      favicon: station.favicon,
+      homepage: station.homepage,
+      tags: station.tags,
+      country: station.country,
+      bitrate: station.bitrate,
+      codec: station.codec,
+    };
+  }
+
+  function stationHintFromFavourite(fav: Favourite): RadioStationHint {
+    return {
+      uuid: fav.stationUuid,
+      name: fav.name,
+      streamUrl: fav.streamUrl,
+      favicon: fav.faviconUrl,
+      homepage: fav.homepage,
+      tags: fav.tags,
+    };
+  }
+
+  function stationHintFromHistory(item: HistoryEntry): RadioStationHint {
+    return {
+      uuid: item.stationUuid,
+      name: item.name,
+      streamUrl: item.streamUrl,
+      favicon: item.faviconUrl,
+      homepage: item.homepage,
+      tags: item.tags,
     };
   }
 
@@ -469,7 +522,25 @@
     reloadBrowseStations();
   }
 
-  async function playStation(stationUuid: string, name: string, url: string, favicon: string, tags: string) {
+  function openStationDetail(hint: RadioStationHint) {
+    selectedStationUuid = hint.uuid;
+    selectedStationHint = hint;
+  }
+
+  function closeStationDetail() {
+    selectedStationUuid = null;
+    selectedStationHint = null;
+    clearRadioStationDetail();
+  }
+
+  async function playStation(
+    stationUuid: string,
+    name: string,
+    url: string,
+    favicon: string,
+    homepage: string,
+    tags: string
+  ) {
     try {
       clearRadioError();
       if (isCurrentStation(stationUuid)) {
@@ -484,7 +555,7 @@
 
       // Proxy artwork so the webview can display it.
       const art = favicon ? await LibraryService.ProxyImageURL(favicon) : '';
-      await PlayerService.PlayRadioStation(stationUuid, name, url, art, tags);
+      await PlayerService.PlayRadioStation(stationUuid, name, url, art, homepage, tags);
       await refreshPlaybackStatus();
       await loadHistory();
     } catch (err) {
@@ -498,6 +569,7 @@
     name: string,
     url: string,
     favicon: string,
+    homepage: string,
     tags: string
   ) {
     const target = event.target as HTMLElement;
@@ -505,7 +577,7 @@
     if (interactiveTarget && !interactiveTarget.classList.contains('station-main')) {
       return;
     }
-    await playStation(stationUuid, name, url, favicon, tags);
+    await playStation(stationUuid, name, url, favicon, homepage, tags);
   }
 
   async function handleStationKeydown(
@@ -514,6 +586,7 @@
     name: string,
     url: string,
     favicon: string,
+    homepage: string,
     tags: string
   ) {
     if (event.key !== 'Enter' && event.key !== ' ') {
@@ -525,7 +598,7 @@
       return;
     }
     event.preventDefault();
-    await playStation(stationUuid, name, url, favicon, tags);
+    await playStation(stationUuid, name, url, favicon, homepage, tags);
   }
 
   function handleGlobalKeydown(event: KeyboardEvent) {
@@ -570,7 +643,7 @@
     } else {
       try {
         await LibraryService.AddRadioFavourite(
-          station.uuid, station.name, station.streamUrl, station.favicon, station.tags
+          station.uuid, station.name, station.streamUrl, station.favicon, station.homepage, station.tags
         );
         favouriteUuids.add(station.uuid);
         favouriteUuids = new Set(favouriteUuids);
@@ -620,7 +693,7 @@
       customFaviconUrl = '';
       customTags = '';
       await loadCustomStations();
-      await playStation(saved.stationUuid, saved.name, saved.streamUrl, saved.faviconUrl, saved.tags);
+      await playStation(saved.stationUuid, saved.name, saved.streamUrl, saved.faviconUrl, saved.homepage || '', saved.tags);
     } catch (err: any) {
       customError = err?.message || String(err);
     } finally {
@@ -670,6 +743,13 @@
     }
     return onRadioTagFilterChange(addTagFilter);
   });
+
+  $effect(() => {
+    return onRadioStationDetailChange((uuid, hint) => {
+      selectedStationUuid = uuid;
+      selectedStationHint = hint;
+    });
+  });
 </script>
 
 <svelte:window onkeydown={handleGlobalKeydown} />
@@ -677,6 +757,13 @@
 <div class="radio-view">
   <h2>Radio</h2>
 
+  {#if selectedStationUuid}
+    <RadioStationView
+      stationUuid={selectedStationUuid}
+      hint={selectedStationHint}
+      onback={closeStationDetail}
+    />
+  {:else}
   <div class="tabs" role="tablist" aria-label="Radio sections">
     <button class="tab" class:active={tab === 'featured'} role="tab" aria-selected={tab === 'featured'} aria-controls="radio-panel-featured" id="radio-tab-featured" onclick={() => tab = 'featured'}>
       Browse
@@ -826,7 +913,7 @@
             aria-current={isCurrentStation(station.uuid) ? 'true' : undefined}
             class:playing={isCurrentStation(station.uuid)}
           >
-            <button class="station-play" class:playing={isCurrentStation(station.uuid)} onclick={() => playStation(station.uuid, station.name, station.streamUrl, station.favicon, station.tags)} aria-label={isPlayingStation(station.uuid) ? `Pause ${station.name}` : `Play ${station.name}`}>
+            <button class="station-play" class:playing={isCurrentStation(station.uuid)} onclick={() => playStation(station.uuid, station.name, station.streamUrl, station.favicon, station.homepage, station.tags)} aria-label={isPlayingStation(station.uuid) ? `Pause ${station.name}` : `Play ${station.name}`}>
               {#if isPlayingStation(station.uuid)}
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                   <path d="M6 19h4V5H6zm8-14v14h4V5z"/>
@@ -843,8 +930,8 @@
               class="station-main"
               aria-label={`Play or pause ${station.name}`}
               title="Double-click or press Enter to play or pause"
-              ondblclick={(event) => handleStationDoubleClick(event, station.uuid, station.name, station.streamUrl, station.favicon, station.tags)}
-              onkeydown={(event) => handleStationKeydown(event, station.uuid, station.name, station.streamUrl, station.favicon, station.tags)}
+              ondblclick={(event) => handleStationDoubleClick(event, station.uuid, station.name, station.streamUrl, station.favicon, station.homepage, station.tags)}
+              onkeydown={(event) => handleStationKeydown(event, station.uuid, station.name, station.streamUrl, station.favicon, station.homepage, station.tags)}
             >
             {#if resolvedIcon(station.favicon)}
               <img class="station-icon" src={resolvedIcon(station.favicon)} alt="" />
@@ -854,7 +941,7 @@
               </div>
             {/if}
             <div class="station-info">
-              <div class="station-name">{station.name}</div>
+              <button type="button" class="station-name" onclick={(event) => { event.stopPropagation(); openStationDetail(stationHintFromStation(station)); }}>{station.name}</button>
               <div class="station-meta">
                 {#if isPlayingStation(station.uuid)}<span class="playing-badge">Playing</span>{/if}
                 {#if isPausedStation(station.uuid)}<span class="playing-badge">Paused</span>{/if}
@@ -908,7 +995,7 @@
             aria-current={isCurrentStation(fav.stationUuid) ? 'true' : undefined}
             class:playing={isCurrentStation(fav.stationUuid)}
           >
-            <button class="station-play" class:playing={isCurrentStation(fav.stationUuid)} onclick={() => playStation(fav.stationUuid, fav.name, fav.streamUrl, fav.faviconUrl, fav.tags)} aria-label={isPlayingStation(fav.stationUuid) ? `Pause ${fav.name}` : `Play ${fav.name}`}>
+            <button class="station-play" class:playing={isCurrentStation(fav.stationUuid)} onclick={() => playStation(fav.stationUuid, fav.name, fav.streamUrl, fav.faviconUrl, fav.homepage, fav.tags)} aria-label={isPlayingStation(fav.stationUuid) ? `Pause ${fav.name}` : `Play ${fav.name}`}>
               {#if isPlayingStation(fav.stationUuid)}
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                   <path d="M6 19h4V5H6zm8-14v14h4V5z"/>
@@ -925,8 +1012,8 @@
               class="station-main"
               aria-label={`Play or pause ${fav.name}`}
               title="Double-click or press Enter to play or pause"
-              ondblclick={(event) => handleStationDoubleClick(event, fav.stationUuid, fav.name, fav.streamUrl, fav.faviconUrl, fav.tags)}
-              onkeydown={(event) => handleStationKeydown(event, fav.stationUuid, fav.name, fav.streamUrl, fav.faviconUrl, fav.tags)}
+              ondblclick={(event) => handleStationDoubleClick(event, fav.stationUuid, fav.name, fav.streamUrl, fav.faviconUrl, fav.homepage, fav.tags)}
+              onkeydown={(event) => handleStationKeydown(event, fav.stationUuid, fav.name, fav.streamUrl, fav.faviconUrl, fav.homepage, fav.tags)}
             >
             {#if resolvedIcon(fav.faviconUrl)}
               <img class="station-icon" src={resolvedIcon(fav.faviconUrl)} alt="" />
@@ -936,7 +1023,7 @@
               </div>
             {/if}
             <div class="station-info">
-              <div class="station-name">{fav.name}</div>
+              <button type="button" class="station-name" onclick={(event) => { event.stopPropagation(); openStationDetail(stationHintFromFavourite(fav)); }}>{fav.name}</button>
               <div class="station-meta">
                 {#if isPlayingStation(fav.stationUuid)}<span class="playing-badge">Playing</span>{/if}
                 {#if isPausedStation(fav.stationUuid)}<span class="playing-badge">Paused</span>{/if}
@@ -1007,7 +1094,7 @@
             aria-current={isCurrentStation(station.stationUuid) ? 'true' : undefined}
             class:playing={isCurrentStation(station.stationUuid)}
           >
-            <button class="station-play" class:playing={isCurrentStation(station.stationUuid)} onclick={() => playStation(station.stationUuid, station.name, station.streamUrl, station.faviconUrl, station.tags)} aria-label={isPlayingStation(station.stationUuid) ? `Pause ${station.name}` : `Play ${station.name}`}>
+            <button class="station-play" class:playing={isCurrentStation(station.stationUuid)} onclick={() => playStation(station.stationUuid, station.name, station.streamUrl, station.faviconUrl, '', station.tags)} aria-label={isPlayingStation(station.stationUuid) ? `Pause ${station.name}` : `Play ${station.name}`}>
               {#if isPlayingStation(station.stationUuid)}
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                   <path d="M6 19h4V5H6zm8-14v14h4V5z"/>
@@ -1024,8 +1111,8 @@
               class="station-main"
               aria-label={`Play or pause ${station.name}`}
               title="Double-click or press Enter to play or pause"
-              ondblclick={(event) => handleStationDoubleClick(event, station.stationUuid, station.name, station.streamUrl, station.faviconUrl, station.tags)}
-              onkeydown={(event) => handleStationKeydown(event, station.stationUuid, station.name, station.streamUrl, station.faviconUrl, station.tags)}
+              ondblclick={(event) => handleStationDoubleClick(event, station.stationUuid, station.name, station.streamUrl, station.faviconUrl, '', station.tags)}
+              onkeydown={(event) => handleStationKeydown(event, station.stationUuid, station.name, station.streamUrl, station.faviconUrl, '', station.tags)}
             >
             {#if resolvedIcon(station.faviconUrl)}
               <img class="station-icon" src={resolvedIcon(station.faviconUrl)} alt="" />
@@ -1035,7 +1122,7 @@
               </div>
             {/if}
             <div class="station-info">
-              <div class="station-name">{station.name}</div>
+              <button type="button" class="station-name" onclick={(event) => { event.stopPropagation(); openStationDetail({ uuid: station.stationUuid, name: station.name, streamUrl: station.streamUrl, favicon: station.faviconUrl, tags: station.tags }); }}>{station.name}</button>
               {#if isPlayingStation(station.stationUuid)}
                 <div class="station-meta"><span class="playing-badge">Playing</span></div>
               {/if}
@@ -1079,7 +1166,7 @@
             aria-current={isCurrentStation(item.stationUuid) ? 'true' : undefined}
             class:playing={isCurrentStation(item.stationUuid)}
           >
-            <button class="station-play" class:playing={isCurrentStation(item.stationUuid)} onclick={() => playStation(item.stationUuid, item.name, item.streamUrl, item.faviconUrl, item.tags)} aria-label={isPlayingStation(item.stationUuid) ? `Pause ${item.name}` : `Play ${item.name}`}>
+            <button class="station-play" class:playing={isCurrentStation(item.stationUuid)} onclick={() => playStation(item.stationUuid, item.name, item.streamUrl, item.faviconUrl, item.homepage, item.tags)} aria-label={isPlayingStation(item.stationUuid) ? `Pause ${item.name}` : `Play ${item.name}`}>
               {#if isPlayingStation(item.stationUuid)}
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                   <path d="M6 19h4V5H6zm8-14v14h4V5z"/>
@@ -1096,8 +1183,8 @@
               class="station-main"
               aria-label={`Play or pause ${item.name}`}
               title="Double-click or press Enter to play or pause"
-              ondblclick={(event) => handleStationDoubleClick(event, item.stationUuid, item.name, item.streamUrl, item.faviconUrl, item.tags)}
-              onkeydown={(event) => handleStationKeydown(event, item.stationUuid, item.name, item.streamUrl, item.faviconUrl, item.tags)}
+              ondblclick={(event) => handleStationDoubleClick(event, item.stationUuid, item.name, item.streamUrl, item.faviconUrl, item.homepage, item.tags)}
+              onkeydown={(event) => handleStationKeydown(event, item.stationUuid, item.name, item.streamUrl, item.faviconUrl, item.homepage, item.tags)}
             >
             {#if resolvedIcon(item.faviconUrl)}
               <img class="station-icon" src={resolvedIcon(item.faviconUrl)} alt="" />
@@ -1107,7 +1194,7 @@
               </div>
             {/if}
             <div class="station-info">
-              <div class="station-name">{item.name}</div>
+              <button type="button" class="station-name" onclick={(event) => { event.stopPropagation(); openStationDetail(stationHintFromHistory(item)); }}>{item.name}</button>
               <div class="station-meta">
                 {#if isPlayingStation(item.stationUuid)}<span class="playing-badge">Playing</span>{/if}
                 {#if isPausedStation(item.stationUuid)}<span class="playing-badge">Paused</span>{/if}
@@ -1129,6 +1216,7 @@
       </div>
     {/if}
     </div>
+  {/if}
   {/if}
 </div>
 
@@ -1446,12 +1534,24 @@
   }
 
   .station-name {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: none;
+    background: transparent;
+    text-align: left;
     font-size: 0.9rem;
     font-weight: 500;
     color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    cursor: pointer;
+  }
+
+  .station-name:hover {
+    color: var(--accent);
+    text-decoration: underline;
   }
 
   .station-meta {

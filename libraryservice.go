@@ -930,6 +930,7 @@ type RadioStationJSON struct {
 	UUID      string `json:"uuid"`
 	Name      string `json:"name"`
 	StreamURL string `json:"streamUrl"`
+	Homepage  string `json:"homepage"`
 	Favicon   string `json:"favicon"`
 	Country   string `json:"country"`
 	Tags      string `json:"tags"`
@@ -949,6 +950,7 @@ func stationsToJSON(stations []radio.Station) []RadioStationJSON {
 			UUID:      s.UUID,
 			Name:      s.Name,
 			StreamURL: normalizeRadioStreamURL(s.StreamURL),
+			Homepage:  strings.TrimSpace(s.Homepage),
 			Favicon:   favicons[i],
 			Country:   s.Country,
 			Tags:      s.Tags,
@@ -993,6 +995,106 @@ func normalizeRadioStreamURL(streamURL string) string {
 }
 
 var radioClient = radio.NewClient()
+
+// GetRadioStationByUUID returns full station metadata, fetching from RadioBrowser when possible.
+func (s *LibraryService) GetRadioStationByUUID(stationUUID string) (RadioStationJSON, error) {
+	stationUUID = strings.TrimSpace(stationUUID)
+	if stationUUID == "" {
+		return RadioStationJSON{}, fmt.Errorf("station uuid is required")
+	}
+
+	if stations, err := radioClient.ByUUID(stationUUID); err == nil && len(stations) > 0 {
+		return stationsToJSON(stations)[0], nil
+	}
+
+	if strings.HasPrefix(stationUUID, "somafm-") {
+		stations, err := somafmClient.Stations()
+		if err != nil {
+			return RadioStationJSON{}, err
+		}
+		for _, station := range stations {
+			if station.UUID == stationUUID {
+				return stationsToJSON([]radio.Station{station})[0], nil
+			}
+		}
+	}
+
+	if s.db != nil {
+		if station, ok, err := s.lookupSavedRadioStation(stationUUID); err != nil {
+			return RadioStationJSON{}, err
+		} else if ok {
+			return station, nil
+		}
+	}
+
+	return RadioStationJSON{}, fmt.Errorf("station not found")
+}
+
+func (s *LibraryService) lookupSavedRadioStation(stationUUID string) (RadioStationJSON, bool, error) {
+	custom, err := s.db.GetCustomRadioStations()
+	if err != nil {
+		return RadioStationJSON{}, false, err
+	}
+	for _, station := range custom {
+		if station.StationUUID == stationUUID {
+			return savedRadioStationJSON(stationUUID, station.Name, station.StreamURL, station.FaviconURL, station.Homepage, station.Tags, "", 0, ""), true, nil
+		}
+	}
+
+	favs, err := s.db.GetRadioFavourites()
+	if err != nil {
+		return RadioStationJSON{}, false, err
+	}
+	for _, fav := range favs {
+		if fav.StationUUID == stationUUID {
+			return savedRadioStationJSON(fav.StationUUID, fav.Name, fav.StreamURL, fav.FaviconURL, fav.Homepage, fav.Tags, "", 0, ""), true, nil
+		}
+	}
+
+	history, err := s.db.GetRadioHistory(200)
+	if err != nil {
+		return RadioStationJSON{}, false, err
+	}
+	for _, entry := range history {
+		if entry.StationUUID == stationUUID {
+			return savedRadioStationJSON(entry.StationUUID, entry.Name, entry.StreamURL, entry.FaviconURL, entry.Homepage, entry.Tags, "", 0, ""), true, nil
+		}
+	}
+
+	return RadioStationJSON{}, false, nil
+}
+
+func savedRadioStationJSON(stationUUID, name, streamURL, faviconURL, homepage, tags, country string, bitrate int, codec string) RadioStationJSON {
+	favicon := faviconURL
+	if favicon == "" && homepage != "" {
+		favicon = resolveRadioArtwork("", homepage)
+	}
+	return RadioStationJSON{
+		UUID:      stationUUID,
+		Name:      name,
+		StreamURL: normalizeRadioStreamURL(streamURL),
+		Homepage:  strings.TrimSpace(homepage),
+		Favicon:   favicon,
+		Country:   country,
+		Tags:      tags,
+		Bitrate:   bitrate,
+		Codec:     codec,
+	}
+}
+
+// OpenURL opens an http(s) URL in the system browser.
+func (s *LibraryService) OpenURL(rawURL string) error {
+	u, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return fmt.Errorf("invalid URL")
+	}
+	switch u.Scheme {
+	case "http", "https":
+	default:
+		return fmt.Errorf("invalid URL scheme")
+	}
+	return browser.OpenURL(u.String())
+}
 
 // SearchRadioStations searches for radio stations by name.
 func (s *LibraryService) SearchRadioStations(query string, limit int) ([]RadioStationJSON, error) {
@@ -1063,6 +1165,7 @@ type RadioFavouriteJSON struct {
 	Name        string `json:"name"`
 	StreamURL   string `json:"streamUrl"`
 	FaviconURL  string `json:"faviconUrl"`
+	Homepage    string `json:"homepage"`
 	Tags        string `json:"tags"`
 	AddedAt     string `json:"addedAt"`
 	Pinned      bool   `json:"pinned"`
@@ -1074,6 +1177,7 @@ type RadioHistoryJSON struct {
 	Name         string `json:"name"`
 	StreamURL    string `json:"streamUrl"`
 	FaviconURL   string `json:"faviconUrl"`
+	Homepage     string `json:"homepage"`
 	Tags         string `json:"tags"`
 	TrackTitle   string `json:"trackTitle"`
 	PlayCount    int    `json:"playCount"`
@@ -1087,6 +1191,7 @@ type RadioCustomStationJSON struct {
 	Name        string `json:"name"`
 	StreamURL   string `json:"streamUrl"`
 	FaviconURL  string `json:"faviconUrl"`
+	Homepage    string `json:"homepage"`
 	Tags        string `json:"tags"`
 	CreatedAt   string `json:"createdAt"`
 	UpdatedAt   string `json:"updatedAt"`
@@ -1118,6 +1223,7 @@ func (s *LibraryService) GetRadioFavourites() ([]RadioFavouriteJSON, error) {
 			Name:        f.Name,
 			StreamURL:   f.StreamURL,
 			FaviconURL:  f.FaviconURL,
+			Homepage:    f.Homepage,
 			Tags:        f.Tags,
 			AddedAt:     f.AddedAt,
 			Pinned:      f.Pinned,
@@ -1127,7 +1233,7 @@ func (s *LibraryService) GetRadioFavourites() ([]RadioFavouriteJSON, error) {
 }
 
 // AddRadioFavourite saves a radio station to favourites.
-func (s *LibraryService) AddRadioFavourite(stationUUID, name, streamURL, faviconURL, tags string) error {
+func (s *LibraryService) AddRadioFavourite(stationUUID, name, streamURL, faviconURL, homepage, tags string) error {
 	if s.db == nil {
 		return fmt.Errorf("library not initialised")
 	}
@@ -1136,6 +1242,7 @@ func (s *LibraryService) AddRadioFavourite(stationUUID, name, streamURL, favicon
 		Name:        name,
 		StreamURL:   streamURL,
 		FaviconURL:  faviconURL,
+		Homepage:    strings.TrimSpace(homepage),
 		Tags:        tags,
 	})
 }
@@ -1227,6 +1334,7 @@ func (s *LibraryService) GetRadioHistory(limit int) ([]RadioHistoryJSON, error) 
 			Name:         entry.Name,
 			StreamURL:    entry.StreamURL,
 			FaviconURL:   entry.FaviconURL,
+			Homepage:     entry.Homepage,
 			Tags:         entry.Tags,
 			TrackTitle:   entry.TrackTitle,
 			PlayCount:    entry.PlayCount,
@@ -1323,6 +1431,7 @@ func customStationToJSON(station library.RadioCustomStation) RadioCustomStationJ
 		Name:        station.Name,
 		StreamURL:   station.StreamURL,
 		FaviconURL:  station.FaviconURL,
+		Homepage:    station.Homepage,
 		Tags:        station.Tags,
 		CreatedAt:   station.CreatedAt,
 		UpdatedAt:   station.UpdatedAt,

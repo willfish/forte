@@ -17,6 +17,50 @@ func testDB(t *testing.T) *DB {
 	return db
 }
 
+func TestRadioHomepagePersistence(t *testing.T) {
+	db := openTestDB(t)
+
+	fav := RadioFavourite{
+		StationUUID: "abc-123",
+		Name:        "Jazz FM",
+		StreamURL:   "https://stream.example.com/jazz",
+		FaviconURL:  "https://example.com/icon.png",
+		Homepage:    "https://jazzfm.com/",
+		Tags:        "jazz",
+	}
+	if err := db.AddRadioFavourite(fav); err != nil {
+		t.Fatalf("AddRadioFavourite: %v", err)
+	}
+
+	favs, err := db.GetRadioFavourites()
+	if err != nil {
+		t.Fatalf("GetRadioFavourites: %v", err)
+	}
+	if len(favs) != 1 || favs[0].Homepage != fav.Homepage {
+		t.Fatalf("favourite homepage = %q, want %q", favs[0].Homepage, fav.Homepage)
+	}
+
+	entry := RadioHistoryEntry{
+		StationUUID: fav.StationUUID,
+		Name:        fav.Name,
+		StreamURL:   fav.StreamURL,
+		FaviconURL:  fav.FaviconURL,
+		Homepage:    fav.Homepage,
+		Tags:        fav.Tags,
+	}
+	if err := db.RecordRadioPlayback(entry); err != nil {
+		t.Fatalf("RecordRadioPlayback: %v", err)
+	}
+
+	history, err := db.GetRadioHistory(5)
+	if err != nil {
+		t.Fatalf("GetRadioHistory: %v", err)
+	}
+	if len(history) != 1 || history[0].Homepage != fav.Homepage {
+		t.Fatalf("history homepage = %q, want %q", history[0].Homepage, fav.Homepage)
+	}
+}
+
 func TestRadioFavouritesRoundTrip(t *testing.T) {
 	db := testDB(t)
 

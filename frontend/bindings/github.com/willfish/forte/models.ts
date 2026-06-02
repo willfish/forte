@@ -407,6 +407,7 @@ export class RadioCustomStationJSON {
     "name": string;
     "streamUrl": string;
     "faviconUrl": string;
+    "homepage": string;
     "tags": string;
     "createdAt": string;
     "updatedAt": string;
@@ -424,6 +425,9 @@ export class RadioCustomStationJSON {
         }
         if (!("faviconUrl" in $$source)) {
             this["faviconUrl"] = "";
+        }
+        if (!("homepage" in $$source)) {
+            this["homepage"] = "";
         }
         if (!("tags" in $$source)) {
             this["tags"] = "";
@@ -455,6 +459,7 @@ export class RadioFavouriteJSON {
     "name": string;
     "streamUrl": string;
     "faviconUrl": string;
+    "homepage": string;
     "tags": string;
     "addedAt": string;
     "pinned": boolean;
@@ -472,6 +477,9 @@ export class RadioFavouriteJSON {
         }
         if (!("faviconUrl" in $$source)) {
             this["faviconUrl"] = "";
+        }
+        if (!("homepage" in $$source)) {
+            this["homepage"] = "";
         }
         if (!("tags" in $$source)) {
             this["tags"] = "";
@@ -503,6 +511,7 @@ export class RadioHistoryJSON {
     "name": string;
     "streamUrl": string;
     "faviconUrl": string;
+    "homepage": string;
     "tags": string;
     "trackTitle": string;
     "playCount": number;
@@ -522,6 +531,9 @@ export class RadioHistoryJSON {
         }
         if (!("faviconUrl" in $$source)) {
             this["faviconUrl"] = "";
+        }
+        if (!("homepage" in $$source)) {
+            this["homepage"] = "";
         }
         if (!("tags" in $$source)) {
             this["tags"] = "";
@@ -558,6 +570,7 @@ export class RadioStationJSON {
     "uuid": string;
     "name": string;
     "streamUrl": string;
+    "homepage": string;
     "favicon": string;
     "country": string;
     "tags": string;
@@ -576,6 +589,9 @@ export class RadioStationJSON {
         }
         if (!("streamUrl" in $$source)) {
             this["streamUrl"] = "";
+        }
+        if (!("homepage" in $$source)) {
+            this["homepage"] = "";
         }
         if (!("favicon" in $$source)) {
             this["favicon"] = "";

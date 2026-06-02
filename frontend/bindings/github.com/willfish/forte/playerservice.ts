@@ -181,8 +181,8 @@ export function PlayRadio(stationName: string, streamURL: string, artworkURL: st
 /**
  * PlayRadioStation starts playback of a radio stream with stable station metadata.
  */
-export function PlayRadioStation(stationUUID: string, stationName: string, streamURL: string, artworkURL: string, tags: string): $CancellablePromise<void> {
-    return $Call.ByID(3331506535, stationUUID, stationName, streamURL, artworkURL, tags);
+export function PlayRadioStation(stationUUID: string, stationName: string, streamURL: string, artworkURL: string, homepage: string, tags: string): $CancellablePromise<void> {
+    return $Call.ByID(3331506535, stationUUID, stationName, streamURL, artworkURL, homepage, tags);
 }
 
 /**
