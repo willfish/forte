@@ -41,6 +41,11 @@ func NewClient() *Client {
 	}
 }
 
+// SetServers pins API mirrors (for tests).
+func (c *Client) SetServers(servers []string) {
+	c.servers = servers
+}
+
 // discoverServers resolves RadioBrowser mirrors via DNS.
 func (c *Client) discoverServers() ([]string, error) {
 	if len(c.servers) > 0 {

@@ -942,6 +942,16 @@ type RadioStationJSON struct {
 
 var somafmClient = radio.NewSomaFMClient()
 
+// somafmStationsProvider overrides SomaFM listing in tests. Production uses somafmClient.
+var somafmStationsProvider func() ([]radio.Station, error)
+
+func listSomaFMStations() ([]radio.Station, error) {
+	if somafmStationsProvider != nil {
+		return somafmStationsProvider()
+	}
+	return somafmClient.Stations()
+}
+
 func stationsToJSON(stations []radio.Station) []RadioStationJSON {
 	result := make([]RadioStationJSON, len(stations))
 	favicons := resolveStationFavicons(stations)
@@ -1008,7 +1018,7 @@ func (s *LibraryService) GetRadioStationByUUID(stationUUID string) (RadioStation
 	}
 
 	if strings.HasPrefix(stationUUID, "somafm-") {
-		stations, err := somafmClient.Stations()
+		stations, err := listSomaFMStations()
 		if err != nil {
 			return RadioStationJSON{}, err
 		}
@@ -1152,7 +1162,7 @@ func (s *LibraryService) GetTopClickedRadioStations(limit int) ([]RadioStationJS
 
 // GetSomaFMStations returns all SomaFM channels.
 func (s *LibraryService) GetSomaFMStations() ([]RadioStationJSON, error) {
-	stations, err := somafmClient.Stations()
+	stations, err := listSomaFMStations()
 	if err != nil {
 		return nil, err
 	}

@@ -295,6 +295,31 @@ test('station detail can pin a favourite', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Unpin' })).toBeVisible();
 });
 
+test('opens SomaFM station detail from browse filter', async ({ page }) => {
+  await radioNavButton(page).click();
+  await page.getByRole('button', { name: 'SomaFM' }).click();
+  await page.getByRole('button', { name: 'SomaFM Mission Control', exact: true }).click();
+
+  await expect(page.getByRole('heading', { name: 'SomaFM Mission Control', level: 1 })).toBeVisible();
+  const website = page.getByRole('link', { name: 'https://somafm.com/missioncontrol/' });
+  await expect(website).toHaveAttribute('href', 'https://somafm.com/missioncontrol/');
+});
+
+test('custom station detail shows derived website from stream host', async ({ page }) => {
+  await radioNavButton(page).click();
+  await page.getByRole('tab', { name: /Custom/ }).click();
+
+  await page.getByRole('textbox', { name: 'Station name' }).fill('Fixture Custom Stream');
+  await page.getByRole('textbox', { name: 'Stream URL' }).fill('https://live.custom-fixture.example.org/stream.mp3');
+  await page.getByRole('button', { name: 'Add Station' }).click();
+  await expect(page.locator('#radio-panel-custom').getByRole('button', { name: 'Fixture Custom Stream', exact: true })).toBeVisible();
+
+  await page.locator('#radio-panel-custom').getByRole('button', { name: 'Fixture Custom Stream', exact: true }).click();
+
+  const websiteRow = page.locator('.station-view .link-row').filter({ hasText: 'Website' });
+  await expect(websiteRow.getByRole('link')).toHaveAttribute('href', 'https://live.custom-fixture.example.org/');
+});
+
 test('shows a recoverable error when a station cannot play', async ({ page }) => {
   await page.evaluate(() => localStorage.setItem('forte.failPlayRadioStation', 'true'));
   await page.reload();

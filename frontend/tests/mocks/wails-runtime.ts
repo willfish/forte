@@ -1,6 +1,12 @@
 // Mock @wailsio/runtime for Playwright e2e tests.
 // Maps Wails Call.ByID numeric identifiers to fixture responses.
 
+import {
+  customFixtureUUID,
+  radioFixtures,
+  type RadioStationFixture,
+} from "../fixtures/radio-stations";
+
 let appPreferences = {
   libraryEnabled: false,
   startLastStation: true,
@@ -43,9 +49,23 @@ function stationIcon(label: string, background: string, foreground = "ffffff") {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
+function fixtureBrowseStation(f: RadioStationFixture, iconLabel: string, iconBg: string) {
+  return {
+    uuid: f.uuid,
+    name: f.name,
+    streamUrl: f.streamUrl,
+    homepage: f.homepage,
+    favicon: f.favicon || stationIcon(iconLabel, iconBg),
+    country: f.country,
+    tags: f.tags,
+    bitrate: f.bitrate,
+    codec: f.codec,
+  };
+}
+
 const demoStations = [
-  { uuid: "somafm-missioncontrol", name: "Ishq - Iqqoa", streamUrl: "https://stream.example.com/mission-control", homepage: "https://somafm.com/missioncontrol/", favicon: stationIcon("MC", "1f2937"), country: "SomaFM Mission Control", tags: "ambient,space,electronic", bitrate: 128, codec: "MP3" },
-  { uuid: "st-jazz-fm", name: "Jazz FM", streamUrl: "https://stream.example.com/jazz-fm", homepage: "https://www.jazzfm.com/", favicon: stationIcon("JF", "2563eb"), country: "United Kingdom", tags: "jazz,smooth", bitrate: 128, codec: "MP3" },
+  fixtureBrowseStation(radioFixtures.somafm, "MC", "1f2937"),
+  fixtureBrowseStation(radioFixtures.browse, "JF", "2563eb"),
   { uuid: "st-classical-24", name: "Classical 24", streamUrl: "https://stream.example.com/classical", favicon: stationIcon("C24", "7c2d12"), country: "France", tags: "classical,orchestral", bitrate: 320, codec: "MP3" },
   { uuid: "st-mangoradio", name: "MANGORADIO", streamUrl: "https://stream.example.com/mango", favicon: stationIcon("M", "f59e0b", "111827"), country: "Germany", tags: "music,variety", bitrate: 128, codec: "MP3" },
   { uuid: "st-radio-paradise", name: "Radio Paradise Main Mix (EU) 320k AAC", streamUrl: "https://stream.example.com/rp", favicon: stationIcon("RP", "f8fafc", "334155"), country: "The United States Of America", tags: "california,eclectic,free,internet", bitrate: 320, codec: "AAC" },
@@ -80,6 +100,104 @@ function upsertHistory(stationUuid: string, name: string, streamUrl: string, fav
 function hasTag(tags: string, tag: string) {
   if (!tag) return true;
   return tags.split(",").map((t) => t.trim().toLowerCase()).includes(tag.toLowerCase());
+}
+
+function resolveStationByUUID(stationUuid: string) {
+  const demo = demoStations.find((s) => s.uuid === stationUuid);
+  if (demo) {
+    return { ...demo, votes: 120, clicks: 340 };
+  }
+
+  const custom = customStations.find((s) => s.stationUuid === stationUuid);
+  if (custom) {
+    return {
+      uuid: custom.stationUuid,
+      name: custom.name,
+      streamUrl: custom.streamUrl,
+      homepage: custom.homepage || "",
+      favicon: custom.faviconUrl || "",
+      country: "",
+      tags: custom.tags,
+      bitrate: 0,
+      codec: "",
+      votes: 0,
+      clicks: 0,
+    };
+  }
+
+  const fav = radioFavourites.find((f) => f.stationUuid === stationUuid);
+  if (fav) {
+    return {
+      uuid: fav.stationUuid,
+      name: fav.name,
+      streamUrl: fav.streamUrl,
+      homepage: fav.homepage || "",
+      favicon: fav.faviconUrl || "",
+      country: fav.country || "",
+      tags: fav.tags,
+      bitrate: fav.bitrate || 0,
+      codec: fav.codec || "",
+      votes: 0,
+      clicks: 0,
+    };
+  }
+
+  const hist = radioHistory.find((h) => h.stationUuid === stationUuid);
+  if (hist) {
+    return {
+      uuid: hist.stationUuid,
+      name: hist.name,
+      streamUrl: hist.streamUrl,
+      homepage: hist.homepage || "",
+      favicon: hist.faviconUrl || "",
+      country: hist.country || "",
+      tags: hist.tags,
+      bitrate: hist.bitrate || 0,
+      codec: hist.codec || "",
+      votes: 0,
+      clicks: 0,
+    };
+  }
+
+  if (stationUuid === radioFixtures.favouriteOnly.uuid) {
+    const f = radioFixtures.favouriteOnly;
+    return {
+      uuid: f.uuid,
+      name: f.name,
+      streamUrl: f.streamUrl,
+      homepage: f.homepage,
+      favicon: f.favicon || "",
+      country: f.country,
+      tags: f.tags,
+      bitrate: f.bitrate,
+      codec: f.codec,
+      votes: 0,
+      clicks: 0,
+    };
+  }
+
+  if (stationUuid === radioFixtures.historyOnly.uuid) {
+    const h = radioFixtures.historyOnly;
+    return {
+      uuid: h.uuid,
+      name: h.name,
+      streamUrl: h.streamUrl,
+      homepage: h.homepage,
+      favicon: h.favicon || "",
+      country: h.country,
+      tags: h.tags,
+      bitrate: h.bitrate,
+      codec: h.codec,
+      votes: 0,
+      clicks: 0,
+    };
+  }
+
+  return null;
+}
+
+function somaFMStations() {
+  return demoStations.filter((s) => s.uuid.startsWith("somafm-"));
 }
 
 function filteredDemoStations(country = "", codec = "", tag = "") {
@@ -216,6 +334,8 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   1619368624: () => demoStations.map((station, index) => ({ ...station, votes: 200 - index * 10, clicks: 500 - index * 20 })),
   // GetTopVotedRadioStations
   1723581283: () => demoStations.map((station, index) => ({ ...station, votes: 200 - index * 10, clicks: 500 - index * 20 })),
+  // GetSomaFMStations
+  3406641218: () => somaFMStations().map((station, index) => ({ ...station, votes: 50 - index, clicks: 100 - index })),
   // GetTopClickedRadioStations
   46869912: () => demoStations.map((station, index) => ({ ...station, votes: 200 - index * 10, clicks: 500 - index * 20 })),
   // SearchRadioStationsFiltered
@@ -256,11 +376,11 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   },
   // GetRadioStationByUUID
   4150278773: (stationUuid: string) => {
-    const station = demoStations.find((s) => s.uuid === stationUuid);
+    const station = resolveStationByUUID(stationUuid);
     if (!station) {
       throw new Error("station not found");
     }
-    return { ...station, votes: 120, clicks: 340 };
+    return station;
   },
   // OpenURL
   1380764543: () => undefined,
@@ -282,12 +402,23 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   2495430549: () => customStations,
   // AddCustomRadioStation
   3781401643: (name: string, streamUrl: string, faviconUrl: string, homepage: string, tags: string) => {
+    let derivedHomepage = homepage;
+    if (!derivedHomepage) {
+      try {
+        derivedHomepage = new URL(streamUrl).origin + "/";
+      } catch {
+        derivedHomepage = "";
+      }
+    }
     const station = {
-      stationUuid: `custom-${customStations.length + 1}`,
+      stationUuid:
+        streamUrl === radioFixtures.custom.streamUrl
+          ? customFixtureUUID
+          : `custom-${customStations.length + 1}`,
       name,
       streamUrl,
       faviconUrl,
-      homepage: homepage || (streamUrl.includes("example.org") ? "https://example.org/" : ""),
+      homepage: derivedHomepage,
       tags,
       createdAt: "2024-01-03 10:00:00",
     };
