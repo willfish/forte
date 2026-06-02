@@ -260,6 +260,41 @@ test('pressing enter on a focused radio station toggles play and pause', async (
   await expect(station.getByText('Paused')).toBeVisible();
 });
 
+test('opens station detail with homepage and stream links', async ({ page }) => {
+  await radioNavButton(page).click();
+
+  await page.getByRole('button', { name: 'Jazz FM', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Jazz FM', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Links' })).toBeVisible();
+
+  const website = page.getByRole('link', { name: 'https://www.jazzfm.com/' });
+  await expect(website).toHaveAttribute('href', 'https://www.jazzfm.com/');
+  await expect(website).toHaveAttribute('rel', 'noopener noreferrer');
+
+  const stream = page.getByRole('link', { name: 'https://stream.example.com/jazz-fm' });
+  await expect(stream).toHaveAttribute('href', 'https://stream.example.com/jazz-fm');
+  await expect(stream).toHaveAttribute('rel', 'noopener noreferrer');
+
+  await page.locator('.station-view').getByRole('button', { name: 'Open' }).first().click();
+  await page.locator('.station-view').getByRole('button', { name: 'Radio' }).click();
+  await expect(page.getByRole('tab', { name: 'Browse' })).toBeVisible();
+});
+
+test('station detail shows now playing track when station is active', async ({ page }) => {
+  await radioNavButton(page).click();
+  await page.getByRole('button', { name: 'Play Jazz FM' }).click();
+  await page.locator('.station-list').getByRole('button', { name: 'Jazz FM', exact: true }).click();
+  await expect(page.getByText("Now playing: Live at Ronnie Scott's")).toBeVisible();
+});
+
+test('station detail can pin a favourite', async ({ page }) => {
+  await radioNavButton(page).click();
+  await page.getByRole('button', { name: 'Jazz FM', exact: true }).click();
+  await page.getByRole('button', { name: 'Add favourite' }).click();
+  await page.getByRole('button', { name: 'Pin' }).click();
+  await expect(page.getByRole('button', { name: 'Unpin' })).toBeVisible();
+});
+
 test('shows a recoverable error when a station cannot play', async ({ page }) => {
   await page.evaluate(() => localStorage.setItem('forte.failPlayRadioStation', 'true'));
   await page.reload();

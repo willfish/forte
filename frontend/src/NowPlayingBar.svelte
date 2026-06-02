@@ -1,6 +1,7 @@
 <script lang="ts">
   import { PlayerService } from "../bindings/github.com/willfish/forte";
   import { onPlaybackStatusChange, refreshPlaybackStatus } from './lib/playback';
+  import { openRadioStation } from './lib/stores';
   import type { PlaybackStatus, RepeatMode } from './lib/types';
   import Icon from './lib/Icon.svelte';
 
@@ -20,6 +21,7 @@
   let volumeBeforeMute = $state(100);
   let radioMode = $state(false);
   let radioStation = $state('');
+  let radioUuid = $state('');
   let radioArtwork = $state('');
 
   $effect(() => {
@@ -39,6 +41,7 @@
     repeatMode = s.repeat;
     radioMode = s.radioMode;
     radioStation = s.radioStation;
+    radioUuid = s.radioUuid;
     radioArtwork = s.radioArtwork;
   }
 
@@ -122,7 +125,13 @@
     <div class="meta">
       {#if radioMode && radioStation}
         <span class="title">{title || radioStation}</span>
-        <span class="artist">{title ? radioStation : 'Radio'}</span>
+        {#if radioUuid}
+          <button type="button" class="artist station-link" onclick={() => openRadioStation(radioUuid, { name: radioStation })}>
+            {title ? radioStation : 'View station'}
+          </button>
+        {:else}
+          <span class="artist">Radio</span>
+        {/if}
       {:else if !isStopped && title}
         <span class="title">{title}</span>
         <span class="artist">{artist}{album ? ` - ${album}` : ''}</span>
@@ -280,6 +289,19 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .station-link {
+    padding: 0;
+    border: none;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .station-link:hover {
+    color: var(--accent);
+    text-decoration: underline;
   }
 
   .controls {

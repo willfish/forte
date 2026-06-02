@@ -15,7 +15,7 @@ let radioFavourites = [
 let customStations: any[] = [];
 
 let radioHistory = [
-  { stationUuid: "st-3", name: "Classical 24", streamUrl: "https://stream.example.com/classical", faviconUrl: "https://img.example.com/classical.png", tags: "classical", lastTitle: "Morning Concert", lastError: "", playCount: 3, lastPlayedAt: "2024-01-02 09:00:00" },
+  { stationUuid: "st-3", name: "Classical 24", streamUrl: "https://stream.example.com/classical", faviconUrl: "https://img.example.com/classical.png", homepage: "https://classical24.example.com/", tags: "classical", lastTitle: "Morning Concert", lastError: "", playCount: 3, lastPlayedAt: "2024-01-02 09:00:00" },
 ];
 
 let playbackStatus = {
@@ -44,8 +44,8 @@ function stationIcon(label: string, background: string, foreground = "ffffff") {
 }
 
 const demoStations = [
-  { uuid: "somafm-missioncontrol", name: "Ishq - Iqqoa", streamUrl: "https://stream.example.com/mission-control", favicon: stationIcon("MC", "1f2937"), country: "SomaFM Mission Control", tags: "ambient,space,electronic", bitrate: 128, codec: "MP3" },
-  { uuid: "st-jazz-fm", name: "Jazz FM", streamUrl: "https://stream.example.com/jazz-fm", favicon: stationIcon("JF", "2563eb"), country: "United Kingdom", tags: "jazz,smooth", bitrate: 128, codec: "MP3" },
+  { uuid: "somafm-missioncontrol", name: "Ishq - Iqqoa", streamUrl: "https://stream.example.com/mission-control", homepage: "https://somafm.com/missioncontrol/", favicon: stationIcon("MC", "1f2937"), country: "SomaFM Mission Control", tags: "ambient,space,electronic", bitrate: 128, codec: "MP3" },
+  { uuid: "st-jazz-fm", name: "Jazz FM", streamUrl: "https://stream.example.com/jazz-fm", homepage: "https://www.jazzfm.com/", favicon: stationIcon("JF", "2563eb"), country: "United Kingdom", tags: "jazz,smooth", bitrate: 128, codec: "MP3" },
   { uuid: "st-classical-24", name: "Classical 24", streamUrl: "https://stream.example.com/classical", favicon: stationIcon("C24", "7c2d12"), country: "France", tags: "classical,orchestral", bitrate: 320, codec: "MP3" },
   { uuid: "st-mangoradio", name: "MANGORADIO", streamUrl: "https://stream.example.com/mango", favicon: stationIcon("M", "f59e0b", "111827"), country: "Germany", tags: "music,variety", bitrate: 128, codec: "MP3" },
   { uuid: "st-radio-paradise", name: "Radio Paradise Main Mix (EU) 320k AAC", streamUrl: "https://stream.example.com/rp", favicon: stationIcon("RP", "f8fafc", "334155"), country: "The United States Of America", tags: "california,eclectic,free,internet", bitrate: 320, codec: "AAC" },
@@ -55,7 +55,7 @@ const demoStations = [
   { uuid: "st-walm-old-time", name: "WALM - Old Time Radio", streamUrl: "https://stream.example.com/walm", favicon: stationIcon("OTR", "22c55e", "052e16"), country: "The United States Of America", tags: "78,78-rpm,classic", bitrate: 64, codec: "MP3" },
 ];
 
-function upsertHistory(stationUuid: string, name: string, streamUrl: string, faviconUrl: string, tags: string) {
+function upsertHistory(stationUuid: string, name: string, streamUrl: string, faviconUrl: string, homepage: string, tags: string) {
   const existing = radioHistory.find((h) => h.stationUuid === stationUuid);
   if (existing) {
     existing.playCount += 1;
@@ -68,6 +68,7 @@ function upsertHistory(stationUuid: string, name: string, streamUrl: string, fav
     name,
     streamUrl,
     faviconUrl,
+    homepage,
     tags,
     lastTitle: "",
     lastError: "",
@@ -226,11 +227,43 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   // GetRadioFavourites
   590575721: () => radioFavourites,
   // AddRadioFavourite
-  3744144887: (stationUuid: string, name: string, streamUrl: string, faviconUrl: string, tags: string) => {
+  3744144887: (
+    stationUuid: string,
+    name: string,
+    streamUrl: string,
+    faviconUrl: string,
+    homepage: string,
+    tags: string,
+    country = "",
+    codec = "",
+    bitrate = 0
+  ) => {
     if (!radioFavourites.some((f) => f.stationUuid === stationUuid)) {
-      radioFavourites.push({ stationUuid, name, streamUrl, faviconUrl, tags, addedAt: "2024-01-03 10:00:00", pinned: false });
+      radioFavourites.push({
+        stationUuid,
+        name,
+        streamUrl,
+        faviconUrl,
+        homepage,
+        tags,
+        country,
+        codec,
+        bitrate,
+        addedAt: "2024-01-03 10:00:00",
+        pinned: false,
+      });
     }
   },
+  // GetRadioStationByUUID
+  4150278773: (stationUuid: string) => {
+    const station = demoStations.find((s) => s.uuid === stationUuid);
+    if (!station) {
+      throw new Error("station not found");
+    }
+    return { ...station, votes: 120, clicks: 340 };
+  },
+  // OpenURL
+  1380764543: () => undefined,
   // RemoveRadioFavourite
   876184048: (stationUuid: string) => {
     radioFavourites = radioFavourites.filter((f) => f.stationUuid !== stationUuid);
@@ -243,15 +276,18 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   },
   // IsRadioFavourite
   329793224: (stationUuid: string) => radioFavourites.some((f) => f.stationUuid === stationUuid),
+  // GetRadioFavouritePinned
+  4094481906: (stationUuid: string) => radioFavourites.find((f) => f.stationUuid === stationUuid)?.pinned ?? false,
   // GetCustomRadioStations
   2495430549: () => customStations,
   // AddCustomRadioStation
-  3781401643: (name: string, streamUrl: string, faviconUrl: string, tags: string) => {
+  3781401643: (name: string, streamUrl: string, faviconUrl: string, homepage: string, tags: string) => {
     const station = {
       stationUuid: `custom-${customStations.length + 1}`,
       name,
       streamUrl,
       faviconUrl,
+      homepage: homepage || (streamUrl.includes("example.org") ? "https://example.org/" : ""),
       tags,
       createdAt: "2024-01-03 10:00:00",
     };
@@ -285,15 +321,25 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   // PlayRadio
   1236378929: () => undefined,
   // PlayRadioStation
-  3331506535: (stationUuid: string, name: string, streamUrl: string, artworkUrl: string, tags: string) => {
+  3331506535: (
+    stationUuid: string,
+    name: string,
+    streamUrl: string,
+    artworkUrl: string,
+    homepage: string,
+    tags: string,
+    _country = "",
+    _codec = "",
+    _bitrate = 0
+  ) => {
     if (globalThis.localStorage?.getItem("forte.failPlayRadioStation") === "true") {
       throw new Error("stream unavailable");
     }
-    upsertHistory(stationUuid, name, streamUrl, artworkUrl, tags);
+    upsertHistory(stationUuid, name, streamUrl, artworkUrl, homepage, tags);
     playbackStatus = {
       ...playbackStatus,
       state: "playing",
-      title: name,
+      title: stationUuid === "st-jazz-fm" ? "Live at Ronnie Scott's" : name,
       artist: stationUuid === "somafm-missioncontrol" ? "SomaFM Mission Control (128k MP3)" : "Radio",
       album: "",
       mediaPath: streamUrl,

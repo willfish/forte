@@ -197,6 +197,19 @@ func (c *Client) TopVoted(limit int) ([]Station, error) {
 	return c.fetchStations("/json/stations/topvote", params)
 }
 
+// ByUUID returns a station by its RadioBrowser UUID.
+func (c *Client) ByUUID(stationUUID string) ([]Station, error) {
+	stationUUID = strings.TrimSpace(stationUUID)
+	if stationUUID == "" {
+		return nil, fmt.Errorf("radiobrowser: station uuid is required")
+	}
+	params := url.Values{
+		"uuid":       {stationUUID},
+		"hidebroken": {"true"},
+	}
+	return c.fetchStations("/json/stations/byuuid", params)
+}
+
 // TopClicked returns the most clicked stations.
 func (c *Client) TopClicked(limit int) ([]Station, error) {
 	params := url.Values{
