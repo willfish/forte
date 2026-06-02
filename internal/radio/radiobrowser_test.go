@@ -114,7 +114,7 @@ func TestClientSearch(t *testing.T) {
 	defer server.Close()
 
 	c := NewClient()
-	c.servers = []string{server.URL}
+	c.SetServers([]string{server.URL})
 
 	stations, err := c.Search("jazz", 10)
 	if err != nil {
@@ -149,7 +149,7 @@ func TestClientByUUID(t *testing.T) {
 	defer server.Close()
 
 	c := NewClient()
-	c.servers = []string{server.URL}
+	c.SetServers([]string{server.URL})
 
 	stations, err := c.ByUUID("abc-123")
 	if err != nil {
@@ -176,7 +176,7 @@ func TestClientTopVoted(t *testing.T) {
 	defer server.Close()
 
 	c := NewClient()
-	c.servers = []string{server.URL}
+	c.SetServers([]string{server.URL})
 
 	stations, err := c.TopVoted(5)
 	if err != nil {
@@ -213,7 +213,7 @@ func TestClientSearchFilteredCombinesFilters(t *testing.T) {
 	defer server.Close()
 
 	c := NewClient()
-	c.servers = []string{server.URL}
+	c.SetServers([]string{server.URL})
 
 	stations, err := c.SearchFiltered("GB", "MP3", "eclectic", 10)
 	if err != nil {
