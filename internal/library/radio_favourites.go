@@ -4,6 +4,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/willfish/forte/internal/logx"
 )
@@ -15,6 +16,9 @@ type RadioFavourite struct {
 	StreamURL   string
 	FaviconURL  string
 	Homepage    string
+	Country     string
+	Codec       string
+	Bitrate     int
 	Tags        string
 	AddedAt     string
 	Pinned      bool
@@ -27,6 +31,9 @@ type RadioCustomStation struct {
 	StreamURL   string
 	FaviconURL  string
 	Homepage    string
+	Country     string
+	Codec       string
+	Bitrate     int
 	Tags        string
 	CreatedAt   string
 	UpdatedAt   string
@@ -39,6 +46,9 @@ type RadioHistoryEntry struct {
 	StreamURL    string
 	FaviconURL   string
 	Homepage     string
+	Country      string
+	Codec        string
+	Bitrate      int
 	Tags         string
 	TrackTitle   string
 	PlayCount    int
@@ -58,15 +68,18 @@ type AppPreferences struct {
 // AddRadioFavourite saves a radio station to favourites.
 func (db *DB) AddRadioFavourite(f RadioFavourite) error {
 	_, err := db.Exec(
-		`INSERT INTO radio_favourites (station_uuid, name, stream_url, favicon_url, homepage, tags, pinned)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO radio_favourites (station_uuid, name, stream_url, favicon_url, homepage, country, codec, bitrate, tags, pinned)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(station_uuid) DO UPDATE SET
 			name = excluded.name,
 			stream_url = excluded.stream_url,
 			favicon_url = excluded.favicon_url,
-			homepage = excluded.homepage,
+			homepage = CASE WHEN excluded.homepage != '' THEN excluded.homepage ELSE radio_favourites.homepage END,
+			country = CASE WHEN excluded.country != '' THEN excluded.country ELSE radio_favourites.country END,
+			codec = CASE WHEN excluded.codec != '' THEN excluded.codec ELSE radio_favourites.codec END,
+			bitrate = CASE WHEN excluded.bitrate > 0 THEN excluded.bitrate ELSE radio_favourites.bitrate END,
 			tags = excluded.tags`,
-		f.StationUUID, f.Name, f.StreamURL, f.FaviconURL, f.Homepage, f.Tags, boolToInt(f.Pinned),
+		f.StationUUID, f.Name, f.StreamURL, f.FaviconURL, f.Homepage, f.Country, f.Codec, f.Bitrate, f.Tags, boolToInt(f.Pinned),
 	)
 	if err != nil {
 		return fmt.Errorf("add radio favourite: %w", err)
@@ -95,7 +108,7 @@ func (db *DB) RemoveRadioFavourite(stationUUID string) error {
 // GetRadioFavourites returns all saved radio stations ordered by name.
 func (db *DB) GetRadioFavourites() ([]RadioFavourite, error) {
 	rows, err := db.Query(
-		`SELECT station_uuid, name, stream_url, favicon_url, homepage, tags, added_at, pinned
+		`SELECT station_uuid, name, stream_url, favicon_url, homepage, country, codec, bitrate, tags, added_at, pinned
 		 FROM radio_favourites
 		 ORDER BY pinned DESC, name COLLATE NOCASE`,
 	)
@@ -108,13 +121,23 @@ func (db *DB) GetRadioFavourites() ([]RadioFavourite, error) {
 	for rows.Next() {
 		var f RadioFavourite
 		var pinned int
-		if err := rows.Scan(&f.StationUUID, &f.Name, &f.StreamURL, &f.FaviconURL, &f.Homepage, &f.Tags, &f.AddedAt, &pinned); err != nil {
+		if err := rows.Scan(&f.StationUUID, &f.Name, &f.StreamURL, &f.FaviconURL, &f.Homepage, &f.Country, &f.Codec, &f.Bitrate, &f.Tags, &f.AddedAt, &pinned); err != nil {
 			return nil, fmt.Errorf("scan radio favourite: %w", err)
 		}
 		f.Pinned = pinned != 0
 		favs = append(favs, f)
 	}
 	return favs, rows.Err()
+}
+
+// GetRadioFavouritePinned returns whether a favourite station is pinned.
+func (db *DB) GetRadioFavouritePinned(stationUUID string) (bool, error) {
+	var pinned int
+	err := db.QueryRow("SELECT pinned FROM radio_favourites WHERE station_uuid = ?", stationUUID).Scan(&pinned)
+	if err != nil {
+		return false, nil
+	}
+	return pinned != 0, nil
 }
 
 // IsRadioFavourite checks if a station is in favourites.
@@ -132,17 +155,23 @@ func (db *DB) AddCustomRadioStation(st RadioCustomStation) (RadioCustomStation, 
 	if st.StationUUID == "" {
 		st.StationUUID = CustomRadioStationUUID(st.StreamURL)
 	}
+	if strings.TrimSpace(st.Homepage) == "" {
+		st.Homepage = DeriveHomepageFromStreamURL(st.StreamURL)
+	}
 	_, err := db.Exec(
-		`INSERT INTO radio_custom_stations (station_uuid, name, stream_url, favicon_url, homepage, tags)
-		 VALUES (?, ?, ?, ?, ?, ?)
+		`INSERT INTO radio_custom_stations (station_uuid, name, stream_url, favicon_url, homepage, country, codec, bitrate, tags)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(station_uuid) DO UPDATE SET
 			name = excluded.name,
 			stream_url = excluded.stream_url,
 			favicon_url = excluded.favicon_url,
 			homepage = excluded.homepage,
+			country = excluded.country,
+			codec = excluded.codec,
+			bitrate = excluded.bitrate,
 			tags = excluded.tags,
 			updated_at = datetime('now')`,
-		st.StationUUID, st.Name, st.StreamURL, st.FaviconURL, st.Homepage, st.Tags,
+		st.StationUUID, st.Name, st.StreamURL, st.FaviconURL, st.Homepage, st.Country, st.Codec, st.Bitrate, st.Tags,
 	)
 	if err != nil {
 		return st, fmt.Errorf("add custom radio station: %w", err)
@@ -162,7 +191,7 @@ func (db *DB) DeleteCustomRadioStation(stationUUID string) error {
 // GetCustomRadioStations returns saved user-defined stations.
 func (db *DB) GetCustomRadioStations() ([]RadioCustomStation, error) {
 	rows, err := db.Query(
-		`SELECT station_uuid, name, stream_url, favicon_url, homepage, tags, created_at, updated_at
+		`SELECT station_uuid, name, stream_url, favicon_url, homepage, country, codec, bitrate, tags, created_at, updated_at
 		 FROM radio_custom_stations
 		 ORDER BY name COLLATE NOCASE`,
 	)
@@ -174,7 +203,7 @@ func (db *DB) GetCustomRadioStations() ([]RadioCustomStation, error) {
 	var stations []RadioCustomStation
 	for rows.Next() {
 		var st RadioCustomStation
-		if err := rows.Scan(&st.StationUUID, &st.Name, &st.StreamURL, &st.FaviconURL, &st.Homepage, &st.Tags, &st.CreatedAt, &st.UpdatedAt); err != nil {
+		if err := rows.Scan(&st.StationUUID, &st.Name, &st.StreamURL, &st.FaviconURL, &st.Homepage, &st.Country, &st.Codec, &st.Bitrate, &st.Tags, &st.CreatedAt, &st.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan custom radio station: %w", err)
 		}
 		stations = append(stations, st)
@@ -185,19 +214,22 @@ func (db *DB) GetCustomRadioStations() ([]RadioCustomStation, error) {
 // RecordRadioPlayback upserts a station into radio playback history.
 func (db *DB) RecordRadioPlayback(st RadioHistoryEntry) error {
 	_, err := db.Exec(
-		`INSERT INTO radio_history (station_uuid, name, stream_url, favicon_url, homepage, tags, track_title, play_count, last_error)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+		`INSERT INTO radio_history (station_uuid, name, stream_url, favicon_url, homepage, country, codec, bitrate, tags, track_title, play_count, last_error)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
 		 ON CONFLICT(station_uuid) DO UPDATE SET
 			name = excluded.name,
 			stream_url = excluded.stream_url,
 			favicon_url = excluded.favicon_url,
 			homepage = CASE WHEN excluded.homepage != '' THEN excluded.homepage ELSE radio_history.homepage END,
+			country = CASE WHEN excluded.country != '' THEN excluded.country ELSE radio_history.country END,
+			codec = CASE WHEN excluded.codec != '' THEN excluded.codec ELSE radio_history.codec END,
+			bitrate = CASE WHEN excluded.bitrate > 0 THEN excluded.bitrate ELSE radio_history.bitrate END,
 			tags = excluded.tags,
 			track_title = excluded.track_title,
 			play_count = radio_history.play_count + 1,
 			last_error = excluded.last_error,
 			last_played_at = datetime('now')`,
-		st.StationUUID, st.Name, st.StreamURL, st.FaviconURL, st.Homepage, st.Tags, st.TrackTitle, st.LastError,
+		st.StationUUID, st.Name, st.StreamURL, st.FaviconURL, st.Homepage, st.Country, st.Codec, st.Bitrate, st.Tags, st.TrackTitle, st.LastError,
 	)
 	if err != nil {
 		return fmt.Errorf("record radio playback: %w", err)
@@ -229,7 +261,7 @@ func (db *DB) GetRadioHistory(limit int) ([]RadioHistoryEntry, error) {
 		limit = 25
 	}
 	rows, err := db.Query(
-		`SELECT station_uuid, name, stream_url, favicon_url, homepage, tags, track_title, play_count, last_error, last_played_at
+		`SELECT station_uuid, name, stream_url, favicon_url, homepage, country, codec, bitrate, tags, track_title, play_count, last_error, last_played_at
 		 FROM radio_history
 		 ORDER BY last_played_at DESC
 		 LIMIT ?`,
@@ -243,7 +275,7 @@ func (db *DB) GetRadioHistory(limit int) ([]RadioHistoryEntry, error) {
 	var entries []RadioHistoryEntry
 	for rows.Next() {
 		var e RadioHistoryEntry
-		if err := rows.Scan(&e.StationUUID, &e.Name, &e.StreamURL, &e.FaviconURL, &e.Homepage, &e.Tags, &e.TrackTitle, &e.PlayCount, &e.LastError, &e.LastPlayedAt); err != nil {
+		if err := rows.Scan(&e.StationUUID, &e.Name, &e.StreamURL, &e.FaviconURL, &e.Homepage, &e.Country, &e.Codec, &e.Bitrate, &e.Tags, &e.TrackTitle, &e.PlayCount, &e.LastError, &e.LastPlayedAt); err != nil {
 			return nil, fmt.Errorf("scan radio history: %w", err)
 		}
 		entries = append(entries, e)

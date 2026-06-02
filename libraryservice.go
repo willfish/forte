@@ -1037,7 +1037,7 @@ func (s *LibraryService) lookupSavedRadioStation(stationUUID string) (RadioStati
 	}
 	for _, station := range custom {
 		if station.StationUUID == stationUUID {
-			return savedRadioStationJSON(stationUUID, station.Name, station.StreamURL, station.FaviconURL, station.Homepage, station.Tags, "", 0, ""), true, nil
+			return savedRadioStationJSON(stationUUID, station.Name, station.StreamURL, station.FaviconURL, station.Homepage, station.Tags, station.Country, station.Bitrate, station.Codec), true, nil
 		}
 	}
 
@@ -1047,7 +1047,7 @@ func (s *LibraryService) lookupSavedRadioStation(stationUUID string) (RadioStati
 	}
 	for _, fav := range favs {
 		if fav.StationUUID == stationUUID {
-			return savedRadioStationJSON(fav.StationUUID, fav.Name, fav.StreamURL, fav.FaviconURL, fav.Homepage, fav.Tags, "", 0, ""), true, nil
+			return savedRadioStationJSON(fav.StationUUID, fav.Name, fav.StreamURL, fav.FaviconURL, fav.Homepage, fav.Tags, fav.Country, fav.Bitrate, fav.Codec), true, nil
 		}
 	}
 
@@ -1057,7 +1057,7 @@ func (s *LibraryService) lookupSavedRadioStation(stationUUID string) (RadioStati
 	}
 	for _, entry := range history {
 		if entry.StationUUID == stationUUID {
-			return savedRadioStationJSON(entry.StationUUID, entry.Name, entry.StreamURL, entry.FaviconURL, entry.Homepage, entry.Tags, "", 0, ""), true, nil
+			return savedRadioStationJSON(entry.StationUUID, entry.Name, entry.StreamURL, entry.FaviconURL, entry.Homepage, entry.Tags, entry.Country, entry.Bitrate, entry.Codec), true, nil
 		}
 	}
 
@@ -1166,6 +1166,9 @@ type RadioFavouriteJSON struct {
 	StreamURL   string `json:"streamUrl"`
 	FaviconURL  string `json:"faviconUrl"`
 	Homepage    string `json:"homepage"`
+	Country     string `json:"country"`
+	Codec       string `json:"codec"`
+	Bitrate     int    `json:"bitrate"`
 	Tags        string `json:"tags"`
 	AddedAt     string `json:"addedAt"`
 	Pinned      bool   `json:"pinned"`
@@ -1178,6 +1181,9 @@ type RadioHistoryJSON struct {
 	StreamURL    string `json:"streamUrl"`
 	FaviconURL   string `json:"faviconUrl"`
 	Homepage     string `json:"homepage"`
+	Country      string `json:"country"`
+	Codec        string `json:"codec"`
+	Bitrate      int    `json:"bitrate"`
 	Tags         string `json:"tags"`
 	TrackTitle   string `json:"trackTitle"`
 	PlayCount    int    `json:"playCount"`
@@ -1192,6 +1198,9 @@ type RadioCustomStationJSON struct {
 	StreamURL   string `json:"streamUrl"`
 	FaviconURL  string `json:"faviconUrl"`
 	Homepage    string `json:"homepage"`
+	Country     string `json:"country"`
+	Codec       string `json:"codec"`
+	Bitrate     int    `json:"bitrate"`
 	Tags        string `json:"tags"`
 	CreatedAt   string `json:"createdAt"`
 	UpdatedAt   string `json:"updatedAt"`
@@ -1224,6 +1233,9 @@ func (s *LibraryService) GetRadioFavourites() ([]RadioFavouriteJSON, error) {
 			StreamURL:   f.StreamURL,
 			FaviconURL:  f.FaviconURL,
 			Homepage:    f.Homepage,
+			Country:     f.Country,
+			Codec:       f.Codec,
+			Bitrate:     f.Bitrate,
 			Tags:        f.Tags,
 			AddedAt:     f.AddedAt,
 			Pinned:      f.Pinned,
@@ -1233,7 +1245,7 @@ func (s *LibraryService) GetRadioFavourites() ([]RadioFavouriteJSON, error) {
 }
 
 // AddRadioFavourite saves a radio station to favourites.
-func (s *LibraryService) AddRadioFavourite(stationUUID, name, streamURL, faviconURL, homepage, tags string) error {
+func (s *LibraryService) AddRadioFavourite(stationUUID, name, streamURL, faviconURL, homepage, tags, country, codec string, bitrate int) error {
 	if s.db == nil {
 		return fmt.Errorf("library not initialised")
 	}
@@ -1243,8 +1255,19 @@ func (s *LibraryService) AddRadioFavourite(stationUUID, name, streamURL, favicon
 		StreamURL:   streamURL,
 		FaviconURL:  faviconURL,
 		Homepage:    strings.TrimSpace(homepage),
+		Country:     strings.TrimSpace(country),
+		Codec:       strings.TrimSpace(codec),
+		Bitrate:     bitrate,
 		Tags:        tags,
 	})
+}
+
+// GetRadioFavouritePinned reports whether a favourite station is pinned.
+func (s *LibraryService) GetRadioFavouritePinned(stationUUID string) (bool, error) {
+	if s.db == nil {
+		return false, fmt.Errorf("library not initialised")
+	}
+	return s.db.GetRadioFavouritePinned(stationUUID)
 }
 
 // RemoveRadioFavourite removes a radio station from favourites.
@@ -1272,7 +1295,7 @@ func (s *LibraryService) IsRadioFavourite(stationUUID string) (bool, error) {
 }
 
 // AddCustomRadioStation saves a user-defined radio station.
-func (s *LibraryService) AddCustomRadioStation(name, streamURL, faviconURL, tags string) (RadioCustomStationJSON, error) {
+func (s *LibraryService) AddCustomRadioStation(name, streamURL, faviconURL, homepage, tags string) (RadioCustomStationJSON, error) {
 	if s.db == nil {
 		return RadioCustomStationJSON{}, fmt.Errorf("library not initialised")
 	}
@@ -1282,10 +1305,15 @@ func (s *LibraryService) AddCustomRadioStation(name, streamURL, faviconURL, tags
 	if err := validateStreamURL(streamURL); err != nil {
 		return RadioCustomStationJSON{}, err
 	}
+	homepage = strings.TrimSpace(homepage)
+	if homepage == "" {
+		homepage = library.DeriveHomepageFromStreamURL(streamURL)
+	}
 	station, err := s.db.AddCustomRadioStation(library.RadioCustomStation{
 		Name:       strings.TrimSpace(name),
 		StreamURL:  strings.TrimSpace(streamURL),
 		FaviconURL: strings.TrimSpace(faviconURL),
+		Homepage:   homepage,
 		Tags:       strings.TrimSpace(tags),
 	})
 	if err != nil {
@@ -1335,6 +1363,9 @@ func (s *LibraryService) GetRadioHistory(limit int) ([]RadioHistoryJSON, error) 
 			StreamURL:    entry.StreamURL,
 			FaviconURL:   entry.FaviconURL,
 			Homepage:     entry.Homepage,
+			Country:      entry.Country,
+			Codec:        entry.Codec,
+			Bitrate:      entry.Bitrate,
 			Tags:         entry.Tags,
 			TrackTitle:   entry.TrackTitle,
 			PlayCount:    entry.PlayCount,
@@ -1432,6 +1463,9 @@ func customStationToJSON(station library.RadioCustomStation) RadioCustomStationJ
 		StreamURL:   station.StreamURL,
 		FaviconURL:  station.FaviconURL,
 		Homepage:    station.Homepage,
+		Country:     station.Country,
+		Codec:       station.Codec,
+		Bitrate:     station.Bitrate,
 		Tags:        station.Tags,
 		CreatedAt:   station.CreatedAt,
 		UpdatedAt:   station.UpdatedAt,

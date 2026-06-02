@@ -61,6 +61,91 @@ func TestRadioHomepagePersistence(t *testing.T) {
 	}
 }
 
+func TestRadioStationMetadataPersistence(t *testing.T) {
+	db := openTestDB(t)
+
+	fav := RadioFavourite{
+		StationUUID: "meta-1",
+		Name:        "Classic FM",
+		StreamURL:   "https://stream.example.com/classic",
+		Homepage:    "https://classic.example.com/",
+		Country:     "United Kingdom",
+		Codec:       "MP3",
+		Bitrate:     192,
+		Tags:        "classical",
+	}
+	if err := db.AddRadioFavourite(fav); err != nil {
+		t.Fatalf("AddRadioFavourite: %v", err)
+	}
+
+	favs, err := db.GetRadioFavourites()
+	if err != nil {
+		t.Fatalf("GetRadioFavourites: %v", err)
+	}
+	if len(favs) != 1 {
+		t.Fatalf("got %d favourites, want 1", len(favs))
+	}
+	got := favs[0]
+	if got.Country != fav.Country || got.Codec != fav.Codec || got.Bitrate != fav.Bitrate {
+		t.Fatalf("favourite metadata = %+v, want country=%q codec=%q bitrate=%d", got, fav.Country, fav.Codec, fav.Bitrate)
+	}
+
+	entry := RadioHistoryEntry{
+		StationUUID: fav.StationUUID,
+		Name:        fav.Name,
+		StreamURL:   fav.StreamURL,
+		Homepage:    fav.Homepage,
+		Country:     fav.Country,
+		Codec:       fav.Codec,
+		Bitrate:     fav.Bitrate,
+		Tags:        fav.Tags,
+	}
+	if err := db.RecordRadioPlayback(entry); err != nil {
+		t.Fatalf("RecordRadioPlayback: %v", err)
+	}
+
+	history, err := db.GetRadioHistory(5)
+	if err != nil {
+		t.Fatalf("GetRadioHistory: %v", err)
+	}
+	if len(history) != 1 {
+		t.Fatalf("got %d history rows, want 1", len(history))
+	}
+	h := history[0]
+	if h.Country != fav.Country || h.Codec != fav.Codec || h.Bitrate != fav.Bitrate {
+		t.Fatalf("history metadata = %+v, want country=%q codec=%q bitrate=%d", h, fav.Country, fav.Codec, fav.Bitrate)
+	}
+
+	station, err := db.AddCustomRadioStation(RadioCustomStation{
+		Name:      "My Stream",
+		StreamURL: "https://live.example.org/main.mp3",
+		Homepage:  "https://example.org/",
+		Country:   "Testland",
+		Codec:     "AAC",
+		Bitrate:   128,
+	})
+	if err != nil {
+		t.Fatalf("AddCustomRadioStation: %v", err)
+	}
+	if station.Homepage != "https://example.org/" {
+		t.Fatalf("custom homepage = %q, want https://example.org/", station.Homepage)
+	}
+	if station.Country != "Testland" || station.Codec != "AAC" || station.Bitrate != 128 {
+		t.Fatalf("custom metadata = %+v", station)
+	}
+
+	derived, err := db.AddCustomRadioStation(RadioCustomStation{
+		Name:      "Derived Site",
+		StreamURL: "https://radio.example.net/live",
+	})
+	if err != nil {
+		t.Fatalf("AddCustomRadioStation derived: %v", err)
+	}
+	if derived.Homepage != "https://radio.example.net/" {
+		t.Fatalf("derived homepage = %q, want https://radio.example.net/", derived.Homepage)
+	}
+}
+
 func TestRadioFavouritesRoundTrip(t *testing.T) {
 	db := testDB(t)
 
