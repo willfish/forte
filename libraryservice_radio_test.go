@@ -37,15 +37,15 @@ type radioStationFixture struct {
 }
 
 type customFixture struct {
-	Name              string `json:"name"`
-	StreamURL         string `json:"streamUrl"`
-	Homepage          string `json:"homepage"`
-	DerivedHomepage   string `json:"derivedHomepage"`
-	FaviconURL        string `json:"faviconUrl"`
-	Tags              string `json:"tags"`
-	Country           string `json:"country"`
-	Codec             string `json:"codec"`
-	Bitrate           int    `json:"bitrate"`
+	Name            string `json:"name"`
+	StreamURL       string `json:"streamUrl"`
+	Homepage        string `json:"homepage"`
+	DerivedHomepage string `json:"derivedHomepage"`
+	FaviconURL      string `json:"faviconUrl"`
+	Tags            string `json:"tags"`
+	Country         string `json:"country"`
+	Codec           string `json:"codec"`
+	Bitrate         int    `json:"bitrate"`
 }
 
 func loadRadioStationsFixture(t *testing.T) radioStationsFixture {
@@ -114,164 +114,183 @@ func radioBrowserServerForStation(t *testing.T, station radio.Station) *radio.Cl
 	return c
 }
 
-func TestGetRadioStationByUUIDRadioBrowser(t *testing.T) {
+func TestGetRadioStationByUUID(t *testing.T) {
 	fx := loadRadioStationsFixture(t)
-	station := fixtureToRadioStation(fx.RadioBrowser)
-	rb := radioBrowserServerForStation(t, station)
-	defer withRadioTestHooks(t, rb, nil)()
 
-	s := openTestService(t)
-	got, err := s.GetRadioStationByUUID(fx.RadioBrowser.UUID)
-	if err != nil {
-		t.Fatalf("GetRadioStationByUUID: %v", err)
-	}
-	if got.Name != fx.RadioBrowser.Name {
-		t.Fatalf("Name = %q, want %q", got.Name, fx.RadioBrowser.Name)
-	}
-	if got.Homepage != fx.RadioBrowser.Homepage {
-		t.Fatalf("Homepage = %q, want %q", got.Homepage, fx.RadioBrowser.Homepage)
-	}
-	if got.Codec != fx.RadioBrowser.Codec || got.Bitrate != fx.RadioBrowser.Bitrate {
-		t.Fatalf("metadata = codec %q bitrate %d", got.Codec, got.Bitrate)
-	}
-}
-
-func TestGetRadioStationByUUIDSomaFM(t *testing.T) {
-	fx := loadRadioStationsFixture(t)
-	soma := []radio.Station{fixtureToRadioStation(fx.SomaFM)}
-	rb := emptyRadioBrowserServer(t)
-	defer withRadioTestHooks(t, rb, soma)()
-
-	s := openTestService(t)
-	got, err := s.GetRadioStationByUUID(fx.SomaFM.UUID)
-	if err != nil {
-		t.Fatalf("GetRadioStationByUUID: %v", err)
-	}
-	if got.Name != fx.SomaFM.Name {
-		t.Fatalf("Name = %q, want %q", got.Name, fx.SomaFM.Name)
-	}
-	if got.Homepage != fx.SomaFM.Homepage {
-		t.Fatalf("Homepage = %q, want %q", got.Homepage, fx.SomaFM.Homepage)
-	}
-}
-
-func TestGetRadioStationByUUIDCustom(t *testing.T) {
-	fx := loadRadioStationsFixture(t)
-	rb := emptyRadioBrowserServer(t)
-	defer withRadioTestHooks(t, rb, nil)()
-
-	s := openTestService(t)
-	customUUID := library.CustomRadioStationUUID(fx.Custom.StreamURL)
-	if _, err := s.db.AddCustomRadioStation(library.RadioCustomStation{
-		StationUUID: customUUID,
-		Name:        fx.Custom.Name,
-		StreamURL:   fx.Custom.StreamURL,
-		Tags:        fx.Custom.Tags,
-	}); err != nil {
-		t.Fatalf("AddCustomRadioStation: %v", err)
-	}
-
-	got, err := s.GetRadioStationByUUID(customUUID)
-	if err != nil {
-		t.Fatalf("GetRadioStationByUUID: %v", err)
-	}
-	if got.Name != fx.Custom.Name {
-		t.Fatalf("Name = %q, want %q", got.Name, fx.Custom.Name)
-	}
-	if got.Homepage != fx.Custom.DerivedHomepage {
-		t.Fatalf("Homepage = %q, want derived %q", got.Homepage, fx.Custom.DerivedHomepage)
-	}
-}
-
-func TestGetRadioStationByUUIDFavouriteOnly(t *testing.T) {
-	fx := loadRadioStationsFixture(t)
-	rb := emptyRadioBrowserServer(t)
-	defer withRadioTestHooks(t, rb, nil)()
-
-	s := openTestService(t)
-	if err := s.db.AddRadioFavourite(library.RadioFavourite{
-		StationUUID: fx.FavouriteOnly.UUID,
-		Name:        fx.FavouriteOnly.Name,
-		StreamURL:   fx.FavouriteOnly.StreamURL,
-		Homepage:    fx.FavouriteOnly.Homepage,
-		Country:     fx.FavouriteOnly.Country,
-		Codec:       fx.FavouriteOnly.Codec,
-		Bitrate:     fx.FavouriteOnly.Bitrate,
-		Tags:        fx.FavouriteOnly.Tags,
-	}); err != nil {
-		t.Fatalf("AddRadioFavourite: %v", err)
-	}
-
-	got, err := s.GetRadioStationByUUID(fx.FavouriteOnly.UUID)
-	if err != nil {
-		t.Fatalf("GetRadioStationByUUID: %v", err)
-	}
-	if got.Country != fx.FavouriteOnly.Country || got.Codec != fx.FavouriteOnly.Codec {
-		t.Fatalf("metadata mismatch: %+v", got)
-	}
-}
-
-func TestGetRadioStationByUUIDHistoryOnly(t *testing.T) {
-	fx := loadRadioStationsFixture(t)
-	rb := emptyRadioBrowserServer(t)
-	defer withRadioTestHooks(t, rb, nil)()
-
-	s := openTestService(t)
-	if err := s.db.RecordRadioPlayback(library.RadioHistoryEntry{
-		StationUUID: fx.HistoryOnly.UUID,
-		Name:        fx.HistoryOnly.Name,
-		StreamURL:   fx.HistoryOnly.StreamURL,
-		Homepage:    fx.HistoryOnly.Homepage,
-		Country:     fx.HistoryOnly.Country,
-		Codec:       fx.HistoryOnly.Codec,
-		Bitrate:     fx.HistoryOnly.Bitrate,
-		Tags:        fx.HistoryOnly.Tags,
-	}); err != nil {
-		t.Fatalf("RecordRadioPlayback: %v", err)
-	}
-
-	got, err := s.GetRadioStationByUUID(fx.HistoryOnly.UUID)
-	if err != nil {
-		t.Fatalf("GetRadioStationByUUID: %v", err)
-	}
-	if got.Name != fx.HistoryOnly.Name {
-		t.Fatalf("Name = %q, want %q", got.Name, fx.HistoryOnly.Name)
-	}
-}
-
-func TestGetRadioStationByUUIDRadioBrowserPrecedenceOverSaved(t *testing.T) {
-	fx := loadRadioStationsFixture(t)
-	rbStation := fixtureToRadioStation(fx.RadioBrowser)
-	rbStation.Name = "Live RadioBrowser Name"
-	rb := radioBrowserServerForStation(t, rbStation)
-	defer withRadioTestHooks(t, rb, nil)()
-
-	s := openTestService(t)
-	if err := s.db.AddRadioFavourite(library.RadioFavourite{
-		StationUUID: fx.RadioBrowser.UUID,
-		Name:        "Stale Saved Name",
-		StreamURL:   fx.RadioBrowser.StreamURL,
-		Homepage:    fx.RadioBrowser.Homepage,
-		Tags:        fx.RadioBrowser.Tags,
-	}); err != nil {
-		t.Fatalf("AddRadioFavourite: %v", err)
+	tests := []struct {
+		name      string
+		uuid      func(fx radioStationsFixture) string
+		rb        func(t *testing.T, fx radioStationsFixture) *radio.Client
+		soma      func(fx radioStationsFixture) []radio.Station
+		seed      func(t *testing.T, s *LibraryService, fx radioStationsFixture)
+		wantName  func(fx radioStationsFixture) string
+		wantHome  func(fx radioStationsFixture) string
+		wantCodec func(fx radioStationsFixture) string
+		wantErr   bool
+	}{
+		{
+			name: "radiobrowser",
+			uuid: func(fx radioStationsFixture) string { return fx.RadioBrowser.UUID },
+			rb: func(t *testing.T, fx radioStationsFixture) *radio.Client {
+				return radioBrowserServerForStation(t, fixtureToRadioStation(fx.RadioBrowser))
+			},
+			wantName:  func(fx radioStationsFixture) string { return fx.RadioBrowser.Name },
+			wantHome:  func(fx radioStationsFixture) string { return fx.RadioBrowser.Homepage },
+			wantCodec: func(fx radioStationsFixture) string { return fx.RadioBrowser.Codec },
+		},
+		{
+			name: "somafm",
+			uuid: func(fx radioStationsFixture) string { return fx.SomaFM.UUID },
+			rb: func(t *testing.T, fx radioStationsFixture) *radio.Client {
+				return emptyRadioBrowserServer(t)
+			},
+			soma: func(fx radioStationsFixture) []radio.Station {
+				return []radio.Station{fixtureToRadioStation(fx.SomaFM)}
+			},
+			wantName: func(fx radioStationsFixture) string { return fx.SomaFM.Name },
+			wantHome: func(fx radioStationsFixture) string { return fx.SomaFM.Homepage },
+		},
+		{
+			name: "custom",
+			uuid: func(fx radioStationsFixture) string {
+				return library.CustomRadioStationUUID(fx.Custom.StreamURL)
+			},
+			rb: func(t *testing.T, fx radioStationsFixture) *radio.Client {
+				return emptyRadioBrowserServer(t)
+			},
+			seed: func(t *testing.T, s *LibraryService, fx radioStationsFixture) {
+				if _, err := s.db.AddCustomRadioStation(library.RadioCustomStation{
+					StationUUID: library.CustomRadioStationUUID(fx.Custom.StreamURL),
+					Name:        fx.Custom.Name,
+					StreamURL:   fx.Custom.StreamURL,
+					Tags:        fx.Custom.Tags,
+				}); err != nil {
+					t.Fatalf("AddCustomRadioStation: %v", err)
+				}
+			},
+			wantName: func(fx radioStationsFixture) string { return fx.Custom.Name },
+			wantHome: func(fx radioStationsFixture) string { return fx.Custom.DerivedHomepage },
+		},
+		{
+			name: "favourite_only",
+			uuid: func(fx radioStationsFixture) string { return fx.FavouriteOnly.UUID },
+			rb: func(t *testing.T, fx radioStationsFixture) *radio.Client {
+				return emptyRadioBrowserServer(t)
+			},
+			seed: func(t *testing.T, s *LibraryService, fx radioStationsFixture) {
+				if err := s.db.AddRadioFavourite(library.RadioFavourite{
+					StationUUID: fx.FavouriteOnly.UUID,
+					Name:        fx.FavouriteOnly.Name,
+					StreamURL:   fx.FavouriteOnly.StreamURL,
+					Homepage:    fx.FavouriteOnly.Homepage,
+					Country:     fx.FavouriteOnly.Country,
+					Codec:       fx.FavouriteOnly.Codec,
+					Bitrate:     fx.FavouriteOnly.Bitrate,
+					Tags:        fx.FavouriteOnly.Tags,
+				}); err != nil {
+					t.Fatalf("AddRadioFavourite: %v", err)
+				}
+			},
+			wantName:  func(fx radioStationsFixture) string { return fx.FavouriteOnly.Name },
+			wantCodec: func(fx radioStationsFixture) string { return fx.FavouriteOnly.Codec },
+		},
+		{
+			name: "history_only",
+			uuid: func(fx radioStationsFixture) string { return fx.HistoryOnly.UUID },
+			rb: func(t *testing.T, fx radioStationsFixture) *radio.Client {
+				return emptyRadioBrowserServer(t)
+			},
+			seed: func(t *testing.T, s *LibraryService, fx radioStationsFixture) {
+				if err := s.db.RecordRadioPlayback(library.RadioHistoryEntry{
+					StationUUID: fx.HistoryOnly.UUID,
+					Name:        fx.HistoryOnly.Name,
+					StreamURL:   fx.HistoryOnly.StreamURL,
+					Homepage:    fx.HistoryOnly.Homepage,
+					Country:     fx.HistoryOnly.Country,
+					Codec:       fx.HistoryOnly.Codec,
+					Bitrate:     fx.HistoryOnly.Bitrate,
+					Tags:        fx.HistoryOnly.Tags,
+				}); err != nil {
+					t.Fatalf("RecordRadioPlayback: %v", err)
+				}
+			},
+			wantName: func(fx radioStationsFixture) string { return fx.HistoryOnly.Name },
+		},
+		{
+			name: "radiobrowser_over_saved",
+			uuid: func(fx radioStationsFixture) string { return fx.RadioBrowser.UUID },
+			rb: func(t *testing.T, fx radioStationsFixture) *radio.Client {
+				station := fixtureToRadioStation(fx.RadioBrowser)
+				station.Name = "Live RadioBrowser Name"
+				return radioBrowserServerForStation(t, station)
+			},
+			seed: func(t *testing.T, s *LibraryService, fx radioStationsFixture) {
+				if err := s.db.AddRadioFavourite(library.RadioFavourite{
+					StationUUID: fx.RadioBrowser.UUID,
+					Name:        "Stale Saved Name",
+					StreamURL:   fx.RadioBrowser.StreamURL,
+					Homepage:    fx.RadioBrowser.Homepage,
+					Tags:        fx.RadioBrowser.Tags,
+				}); err != nil {
+					t.Fatalf("AddRadioFavourite: %v", err)
+				}
+			},
+			wantName: func(fx radioStationsFixture) string { return "Live RadioBrowser Name" },
+		},
+		{
+			name: "not_found",
+			uuid: func(fx radioStationsFixture) string { return "missing-uuid" },
+			rb: func(t *testing.T, fx radioStationsFixture) *radio.Client {
+				return emptyRadioBrowserServer(t)
+			},
+			wantErr: true,
+		},
 	}
 
-	got, err := s.GetRadioStationByUUID(fx.RadioBrowser.UUID)
-	if err != nil {
-		t.Fatalf("GetRadioStationByUUID: %v", err)
-	}
-	if got.Name != "Live RadioBrowser Name" {
-		t.Fatalf("Name = %q, want live API name", got.Name)
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var rb *radio.Client
+			if tt.rb != nil {
+				rb = tt.rb(t, fx)
+			} else {
+				rb = emptyRadioBrowserServer(t)
+			}
+			var soma []radio.Station
+			if tt.soma != nil {
+				soma = tt.soma(fx)
+			}
+			defer withRadioTestHooks(t, rb, soma)()
 
-func TestGetRadioStationByUUIDNotFound(t *testing.T) {
-	rb := emptyRadioBrowserServer(t)
-	defer withRadioTestHooks(t, rb, nil)()
+			s := openTestService(t)
+			if tt.seed != nil {
+				tt.seed(t, s, fx)
+			}
 
-	s := openTestService(t)
-	if _, err := s.GetRadioStationByUUID("missing-uuid"); err == nil {
-		t.Fatal("expected error for missing station")
+			got, err := s.GetRadioStationByUUID(tt.uuid(fx))
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("GetRadioStationByUUID: %v", err)
+			}
+			if tt.wantName != nil {
+				if want := tt.wantName(fx); got.Name != want {
+					t.Fatalf("Name = %q, want %q", got.Name, want)
+				}
+			}
+			if tt.wantHome != nil {
+				if want := tt.wantHome(fx); got.Homepage != want {
+					t.Fatalf("Homepage = %q, want %q", got.Homepage, want)
+				}
+			}
+			if tt.wantCodec != nil {
+				if want := tt.wantCodec(fx); got.Codec != want {
+					t.Fatalf("Codec = %q, want %q", got.Codec, want)
+				}
+			}
+		})
 	}
 }

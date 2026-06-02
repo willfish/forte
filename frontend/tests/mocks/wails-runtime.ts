@@ -7,6 +7,29 @@ import {
   type RadioStationFixture,
 } from "../fixtures/radio-stations";
 
+/** Mirrors internal/library.DeriveHomepageFromStreamURL for mock custom stations. */
+function deriveHomepageFromStreamUrl(streamUrl: string): string {
+  const trimmed = streamUrl.trim();
+  if (!trimmed) return "";
+  try {
+    const host = new URL(trimmed).hostname;
+    if (!host || host === "localhost" || host.endsWith(".local")) return "";
+    if (isIPHost(host)) return "";
+    return `https://${host}/`;
+  } catch {
+    return "";
+  }
+}
+
+function isIPHost(host: string): boolean {
+  if (host.includes(":")) {
+    return /^[\da-f:]+$/i.test(host);
+  }
+  const parts = host.split(".");
+  if (parts.length !== 4) return false;
+  return parts.every((p) => /^\d{1,3}$/.test(p) && Number(p) <= 255);
+}
+
 let appPreferences = {
   libraryEnabled: false,
   startLastStation: true,
@@ -14,14 +37,64 @@ let appPreferences = {
   showTitlebar: false,
 };
 
+function fixtureFavourite(f: (typeof radioFixtures)["favouriteOnly"]) {
+  return {
+    stationUuid: f.uuid,
+    name: f.name,
+    streamUrl: f.streamUrl,
+    faviconUrl: f.favicon || "",
+    homepage: f.homepage,
+    country: f.country,
+    codec: f.codec,
+    bitrate: f.bitrate,
+    tags: f.tags,
+    addedAt: "2024-01-01 00:00:00",
+    pinned: false,
+  };
+}
+
+function fixtureHistory(h: (typeof radioFixtures)["historyOnly"]) {
+  return {
+    stationUuid: h.uuid,
+    name: h.name,
+    streamUrl: h.streamUrl,
+    faviconUrl: h.favicon || "",
+    homepage: h.homepage,
+    country: h.country,
+    codec: h.codec,
+    bitrate: h.bitrate,
+    tags: h.tags,
+    lastTitle: "",
+    lastError: "",
+    playCount: 1,
+    lastPlayedAt: "2024-01-02 09:00:00",
+  };
+}
+
 let radioFavourites = [
-  { stationUuid: "st-1", name: "Jazz FM", streamUrl: "https://stream.example.com/jazz", faviconUrl: "", tags: "jazz,smooth", addedAt: "2024-01-01 00:00:00", pinned: false },
+  { stationUuid: "st-1", name: "Jazz FM", streamUrl: "https://stream.example.com/jazz", faviconUrl: "", homepage: "", tags: "jazz,smooth", addedAt: "2024-01-01 00:00:00", pinned: false },
+  fixtureFavourite(radioFixtures.favouriteOnly),
 ];
 
 let customStations: any[] = [];
 
 let radioHistory = [
-  { stationUuid: "st-3", name: "Classical 24", streamUrl: "https://stream.example.com/classical", faviconUrl: "https://img.example.com/classical.png", homepage: "https://classical24.example.com/", tags: "classical", lastTitle: "Morning Concert", lastError: "", playCount: 3, lastPlayedAt: "2024-01-02 09:00:00" },
+  {
+    stationUuid: "st-3",
+    name: "Classical 24",
+    streamUrl: "https://stream.example.com/classical",
+    faviconUrl: "https://img.example.com/classical.png",
+    homepage: "https://classical24.example.com/",
+    country: "",
+    codec: "",
+    bitrate: 0,
+    tags: "classical",
+    lastTitle: "Morning Concert",
+    lastError: "",
+    playCount: 3,
+    lastPlayedAt: "2024-01-02 09:00:00",
+  },
+  fixtureHistory(radioFixtures.historyOnly),
 ];
 
 let playbackStatus = {
@@ -154,40 +227,6 @@ function resolveStationByUUID(stationUuid: string) {
       tags: hist.tags,
       bitrate: hist.bitrate || 0,
       codec: hist.codec || "",
-      votes: 0,
-      clicks: 0,
-    };
-  }
-
-  if (stationUuid === radioFixtures.favouriteOnly.uuid) {
-    const f = radioFixtures.favouriteOnly;
-    return {
-      uuid: f.uuid,
-      name: f.name,
-      streamUrl: f.streamUrl,
-      homepage: f.homepage,
-      favicon: f.favicon || "",
-      country: f.country,
-      tags: f.tags,
-      bitrate: f.bitrate,
-      codec: f.codec,
-      votes: 0,
-      clicks: 0,
-    };
-  }
-
-  if (stationUuid === radioFixtures.historyOnly.uuid) {
-    const h = radioFixtures.historyOnly;
-    return {
-      uuid: h.uuid,
-      name: h.name,
-      streamUrl: h.streamUrl,
-      homepage: h.homepage,
-      favicon: h.favicon || "",
-      country: h.country,
-      tags: h.tags,
-      bitrate: h.bitrate,
-      codec: h.codec,
       votes: 0,
       clicks: 0,
     };
@@ -402,14 +441,7 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   2495430549: () => customStations,
   // AddCustomRadioStation
   3781401643: (name: string, streamUrl: string, faviconUrl: string, homepage: string, tags: string) => {
-    let derivedHomepage = homepage;
-    if (!derivedHomepage) {
-      try {
-        derivedHomepage = new URL(streamUrl).origin + "/";
-      } catch {
-        derivedHomepage = "";
-      }
-    }
+    const derivedHomepage = homepage.trim() || deriveHomepageFromStreamUrl(streamUrl);
     const station = {
       stationUuid:
         streamUrl === radioFixtures.custom.streamUrl
