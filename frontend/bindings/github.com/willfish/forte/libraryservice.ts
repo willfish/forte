@@ -17,8 +17,8 @@ import * as $models from "./models.js";
 /**
  * AddCustomRadioStation saves a user-defined radio station.
  */
-export function AddCustomRadioStation(name: string, streamURL: string, faviconURL: string, tags: string): $CancellablePromise<$models.RadioCustomStationJSON> {
-    return $Call.ByID(3781401643, name, streamURL, faviconURL, tags).then(($result: any) => {
+export function AddCustomRadioStation(name: string, streamURL: string, faviconURL: string, homepage: string, tags: string): $CancellablePromise<$models.RadioCustomStationJSON> {
+    return $Call.ByID(3781401643, name, streamURL, faviconURL, homepage, tags).then(($result: any) => {
         return $$createType0($result);
     });
 }
@@ -26,8 +26,8 @@ export function AddCustomRadioStation(name: string, streamURL: string, faviconUR
 /**
  * AddRadioFavourite saves a radio station to favourites.
  */
-export function AddRadioFavourite(stationUUID: string, name: string, streamURL: string, faviconURL: string, tags: string): $CancellablePromise<void> {
-    return $Call.ByID(3744144887, stationUUID, name, streamURL, faviconURL, tags);
+export function AddRadioFavourite(stationUUID: string, name: string, streamURL: string, faviconURL: string, homepage: string, tags: string, country: string, codec: string, bitrate: number): $CancellablePromise<void> {
+    return $Call.ByID(3744144887, stationUUID, name, streamURL, faviconURL, homepage, tags, country, codec, bitrate);
 }
 
 /**
@@ -196,6 +196,13 @@ export function GetPlaylists(): $CancellablePromise<$models.Playlist[]> {
 }
 
 /**
+ * GetRadioFavouritePinned reports whether a favourite station is pinned.
+ */
+export function GetRadioFavouritePinned(stationUUID: string): $CancellablePromise<boolean> {
+    return $Call.ByID(4094481906, stationUUID);
+}
+
+/**
  * GetRadioFavourites returns all saved radio stations.
  */
 export function GetRadioFavourites(): $CancellablePromise<$models.RadioFavouriteJSON[]> {
@@ -210,6 +217,15 @@ export function GetRadioFavourites(): $CancellablePromise<$models.RadioFavourite
 export function GetRadioHistory(limit: number): $CancellablePromise<$models.RadioHistoryJSON[]> {
     return $Call.ByID(3857005579, limit).then(($result: any) => {
         return $$createType16($result);
+    });
+}
+
+/**
+ * GetRadioStationByUUID returns full station metadata, fetching from RadioBrowser when possible.
+ */
+export function GetRadioStationByUUID(stationUUID: string): $CancellablePromise<$models.RadioStationJSON> {
+    return $Call.ByID(4150278773, stationUUID).then(($result: any) => {
+        return $$createType17($result);
     });
 }
 
@@ -340,6 +356,13 @@ export function IsRadioFavourite(stationUUID: string): $CancellablePromise<boole
  */
 export function MoveTrackInPlaylist(playlistID: number, fromPos: number, toPos: number): $CancellablePromise<void> {
     return $Call.ByID(465154155, playlistID, fromPos, toPos);
+}
+
+/**
+ * OpenURL opens an http(s) URL in the system browser.
+ */
+export function OpenURL(rawURL: string): $CancellablePromise<void> {
+    return $Call.ByID(1380764543, rawURL);
 }
 
 /**

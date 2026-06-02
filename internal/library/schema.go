@@ -230,6 +230,26 @@ const migration014 = `
 ALTER TABLE app_preferences ADD COLUMN log_level TEXT NOT NULL DEFAULT 'warn';
 `
 
+const migration015 = `
+ALTER TABLE radio_favourites ADD COLUMN homepage TEXT NOT NULL DEFAULT '';
+ALTER TABLE radio_history ADD COLUMN homepage TEXT NOT NULL DEFAULT '';
+ALTER TABLE radio_custom_stations ADD COLUMN homepage TEXT NOT NULL DEFAULT '';
+`
+
+const migration016 = `
+ALTER TABLE radio_favourites ADD COLUMN country TEXT NOT NULL DEFAULT '';
+ALTER TABLE radio_favourites ADD COLUMN codec TEXT NOT NULL DEFAULT '';
+ALTER TABLE radio_favourites ADD COLUMN bitrate INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE radio_history ADD COLUMN country TEXT NOT NULL DEFAULT '';
+ALTER TABLE radio_history ADD COLUMN codec TEXT NOT NULL DEFAULT '';
+ALTER TABLE radio_history ADD COLUMN bitrate INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE radio_custom_stations ADD COLUMN country TEXT NOT NULL DEFAULT '';
+ALTER TABLE radio_custom_stations ADD COLUMN codec TEXT NOT NULL DEFAULT '';
+ALTER TABLE radio_custom_stations ADD COLUMN bitrate INTEGER NOT NULL DEFAULT 0;
+`
+
 const migration013 = `
 DROP TABLE fts_tracks;
 
