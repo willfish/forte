@@ -298,7 +298,7 @@ func TestAppPreferencesRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetAppPreferences: %v", err)
 	}
-	if prefs.LibraryEnabled || !prefs.StartLastStation || !prefs.AutoReconnect || prefs.ShowTitlebar {
+	if prefs.LibraryEnabled || !prefs.StartLastStation || !prefs.AutoReconnect || prefs.ShowTitlebar || prefs.LogLevel != "warn" {
 		t.Fatalf("unexpected default preferences: %#v", prefs)
 	}
 
@@ -307,6 +307,7 @@ func TestAppPreferencesRoundTrip(t *testing.T) {
 		StartLastStation: false,
 		AutoReconnect:    false,
 		ShowTitlebar:     true,
+		LogLevel:         "debug",
 	}
 	if err := db.SaveAppPreferences(want); err != nil {
 		t.Fatalf("SaveAppPreferences: %v", err)

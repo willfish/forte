@@ -4,6 +4,8 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+
+	"github.com/willfish/forte/internal/logx"
 )
 
 // RadioFavourite represents a saved radio station.
@@ -47,6 +49,7 @@ type AppPreferences struct {
 	StartLastStation bool
 	AutoReconnect    bool
 	ShowTitlebar     bool
+	LogLevel         string
 }
 
 // AddRadioFavourite saves a radio station to favourites.
@@ -254,32 +257,38 @@ func (db *DB) ClearRadioHistory() error {
 // GetAppPreferences returns product-level preferences.
 func (db *DB) GetAppPreferences() (AppPreferences, error) {
 	var libraryEnabled, startLastStation, autoReconnect, showTitlebar int
+	var logLevel string
 	err := db.QueryRow(
-		`SELECT library_enabled, start_last_station, auto_reconnect, show_titlebar
+		`SELECT library_enabled, start_last_station, auto_reconnect, show_titlebar, log_level
 		 FROM app_preferences WHERE id = 1`,
-	).Scan(&libraryEnabled, &startLastStation, &autoReconnect, &showTitlebar)
+	).Scan(&libraryEnabled, &startLastStation, &autoReconnect, &showTitlebar, &logLevel)
 	if err != nil {
 		return AppPreferences{}, fmt.Errorf("get app preferences: %w", err)
+	}
+	if logLevel == "" {
+		logLevel = "warn"
 	}
 	return AppPreferences{
 		LibraryEnabled:   libraryEnabled != 0,
 		StartLastStation: startLastStation != 0,
 		AutoReconnect:    autoReconnect != 0,
 		ShowTitlebar:     showTitlebar != 0,
+		LogLevel:         logLevel,
 	}, nil
 }
 
 // SaveAppPreferences stores product-level preferences.
 func (db *DB) SaveAppPreferences(p AppPreferences) error {
 	_, err := db.Exec(
-		`INSERT INTO app_preferences (id, library_enabled, start_last_station, auto_reconnect, show_titlebar)
-		 VALUES (1, ?, ?, ?, ?)
+		`INSERT INTO app_preferences (id, library_enabled, start_last_station, auto_reconnect, show_titlebar, log_level)
+		 VALUES (1, ?, ?, ?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET
 			library_enabled = excluded.library_enabled,
 			start_last_station = excluded.start_last_station,
 			auto_reconnect = excluded.auto_reconnect,
-			show_titlebar = excluded.show_titlebar`,
-		boolToInt(p.LibraryEnabled), boolToInt(p.StartLastStation), boolToInt(p.AutoReconnect), boolToInt(p.ShowTitlebar),
+			show_titlebar = excluded.show_titlebar,
+			log_level = excluded.log_level`,
+		boolToInt(p.LibraryEnabled), boolToInt(p.StartLastStation), boolToInt(p.AutoReconnect), boolToInt(p.ShowTitlebar), normalizeLogLevel(p.LogLevel),
 	)
 	if err != nil {
 		return fmt.Errorf("save app preferences: %w", err)
@@ -298,4 +307,8 @@ func boolToInt(v bool) int {
 		return 1
 	}
 	return 0
+}
+
+func normalizeLogLevel(v string) string {
+	return logx.LevelName(logx.ParseLevel(v))
 }

@@ -26,7 +26,17 @@
     startLastStation: true,
     autoReconnect: true,
     showTitlebar: false,
+    logLevel: 'warn',
+    logFilePath: '',
   });
+
+  const logLevelOptions: { value: string; label: string; description: string }[] = [
+    { value: 'error', label: 'Errors only', description: 'Log failures and critical issues' },
+    { value: 'warn', label: 'Normal', description: 'Default — warnings, errors, and legacy diagnostic lines' },
+    { value: 'info', label: 'Detailed', description: 'More library and sync messages' },
+    { value: 'debug', label: 'Verbose', description: 'Everything, including playback and tray debug lines' },
+    { value: 'off', label: 'Off', description: 'Disable file logging (crash.log is still written)' },
+  ];
 
   $effect(() => {
     return onPreferenceChange((p) => { preference = p; });
@@ -45,6 +55,8 @@
         startLastStation: Boolean(prefs?.startLastStation),
         autoReconnect: Boolean(prefs?.autoReconnect),
         showTitlebar: Boolean(prefs?.showTitlebar),
+        logLevel: prefs?.logLevel || 'warn',
+        logFilePath: prefs?.logFilePath || '',
       };
       setLibraryEnabled(appPreferences.libraryEnabled);
       setTitlebarEnabled(appPreferences.showTitlebar);
@@ -58,20 +70,34 @@
     loadAppPreferences();
   });
 
-  async function saveAppPreference(key: keyof typeof appPreferences, value: boolean) {
-    const next = { ...appPreferences, [key]: value };
+  async function saveAppPreferences(next: typeof appPreferences) {
     appPreferences = next;
-    if (key === 'libraryEnabled') {
-      setLibraryEnabled(value);
+    if ('libraryEnabled' in next) {
+      setLibraryEnabled(next.libraryEnabled);
     }
-    if (key === 'showTitlebar') {
-      setTitlebarEnabled(value);
+    if ('showTitlebar' in next) {
+      setTitlebarEnabled(next.showTitlebar);
     }
     try {
-      await LibraryService.SaveAppPreferences(next);
+      await LibraryService.SaveAppPreferences({
+        libraryEnabled: next.libraryEnabled,
+        startLastStation: next.startLastStation,
+        autoReconnect: next.autoReconnect,
+        showTitlebar: next.showTitlebar,
+        logLevel: next.logLevel,
+      });
+      await loadAppPreferences();
     } catch {
       await loadAppPreferences();
     }
+  }
+
+  async function saveAppPreference(key: 'libraryEnabled' | 'startLastStation' | 'autoReconnect' | 'showTitlebar', value: boolean) {
+    await saveAppPreferences({ ...appPreferences, [key]: value });
+  }
+
+  async function saveLogLevel(level: string) {
+    await saveAppPreferences({ ...appPreferences, logLevel: level });
   }
 
   const themeModeOptions: { value: ThemeMode; label: string; description: string }[] = [
@@ -458,6 +484,28 @@
           onchange={(e) => saveAppPreference('libraryEnabled', (e.target as HTMLInputElement).checked)}
         />
       </label>
+      <div class="preference-row log-level-row">
+        <span>
+          <span class="option-label">Diagnostic logging</span>
+          <span class="option-desc">
+            {#each logLevelOptions.filter((o) => o.value === appPreferences.logLevel) as opt}
+              {opt.description}
+            {/each}
+          </span>
+          {#if appPreferences.logFilePath}
+            <span class="log-path">{appPreferences.logFilePath}</span>
+          {/if}
+        </span>
+        <select
+          class="log-level-select"
+          value={appPreferences.logLevel}
+          onchange={(e) => saveLogLevel((e.target as HTMLSelectElement).value)}
+        >
+          {#each logLevelOptions as opt}
+            <option value={opt.value}>{opt.label}</option>
+          {/each}
+        </select>
+      </div>
     </div>
   </section>
 
@@ -765,6 +813,28 @@
     display: flex;
     flex-direction: column;
     min-width: 0;
+  }
+
+  .log-level-row {
+    align-items: flex-start;
+  }
+
+  .log-path {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.75rem;
+    color: var(--text-muted, #888);
+    font-family: ui-monospace, monospace;
+    word-break: break-all;
+  }
+
+  .log-level-select {
+    min-width: 9rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-subtle, #333);
+    background: var(--surface-raised, #1a1a1a);
+    color: inherit;
   }
 
   .preference-row input {

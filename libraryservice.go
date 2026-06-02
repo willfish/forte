@@ -18,6 +18,7 @@ import (
 	"github.com/pkg/browser"
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/willfish/forte/internal/artistinfo"
+	"github.com/willfish/forte/internal/logx"
 	"github.com/willfish/forte/internal/library"
 	"github.com/willfish/forte/internal/radio"
 	"github.com/willfish/forte/internal/scrobbling/lastfm"
@@ -58,6 +59,8 @@ func (s *LibraryService) ServiceStartup(_ context.Context, _ application.Service
 	if err != nil {
 		return fmt.Errorf("load preferences: %w", err)
 	}
+	applyLogging(prefs.LogLevel)
+	logx.Logger().Info("logging configured", "level", prefs.LogLevel, "path", logx.Path())
 
 	s.lifecycleMu.Lock()
 	if prefs.LibraryEnabled {
@@ -1091,10 +1094,12 @@ type RadioCustomStationJSON struct {
 
 // AppPreferencesJSON is the JSON-friendly app preference type exposed to the frontend.
 type AppPreferencesJSON struct {
-	LibraryEnabled   bool `json:"libraryEnabled"`
-	StartLastStation bool `json:"startLastStation"`
-	AutoReconnect    bool `json:"autoReconnect"`
-	ShowTitlebar     bool `json:"showTitlebar"`
+	LibraryEnabled   bool   `json:"libraryEnabled"`
+	StartLastStation bool   `json:"startLastStation"`
+	AutoReconnect    bool   `json:"autoReconnect"`
+	ShowTitlebar     bool   `json:"showTitlebar"`
+	LogLevel         string `json:"logLevel"`
+	LogFilePath      string `json:"logFilePath"`
 }
 
 // GetRadioFavourites returns all saved radio stations.
@@ -1254,6 +1259,8 @@ func (s *LibraryService) GetAppPreferences() (AppPreferencesJSON, error) {
 		StartLastStation: prefs.StartLastStation,
 		AutoReconnect:    prefs.AutoReconnect,
 		ShowTitlebar:     prefs.ShowTitlebar,
+		LogLevel:         prefs.LogLevel,
+		LogFilePath:      logx.Path(),
 	}, nil
 }
 
@@ -1268,15 +1275,21 @@ func (s *LibraryService) SaveAppPreferences(prefs AppPreferencesJSON) error {
 		return err
 	}
 
+	logLevel := prefs.LogLevel
+	if logLevel == "" {
+		logLevel = logx.LevelWarn
+	}
 	next := library.AppPreferences{
 		LibraryEnabled:   prefs.LibraryEnabled,
 		StartLastStation: prefs.StartLastStation,
 		AutoReconnect:    prefs.AutoReconnect,
 		ShowTitlebar:     prefs.ShowTitlebar,
+		LogLevel:         logLevel,
 	}
 	if err := s.db.SaveAppPreferences(next); err != nil {
 		return err
 	}
+	applyLogging(next.LogLevel)
 
 	s.lifecycleMu.Lock()
 	defer s.lifecycleMu.Unlock()
