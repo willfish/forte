@@ -1,4 +1,4 @@
-import stationsJson from "@radio-fixtures";
+import stationsJson from "../../../testdata/radio/stations.json" with { type: "json" };
 
 export type RadioStationFixture = {
   uuid: string;

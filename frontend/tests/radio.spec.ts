@@ -188,7 +188,12 @@ test('combines country and tag filters on Browse', async ({ page }) => {
 test('pins favourite stations', async ({ page }) => {
   await radioNavButton(page).click();
   await page.getByRole('tab', { name: /Favourites/ }).click();
-  await page.getByRole('button', { name: 'Pin favourite' }).click();
+  await page
+    .locator('.station-list')
+    .getByRole('listitem')
+    .filter({ hasText: 'Jazz FM' })
+    .getByRole('button', { name: 'Pin favourite' })
+    .click();
   await expect(page.getByText('Pinned')).toBeVisible();
 });
 
