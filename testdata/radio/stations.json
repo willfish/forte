@@ -1,0 +1,70 @@
+{
+  "radiobrowser": {
+    "uuid": "fixture-rb-jazz",
+    "name": "Fixture Jazz Radio",
+    "streamUrl": "https://stream.example.com/fixture-jazz",
+    "homepage": "https://fixture-jazz.example.com/",
+    "favicon": "https://fixture-jazz.example.com/icon.png",
+    "country": "United Kingdom",
+    "tags": "jazz,fixture",
+    "bitrate": 128,
+    "codec": "MP3",
+    "votes": 42,
+    "clicks": 100
+  },
+  "somafm": {
+    "uuid": "somafm-missioncontrol",
+    "name": "SomaFM Mission Control",
+    "streamUrl": "https://stream.example.com/somafm-missioncontrol",
+    "homepage": "https://somafm.com/missioncontrol/",
+    "favicon": "https://somafm.com/logos/512/missioncontrol512.png",
+    "country": "",
+    "tags": "ambient,space,electronic",
+    "bitrate": 128,
+    "codec": "MP3"
+  },
+  "custom": {
+    "name": "Fixture Custom Stream",
+    "streamUrl": "https://live.custom-fixture.example.org/stream.mp3",
+    "homepage": "",
+    "derivedHomepage": "https://live.custom-fixture.example.org/",
+    "faviconUrl": "",
+    "tags": "custom,fixture",
+    "country": "",
+    "codec": "",
+    "bitrate": 0
+  },
+  "favouriteOnly": {
+    "uuid": "fixture-favourite-only",
+    "name": "Fixture Favourite Only",
+    "streamUrl": "https://stream.example.com/favourite-only",
+    "homepage": "https://favourite-only.example.com/",
+    "faviconUrl": "",
+    "country": "France",
+    "codec": "AAC",
+    "bitrate": 256,
+    "tags": "favourite,fixture"
+  },
+  "historyOnly": {
+    "uuid": "fixture-history-only",
+    "name": "Fixture History Only",
+    "streamUrl": "https://stream.example.com/history-only",
+    "homepage": "https://history-only.example.com/",
+    "faviconUrl": "",
+    "country": "Germany",
+    "codec": "MP3",
+    "bitrate": 192,
+    "tags": "history,fixture"
+  },
+  "browse": {
+    "uuid": "st-jazz-fm",
+    "name": "Jazz FM",
+    "streamUrl": "https://stream.example.com/jazz-fm",
+    "homepage": "https://www.jazzfm.com/",
+    "favicon": "",
+    "country": "United Kingdom",
+    "tags": "jazz,smooth",
+    "bitrate": 128,
+    "codec": "MP3"
+  }
+}
