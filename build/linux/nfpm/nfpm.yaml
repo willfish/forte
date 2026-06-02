@@ -32,10 +32,10 @@ contents:
   - src: "./build/linux/forte.desktop"
     dst: "/usr/share/applications/io.github.willfish.forte.desktop"
 
-# Default dependencies for Debian/Ubuntu builds using GTK3 and WebKit2GTK 4.1.
+# Default dependencies for Debian/Ubuntu builds using GTK4 and WebKitGTK 6.
 depends:
-  - libgtk-3-0
-  - libwebkit2gtk-4.1-0
+  - libgtk-4-1
+  - libwebkitgtk-6.0-4
   - libmpv2
   - hicolor-icon-theme
 
@@ -43,15 +43,15 @@ depends:
 overrides:
   rpm:
     depends:
-      - gtk3
-      - webkit2gtk4.1
+      - gtk4
+      - webkitgtk6.0
       - mpv-libs
       - hicolor-icon-theme
   
   archlinux:
     depends:
-      - gtk3
-      - webkit2gtk-4.1
+      - gtk4
+      - webkitgtk-6.0
       - mpv
       - hicolor-icon-theme
 

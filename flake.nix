@@ -66,7 +66,7 @@
             mkdir -p vendor
             runHook postBuild
           '';
-          tags = [ "production" "nocgo" ] ++ lib.optionals pkgs.stdenv.isLinux [ "gtk3" ];
+          tags = [ "production" "nocgo" ] ++ lib.optionals pkgs.stdenv.isLinux [ "gtk4" ];
           ldflags = [ "-s" "-w" ];
           subPackages = [ "." ];
           doCheck = false; # Tests need libmpv.so at runtime
@@ -74,7 +74,7 @@
           nativeBuildInputs = with pkgs; [
             pkg-config
           ] ++ lib.optionals pkgs.stdenv.isLinux [
-            wrapGAppsHook3
+            wrapGAppsHook4
             imagemagick
             desktop-file-utils
           ];
@@ -82,8 +82,8 @@
           buildInputs = with pkgs; [
             mpv
           ] ++ lib.optionals pkgs.stdenv.isLinux [
-            gtk3
-            webkitgtk_4_1
+            gtk4
+            webkitgtk_6_0
           ] ++ lib.optionals pkgs.stdenv.isDarwin [
             pkgs.apple-sdk_14
           ];
