@@ -62,6 +62,7 @@
             ${lib.optionalString pkgs.stdenv.isLinux ''
               patch -p1 -d vendor/github.com/wailsapp/wails/v3 < ${./patches/wails-status-notifier-icon-name.patch}
               patch -p1 -d vendor/github.com/wailsapp/wails/v3 < ${./patches/wails-gtk4-transparent-window.patch}
+              patch -p1 -d vendor/github.com/wailsapp/wails/v3 < ${./patches/wails-status-notifier-click-menu-split.patch}
             ''}
 
             mkdir -p vendor

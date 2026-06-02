@@ -68,7 +68,8 @@ tasks:
 
         for patch_file in \
           '{{.ROOT_DIR}}/patches/wails-status-notifier-icon-name.patch' \
-          '{{.ROOT_DIR}}/patches/wails-gtk4-transparent-window.patch'
+          '{{.ROOT_DIR}}/patches/wails-gtk4-transparent-window.patch' \
+          '{{.ROOT_DIR}}/patches/wails-status-notifier-click-menu-split.patch'
         do
           if patch -p1 -d "$module_dir" --forward --dry-run < "$patch_file" >/dev/null 2>&1; then
             patch -p1 -d "$module_dir" < "$patch_file"
