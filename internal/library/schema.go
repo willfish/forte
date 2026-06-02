@@ -226,6 +226,10 @@ const migration012 = `
 ALTER TABLE app_preferences ADD COLUMN show_titlebar INTEGER NOT NULL DEFAULT 0;
 `
 
+const migration014 = `
+ALTER TABLE app_preferences ADD COLUMN log_level TEXT NOT NULL DEFAULT 'warn';
+`
+
 const migration013 = `
 DROP TABLE fts_tracks;
 
