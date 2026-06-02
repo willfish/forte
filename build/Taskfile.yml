@@ -13,11 +13,36 @@ tasks:
         msg: "Go is required to install wails3. Install Go 1.25+ or enter `nix develop`."
     cmds:
       - |
-        if [ -x '{{.WAILS_BIN}}' ] && [ "$('{{.WAILS_BIN}}' version)" = '{{.WAILS_VERSION}}' ]; then
-          exit 0
+        lock_dir='{{.ROOT_DIR}}/.go/wails-install.lock'
+        mkdir -p "$(dirname "$lock_dir")"
+        while ! mkdir "$lock_dir" 2>/dev/null; do
+          sleep 0.2
+        done
+        trap 'rmdir "$lock_dir"' EXIT
+
+        current_version=""
+        if [ -x '{{.WAILS_BIN}}' ]; then
+          current_version="$('{{.WAILS_BIN}}' version 2>&1 || true)"
         fi
+        case "$current_version" in
+          *'{{.WAILS_VERSION}}'*) exit 0 ;;
+        esac
+
         mkdir -p '{{.ROOT_DIR}}/.go/bin'
         GOBIN='{{.ROOT_DIR}}/.go/bin' go install github.com/wailsapp/wails/v3/cmd/wails3@{{.WAILS_VERSION}}
+
+        installed_version="$('{{.WAILS_BIN}}' version 2>&1 || true)"
+        case "$installed_version" in
+          *'{{.WAILS_VERSION}}'*) exit 0 ;;
+        esac
+
+        if [ -n "$installed_version" ]; then
+          echo "$installed_version" >&2
+        fi
+        if [ -z "$installed_version" ]; then
+          echo "Installed wails3, but it could not report version {{.WAILS_VERSION}}." >&2
+        fi
+        exit 1
 
   go:mod:tidy:
     summary: Runs `go mod tidy`
