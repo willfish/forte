@@ -128,6 +128,41 @@ func TestClientSearch(t *testing.T) {
 	}
 }
 
+func TestClientByUUID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/json/stations/byuuid" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("uuid"); got != "abc-123" {
+			t.Errorf("uuid = %q, want abc-123", got)
+		}
+		stations := []Station{
+			{
+				UUID:      "abc-123",
+				Name:      "Detail Radio",
+				Homepage:  "https://example.com/",
+				StreamURL: "https://stream.example.com/radio",
+			},
+		}
+		_ = json.NewEncoder(w).Encode(stations)
+	}))
+	defer server.Close()
+
+	c := NewClient()
+	c.servers = []string{server.URL}
+
+	stations, err := c.ByUUID("abc-123")
+	if err != nil {
+		t.Fatalf("ByUUID: %v", err)
+	}
+	if len(stations) != 1 {
+		t.Fatalf("expected 1 station, got %d", len(stations))
+	}
+	if stations[0].Homepage != "https://example.com/" {
+		t.Errorf("Homepage = %q", stations[0].Homepage)
+	}
+}
+
 func TestClientTopVoted(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/json/stations/topvote" {

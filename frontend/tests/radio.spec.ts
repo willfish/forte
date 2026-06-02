@@ -260,6 +260,19 @@ test('pressing enter on a focused radio station toggles play and pause', async (
   await expect(station.getByText('Paused')).toBeVisible();
 });
 
+test('opens station detail with homepage and stream links', async ({ page }) => {
+  await radioNavButton(page).click();
+
+  await page.getByRole('button', { name: 'Jazz FM', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Jazz FM', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Links' })).toBeVisible();
+  await expect(page.getByText('https://www.jazzfm.com/')).toBeVisible();
+  await expect(page.getByText('https://stream.example.com/jazz-fm')).toBeVisible();
+
+  await page.locator('.station-view').getByRole('button', { name: 'Radio' }).click();
+  await expect(page.getByRole('tab', { name: 'Browse' })).toBeVisible();
+});
+
 test('shows a recoverable error when a station cannot play', async ({ page }) => {
   await page.evaluate(() => localStorage.setItem('forte.failPlayRadioStation', 'true'));
   await page.reload();
