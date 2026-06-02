@@ -116,6 +116,20 @@ export function DisconnectListenBrainz(): $CancellablePromise<void> {
 }
 
 /**
+ * ExportUserConfig writes the canonical config file from current database state.
+ */
+export function ExportUserConfig(): $CancellablePromise<string> {
+    return $Call.ByID(63490165);
+}
+
+/**
+ * ExportUserConfigToPath writes user configuration to the given path.
+ */
+export function ExportUserConfigToPath(path: string): $CancellablePromise<void> {
+    return $Call.ByID(1374680739, path);
+}
+
+/**
  * GetAlbumTracks returns the tracks for a given album.
  */
 export function GetAlbumTracks(albumID: number): $CancellablePromise<$models.AlbumTrack[]> {
@@ -345,6 +359,31 @@ export function GetTopVotedRadioStations(limit: number): $CancellablePromise<$mo
 }
 
 /**
+ * GetUserConfigPath returns the canonical config file path (~/.config/forte/config.toml).
+ */
+export function GetUserConfigPath(): $CancellablePromise<string> {
+    return $Call.ByID(198184712);
+}
+
+/**
+ * ImportUserConfig loads and applies the canonical config file.
+ */
+export function ImportUserConfig(): $CancellablePromise<$models.UserConfigImportResultJSON> {
+    return $Call.ByID(188952206).then(($result: any) => {
+        return $$createType28($result);
+    });
+}
+
+/**
+ * ImportUserConfigFromPath loads and applies a config file from path.
+ */
+export function ImportUserConfigFromPath(path: string): $CancellablePromise<$models.UserConfigImportResultJSON> {
+    return $Call.ByID(2145098713, path).then(($result: any) => {
+        return $$createType28($result);
+    });
+}
+
+/**
  * IsRadioFavourite checks if a station is in favourites.
  */
 export function IsRadioFavourite(stationUUID: string): $CancellablePromise<boolean> {
@@ -414,7 +453,7 @@ export function SaveScrobbleAPIKeys(apiKey: string, apiSecret: string): $Cancell
  */
 export function Search(query: string, limit: number): $CancellablePromise<$models.SearchResult[]> {
     return $Call.ByID(2206755262, query, limit).then(($result: any) => {
-        return $$createType29($result);
+        return $$createType30($result);
     });
 }
 
@@ -522,5 +561,6 @@ const $$createType24 = $models.ServerConfig.createFrom;
 const $$createType25 = $Create.Array($$createType24);
 const $$createType26 = $models.StatEntryJSON.createFrom;
 const $$createType27 = $Create.Array($$createType26);
-const $$createType28 = $models.SearchResult.createFrom;
-const $$createType29 = $Create.Array($$createType28);
+const $$createType28 = $models.UserConfigImportResultJSON.createFrom;
+const $$createType29 = $models.SearchResult.createFrom;
+const $$createType30 = $Create.Array($$createType29);

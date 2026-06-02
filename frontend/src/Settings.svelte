@@ -15,6 +15,7 @@
     type ThemeTransparencyPreference
   } from './lib/theme';
   import { setLibraryEnabled, setTitlebarEnabled } from './lib/stores';
+  import { Dialogs } from '@wailsio/runtime';
   import { LibraryService } from "../bindings/github.com/willfish/forte";
   import type { ServerConfig } from './lib/types';
 
@@ -118,6 +119,74 @@
 
   async function saveLogLevel(level: string) {
     await saveAppPreferences({ ...appPreferences, logLevel: level });
+  }
+
+  let userConfigPath = $state('');
+  let userConfigStatus = $state<{ ok: boolean; message: string } | null>(null);
+  let userConfigBusy = $state(false);
+
+  async function loadUserConfigPath() {
+    try {
+      userConfigPath = await LibraryService.GetUserConfigPath() || '';
+    } catch {
+      userConfigPath = '';
+    }
+  }
+
+  $effect(() => {
+    loadUserConfigPath();
+  });
+
+  async function exportUserConfig() {
+    userConfigBusy = true;
+    userConfigStatus = null;
+    try {
+      const defaultPath = userConfigPath || await LibraryService.GetUserConfigPath();
+      const savePath = await Dialogs.SaveFile({
+        Title: 'Export Forte configuration',
+        Filename: 'config.toml',
+        Filters: [{ DisplayName: 'TOML configuration', Pattern: '*.toml' }],
+      });
+      const path = (typeof savePath === 'string' && savePath) ? savePath : defaultPath;
+      if (!path) {
+        userConfigStatus = { ok: false, message: 'Export cancelled' };
+        return;
+      }
+      await LibraryService.ExportUserConfigToPath(path);
+      userConfigPath = path;
+      userConfigStatus = { ok: true, message: `Exported to ${path}` };
+    } catch (err) {
+      userConfigStatus = { ok: false, message: err instanceof Error ? err.message : 'Export failed' };
+    } finally {
+      userConfigBusy = false;
+    }
+  }
+
+  async function importUserConfig() {
+    userConfigBusy = true;
+    userConfigStatus = null;
+    try {
+      const openPath = await Dialogs.OpenFile({
+        Title: 'Import Forte configuration',
+        CanChooseFiles: true,
+        CanChooseDirectories: false,
+        Filters: [{ DisplayName: 'TOML configuration', Pattern: '*.toml' }],
+      });
+      const path = Array.isArray(openPath) ? openPath[0] : openPath;
+      if (!path) {
+        userConfigStatus = { ok: false, message: 'Import cancelled' };
+        return;
+      }
+      const result = await LibraryService.ImportUserConfigFromPath(path);
+      await loadAppPreferences();
+      const sections = result?.sectionsApplied?.join(', ') || 'none';
+      const warnings = result?.warnings?.length ? ` Warnings: ${result.warnings.join('; ')}` : '';
+      userConfigStatus = { ok: true, message: `Imported from ${path}. Applied: ${sections}.${warnings}` };
+    } catch (err) {
+      userConfigStatus = { ok: false, message: err instanceof Error ? err.message : 'Import failed' };
+    } finally {
+      userConfigBusy = false;
+    }
   }
 
   const themeModeOptions: { value: ThemeMode; label: string; description: string }[] = [
@@ -559,6 +628,30 @@
         </select>
       </div>
     </div>
+  </section>
+
+  <section class="section">
+    <h3>Configuration file</h3>
+    <p class="section-desc">
+      Export favourites, custom stations, and app preferences to a portable TOML file.
+      On startup Forte imports <code>config.toml</code> from your config directory when present.
+    </p>
+    {#if userConfigPath}
+      <p class="config-path">Default path: <span>{userConfigPath}</span></p>
+    {/if}
+    <div class="config-actions">
+      <button class="btn-save" type="button" onclick={exportUserConfig} disabled={userConfigBusy}>
+        Export configuration
+      </button>
+      <button class="btn-save" type="button" onclick={importUserConfig} disabled={userConfigBusy}>
+        Import configuration
+      </button>
+    </div>
+    {#if userConfigStatus}
+      <p class="config-status" class:ok={userConfigStatus.ok} class:error={!userConfigStatus.ok}>
+        {userConfigStatus.message}
+      </p>
+    {/if}
   </section>
 
   {#if appPreferences.libraryEnabled}
@@ -1239,6 +1332,49 @@
 
   .btn-save:hover:not(:disabled) {
     filter: brightness(1.15);
+  }
+
+  .section-desc {
+    margin: 0 0 0.75rem;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    line-height: 1.45;
+  }
+
+  .section-desc code {
+    font-size: 0.8rem;
+  }
+
+  .config-path {
+    margin: 0 0 0.75rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    word-break: break-all;
+  }
+
+  .config-path span {
+    color: var(--text-primary);
+  }
+
+  .config-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .config-status {
+    margin: 0.75rem 0 0;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    word-break: break-word;
+  }
+
+  .config-status.ok {
+    color: var(--accent);
+  }
+
+  .config-status.error {
+    color: #e57373;
   }
 
   /* Sync */

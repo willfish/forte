@@ -27,5 +27,6 @@ export {
     ServerConfig,
     ServerStatusJSON,
     SimilarArtistJSON,
-    StatEntryJSON
+    StatEntryJSON,
+    UserConfigImportResultJSON
 } from "./models.js";
