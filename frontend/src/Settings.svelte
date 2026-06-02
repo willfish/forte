@@ -85,6 +85,7 @@
         autoReconnect: next.autoReconnect,
         showTitlebar: next.showTitlebar,
         logLevel: next.logLevel,
+        logFilePath: next.logFilePath,
       });
       await loadAppPreferences();
     } catch {
