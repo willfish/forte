@@ -17,7 +17,7 @@
           version = "0.1.0";
           src = ./frontend;
           nodejs = pkgs.nodejs_22;
-          npmDepsHash = "sha256-MsCHivfCoHfOzzG0A368YvFKP2kM7Ax76orWbij4K+w=";
+          npmDepsHash = "sha256-kEprDYBdn3cayhPsS81DOEs+biGUquJZJvO2jD07Lp0=";
           buildPhase = ''
             npm run build
           '';
@@ -34,9 +34,9 @@
           go = pkgs.go_1_25;
           vendorHash =
             if pkgs.stdenv.isDarwin then
-              "sha256-lzVkzCZZ3jGCWSpnln4yCJDo+vojZU1pkrK7JkbAK40="
+              "sha256-M356Dg/QaaeitWx7srKTH+Hpht+c/HfHLdSfwaGwJus="
             else
-              "sha256-3g4XNVbKnH8/9Dqm92bJcGMO7IC6COSX7LH54Gb44v8=";
+              "sha256-PgFI1Kw2jw47OARij8R0LXGthSa/LItw5rNdOJCwb3k=";
           modBuildPhase = ''
             runHook preBuild
 
