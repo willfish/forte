@@ -212,7 +212,7 @@
   .bar {
     height: 72px;
     flex-shrink: 0;
-    background: var(--bg-bar);
+    background: color-mix(in srgb, var(--bg-bar) var(--theme-surface-opacity), transparent);
     border-top: 1px solid var(--border);
     display: grid;
     grid-template-columns: 250px 1fr 150px;

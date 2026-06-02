@@ -31,6 +31,31 @@ test.describe("Settings", () => {
     await expect(page.locator(".brand-mark path")).toHaveCSS("stroke", "rgb(199, 66, 106)");
   });
 
+  test("configures theme transparency", async ({ page }) => {
+    const html = page.locator("html");
+    const opacity = page.getByLabel("Theme opacity");
+
+    await expect(page.getByLabel("Transparent theme")).not.toBeChecked();
+    await expect(opacity).toHaveValue("0.8");
+    await expect(opacity).toBeDisabled();
+    await expect(html).toHaveAttribute("data-theme-transparency", "off");
+    await expect(html).toHaveCSS("--theme-opacity", "1");
+
+    await page.getByLabel("Transparent theme").check();
+    await expect(opacity).toBeEnabled();
+    await expect(html).toHaveAttribute("data-theme-transparency", "on");
+    await expect(html).toHaveCSS("--theme-opacity", "0.8");
+
+    await opacity.fill("0.65");
+    await expect(html).toHaveCSS("--theme-opacity", "0.65");
+
+    await page.reload();
+    await page.getByRole("button", { name: "Settings" }).click();
+    await expect(page.getByLabel("Transparent theme")).toBeChecked();
+    await expect(page.getByLabel("Theme opacity")).toHaveValue("0.65");
+    await expect(html).toHaveCSS("--theme-opacity", "0.65");
+  });
+
   test("shows servers section", async ({ page }) => {
     await enableLibraryMode(page);
     await expect(page.getByRole("heading", { name: "Servers" })).toBeVisible();

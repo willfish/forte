@@ -140,7 +140,8 @@ func main() {
 		Frameless:        true,
 		MinWidth:         700,
 		MinHeight:        600,
-		BackgroundColour: application.NewRGB(27, 38, 54),
+		BackgroundType:   application.BackgroundTypeTransparent,
+		BackgroundColour: application.NewRGBA(27, 38, 54, 0),
 		URL:              "/",
 	})
 
