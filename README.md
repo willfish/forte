@@ -2,9 +2,7 @@
 
 Forte is a Linux desktop music player built with Go, Wails, Svelte, mpv, and SQLite. It plays internet radio out of the box, and can optionally manage a local music library with Subsonic and Jellyfin servers in the same collection.
 
-![Forte radio playback](docs/demo.png)
-<img width="2880" height="1920" alt="image" src="https://github.com/user-attachments/assets/83706d75-e62b-4515-bf0b-d2efa0ba03e0" />
-
+<img width="1408" height="1910" alt="image" src="https://github.com/user-attachments/assets/0eaf6e07-4e4c-4ecd-b52b-318c80aca1fa" />
 
 ## What It Does
 
