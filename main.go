@@ -9,6 +9,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
+	"github.com/willfish/forte/internal/logx"
 )
 
 //go:embed all:frontend/dist
@@ -93,6 +94,8 @@ func main() {
 		defer func() { _ = f.Close() }()
 	}
 
+	initLogging(logx.StartupLevel())
+
 	ps := &PlayerService{}
 	ls := &LibraryService{}
 
@@ -107,6 +110,8 @@ func main() {
 	app := application.New(application.Options{
 		Name:        "Forte",
 		Description: "A modern music player",
+		Logger:      logx.Logger(),
+		LogLevel:    logx.SlogLevel(),
 		Linux: application.LinuxOptions{
 			ProgramName: appID,
 		},
@@ -118,6 +123,7 @@ func main() {
 			Handler: application.AssetFileServerFS(assets),
 		},
 	})
+	forteApp = app
 
 	app.SetIcon(appIcon)
 

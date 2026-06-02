@@ -117,6 +117,8 @@ export class AppPreferencesJSON {
     "startLastStation": boolean;
     "autoReconnect": boolean;
     "showTitlebar": boolean;
+    "logLevel": string;
+    "logFilePath": string;
 
     /** Creates a new AppPreferencesJSON instance. */
     constructor($$source: Partial<AppPreferencesJSON> = {}) {
@@ -131,6 +133,12 @@ export class AppPreferencesJSON {
         }
         if (!("showTitlebar" in $$source)) {
             this["showTitlebar"] = false;
+        }
+        if (!("logLevel" in $$source)) {
+            this["logLevel"] = "";
+        }
+        if (!("logFilePath" in $$source)) {
+            this["logFilePath"] = "";
         }
 
         Object.assign(this, $$source);
