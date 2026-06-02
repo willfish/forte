@@ -34,9 +34,9 @@
           go = pkgs.go_1_25;
           vendorHash =
             if pkgs.stdenv.isDarwin then
-              "sha256-66N2XYd0rMUmtZkkScLL/KtpfyR/cPXIUOJ4iPbWHEs="
+              "sha256-lzVkzCZZ3jGCWSpnln4yCJDo+vojZU1pkrK7JkbAK40="
             else
-              "sha256-6DhIT+e7kUl1BqBGoe4kMgl98uJZK6Ucap1Gn6qoZqw=";
+              "sha256-3g4XNVbKnH8/9Dqm92bJcGMO7IC6COSX7LH54Gb44v8=";
           modBuildPhase = ''
             runHook preBuild
 
@@ -61,6 +61,7 @@
             go mod vendor "''${goModVendorFlags[@]}"
             ${lib.optionalString pkgs.stdenv.isLinux ''
               patch -p1 -d vendor/github.com/wailsapp/wails/v3 < ${./patches/wails-status-notifier-icon-name.patch}
+              patch -p1 -d vendor/github.com/wailsapp/wails/v3 < ${./patches/wails-gtk4-transparent-window.patch}
             ''}
 
             mkdir -p vendor

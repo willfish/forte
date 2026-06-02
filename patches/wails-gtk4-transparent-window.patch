@@ -1,0 +1,76 @@
+--- a/pkg/application/linux_cgo.h
++++ b/pkg/application/linux_cgo.h
+@@ -145,6 +145,7 @@
+
+ void window_move_x11(GtkWindow *window, int x, int y);
+ void window_get_position_x11(GtkWindow *window, int *x, int *y);
++void window_set_transparent_gtk4(GtkWindow *window);
+
+ // ============================================================================
+ // Drag and drop (GtkDropTarget for GTK4)
+--- a/pkg/application/linux_cgo.c
++++ b/pkg/application/linux_cgo.c
+@@ -946,6 +946,52 @@
+ #endif
+ }
+
++static void clear_window_opaque_region(GtkWidget *widget) {
++    GtkNative *native = gtk_widget_get_native(widget);
++    if (native == NULL) return;
++
++    GdkSurface *surface = gtk_native_get_surface(native);
++    if (surface == NULL) return;
++
++    cairo_region_t *empty_region = cairo_region_create();
++    gdk_surface_set_opaque_region(surface, empty_region);
++    cairo_region_destroy(empty_region);
++}
++
++static void on_transparent_window_realize(GtkWidget *widget, gpointer user_data) {
++    (void)user_data;
++    clear_window_opaque_region(widget);
++}
++
++void window_set_transparent_gtk4(GtkWindow *window) {
++    static GtkCssProvider *provider = NULL;
++    GtkWidget *widget = GTK_WIDGET(window);
++
++    if (provider == NULL) {
++        provider = gtk_css_provider_new();
++        gtk_css_provider_load_from_string(
++            provider,
++            "window.wails-transparent-window, "
++            "window.wails-transparent-window > * {"
++            "  background: transparent;"
++            "}"
++            "webview {"
++            "  background: transparent;"
++            "}");
++    }
++
++    gtk_style_context_add_provider_for_display(
++        gtk_widget_get_display(widget),
++        GTK_STYLE_PROVIDER(provider),
++        GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
++    gtk_widget_add_css_class(widget, "wails-transparent-window");
++    g_signal_connect_after(widget, "realize", G_CALLBACK(on_transparent_window_realize), NULL);
++
++    if (gtk_widget_get_realized(widget)) {
++        clear_window_opaque_region(widget);
++    }
++}
++
+ // ============================================================================
+ // Window size constraints (max size enforcement for GTK4)
+ // ============================================================================
+--- a/pkg/application/linux_cgo.go
++++ b/pkg/application/linux_cgo.go
+@@ -1286,7 +1286,7 @@
+ }
+
+ func (w *linuxWebviewWindow) setTransparent() {
+-	// GTK4: Transparency via CSS - different from GTK3
++	C.window_set_transparent_gtk4(w.gtkWindow())
+ }
+
+ func (w *linuxWebviewWindow) setBackgroundColour(colour RGBA) {

@@ -416,6 +416,8 @@ class MockCancellablePromise<T> extends Promise<T> {
   cancel() {}
 }
 
+const windowCalls: Array<{ method: string; args: any[] }> = [];
+
 export const Call = {
   ByID(id: number, ...args: any[]): MockCancellablePromise<any> {
     const handler = fixtures[id];
@@ -433,7 +435,15 @@ export const Window = {
   Minimise: () => MockCancellablePromise.resolve(undefined),
   ToggleMaximise: () => MockCancellablePromise.resolve(undefined),
   Close: () => MockCancellablePromise.resolve(undefined),
+  SetBackgroundColour: (...args: any[]) => {
+    windowCalls.push({ method: "SetBackgroundColour", args });
+    return MockCancellablePromise.resolve(undefined);
+  },
 };
+
+if (typeof window !== "undefined") {
+  (window as any).__wailsWindowCalls = windowCalls;
+}
 
 export const Create = {
   Array(createFn: (source: any) => any) {
