@@ -218,6 +218,7 @@
   {:else if error && !station}
     <div class="error-state" role="alert">{error}</div>
   {:else if station}
+    {@const detail = station}
     <div class="station-header">
       {#if proxiedIcon}
         <img class="station-art" src={proxiedIcon} alt="" />
@@ -260,23 +261,23 @@
       {#if linkMessage}
         <p class="link-message" role="status">{linkMessage}</p>
       {/if}
-      {#if station.homepage}
+      {#if detail.homepage}
         <div class="link-row">
           <span class="link-label">Website</span>
-          <a class="link-url" href={station.homepage} onclick={(e) => { e.preventDefault(); void openLink(station.homepage); }}>
-            {station.homepage}
+          <a class="link-url" href={detail.homepage} onclick={(e) => { e.preventDefault(); void openLink(detail.homepage); }}>
+            {detail.homepage}
           </a>
-          <button class="link-action" type="button" onclick={() => copyLink(station.homepage, 'Website')}>Copy</button>
+          <button class="link-action" type="button" onclick={() => copyLink(detail.homepage, 'Website')}>Copy</button>
         </div>
       {/if}
-      {#if station.streamUrl}
+      {#if detail.streamUrl}
         <div class="link-row">
           <span class="link-label">Stream</span>
-          <span class="link-url mono">{station.streamUrl}</span>
-          <button class="link-action" type="button" onclick={() => copyLink(station.streamUrl, 'Stream URL')}>Copy</button>
+          <span class="link-url mono">{detail.streamUrl}</span>
+          <button class="link-action" type="button" onclick={() => copyLink(detail.streamUrl, 'Stream URL')}>Copy</button>
         </div>
       {/if}
-      {#if !station.homepage && !station.streamUrl}
+      {#if !detail.homepage && !detail.streamUrl}
         <p class="empty-links">No links available for this station.</p>
       {/if}
     </section>
