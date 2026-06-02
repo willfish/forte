@@ -45,6 +45,8 @@ test.describe("Settings", () => {
     await expect(opacity).toBeEnabled();
     await expect(html).toHaveAttribute("data-theme-transparency", "on");
     await expect(html).toHaveCSS("--theme-opacity", "0.8");
+    await expect(page.locator("body")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await expect(page.locator(".shell")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 
     await opacity.fill("0.65");
     await expect(html).toHaveCSS("--theme-opacity", "0.65");
