@@ -7,11 +7,11 @@
 +	"path/filepath"
  	"sync"
  	"sync/atomic"
- 
+
 @@ -24,6 +25,15 @@ const (
  	menuPath = "/StatusNotifierMenu"
  )
- 
+
 +func forteStatusNotifierIconThemePath() string {
 +	executable, err := os.Executable()
 +	if err != nil {
@@ -23,10 +23,10 @@
 +
  type linuxSystemTray struct {
  	parent *SystemTray
- 
+
 @@ -606,13 +616,13 @@ func (s *linuxSystemTray) createPropSpec() map[string]map[string]*prop.Prop {
  		},
- 
+
  		"IconName": {
 -			Value:    "",
 +			Value:    "",

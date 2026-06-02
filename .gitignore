@@ -14,6 +14,7 @@ frontend/test-results
 .direnv/
 .go/
 result
+.pre-commit-config.yaml
 
 # OS
 .DS_Store

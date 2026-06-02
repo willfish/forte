@@ -14,17 +14,17 @@ type SimilarArtist struct {
 
 // ArtistMeta holds cached metadata for an artist.
 type ArtistMeta struct {
-	ArtistID    int64           `json:"artistId"`
-	Bio         string          `json:"bio"`
-	ImageURL    string          `json:"imageUrl"`
-	Similar     []SimilarArtist `json:"similar"`
-	MbID        string          `json:"mbId"`
-	MbArea      string          `json:"mbArea"`
-	MbType      string          `json:"mbType"`
-	MbBegin     string          `json:"mbBegin"`
-	MbEnd       string          `json:"mbEnd"`
-	MbTags      string          `json:"mbTags"`
-	FetchedAt   time.Time       `json:"fetchedAt"`
+	ArtistID  int64           `json:"artistId"`
+	Bio       string          `json:"bio"`
+	ImageURL  string          `json:"imageUrl"`
+	Similar   []SimilarArtist `json:"similar"`
+	MbID      string          `json:"mbId"`
+	MbArea    string          `json:"mbArea"`
+	MbType    string          `json:"mbType"`
+	MbBegin   string          `json:"mbBegin"`
+	MbEnd     string          `json:"mbEnd"`
+	MbTags    string          `json:"mbTags"`
+	FetchedAt time.Time       `json:"fetchedAt"`
 }
 
 const cacheTTL = 30 * 24 * time.Hour

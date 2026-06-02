@@ -77,13 +77,13 @@ func exec(db *library.DB, query string, args ...any) {
 
 func seed(db *library.DB) {
 	type album struct {
-		id       int
-		artist   string
-		title    string
-		year     int
-		tracks   []string
+		id        int
+		artist    string
+		title     string
+		year      int
+		tracks    []string
 		durations []int // ms per track
-		r, g, b  uint8 // artwork colour
+		r, g, b   uint8 // artwork colour
 	}
 
 	albums := []album{

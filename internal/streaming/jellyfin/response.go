@@ -11,22 +11,22 @@ type itemsResponse struct {
 // itemJSON is the unified item struct used across Jellyfin API responses.
 // Artists, albums, and tracks are all represented as Items with different Type values.
 type itemJSON struct {
-	Name              string        `json:"Name"`
-	ID                string        `json:"Id"`
-	Type              string        `json:"Type"`
-	AlbumArtist       string        `json:"AlbumArtist"`
-	AlbumArtists      []nameIDPair  `json:"AlbumArtists"`
-	Artists           []string      `json:"Artists"`
-	Album             string        `json:"Album"`
-	AlbumID           string        `json:"AlbumId"`
-	ProductionYear    int           `json:"ProductionYear"`
-	ChildCount        int           `json:"ChildCount"`
-	RunTimeTicks      int64         `json:"RunTimeTicks"`
-	IndexNumber       int           `json:"IndexNumber"`
-	ParentIndexNumber int           `json:"ParentIndexNumber"`
-	MediaSources      []mediaSource `json:"MediaSources"`
+	Name              string            `json:"Name"`
+	ID                string            `json:"Id"`
+	Type              string            `json:"Type"`
+	AlbumArtist       string            `json:"AlbumArtist"`
+	AlbumArtists      []nameIDPair      `json:"AlbumArtists"`
+	Artists           []string          `json:"Artists"`
+	Album             string            `json:"Album"`
+	AlbumID           string            `json:"AlbumId"`
+	ProductionYear    int               `json:"ProductionYear"`
+	ChildCount        int               `json:"ChildCount"`
+	RunTimeTicks      int64             `json:"RunTimeTicks"`
+	IndexNumber       int               `json:"IndexNumber"`
+	ParentIndexNumber int               `json:"ParentIndexNumber"`
+	MediaSources      []mediaSource     `json:"MediaSources"`
 	ImageTags         map[string]string `json:"ImageTags"`
-	Genres            []string      `json:"Genres"`
+	Genres            []string          `json:"Genres"`
 }
 
 // nameIDPair is used in AlbumArtists and ArtistItems arrays.
