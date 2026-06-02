@@ -47,7 +47,7 @@ overrides:
       - webkitgtk6.0
       - mpv-libs
       - hicolor-icon-theme
-  
+
   archlinux:
     depends:
       - gtk4

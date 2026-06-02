@@ -9,5 +9,3 @@ Type=Application
 Icon=io.github.willfish.forte
 Categories=AudioVideo;Audio;Music;Player;
 StartupWMClass=io.github.willfish.forte
-
- 

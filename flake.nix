@@ -4,13 +4,92 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    pre-commit-hooks = {
+      url = "github:cachix/git-hooks.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+      pre-commit-hooks,
+      ...
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
         pkgs = import nixpkgs { inherit system; };
         lib = pkgs.lib;
+
+        pre-commit = pre-commit-hooks.lib.${system}.run {
+          src = ./.;
+          excludes = [
+            "(^|.*/)\\.go(/|$)"
+            "(^|.*/)frontend/node_modules(/|$)"
+            "(^|.*/)frontend/dist(/|$)"
+            "(^|.*/)vendor(/|$)"
+            "(^|.*/)frontend/test-results(/|$)"
+          ];
+          hooks = {
+            # Fast, auto-fixing hygiene (pre-commit)
+            trim-trailing-whitespace.enable = true;
+            end-of-file-fixer.enable = true;
+            check-merge-conflicts.enable = true;
+            detect-private-keys.enable = true;
+            check-added-large-files.enable = true;
+            check-yaml.enable = true;
+            check-shebang-scripts-are-executable.enable = true;
+
+            gofmt.enable = true;
+
+            nixfmt.enable = true;
+
+            shellcheck = {
+              enable = true;
+              excludes = [ "\\.envrc$" ];
+            };
+            shfmt.enable = true;
+
+            actionlint.enable = true;
+
+            # Heavier checks aligned with CI (pre-push)
+            golangci-lint-nocgo = {
+              enable = true;
+              name = "golangci-lint";
+              entry = "${pkgs.golangci-lint}/bin/golangci-lint run --build-tags nocgo ./...";
+              language = "system";
+              pass_filenames = false;
+              stages = [ "pre-push" ];
+            };
+
+            gotest = {
+              enable = true;
+              stages = [ "pre-push" ];
+              settings.flags = "-tags nocgo";
+            };
+
+            svelte-check = {
+              enable = true;
+              name = "svelte-check";
+              entry = ''
+                bash -c '
+                  if [ ! -d frontend/node_modules ]; then
+                    echo "svelte-check: run cd frontend && npm ci first"
+                    exit 1
+                  fi
+                  cd frontend && npm run check
+                '
+              '';
+              files = "^frontend/.*\\.(svelte|ts)$";
+              language = "system";
+              pass_filenames = false;
+              stages = [ "pre-push" ];
+            };
+          };
+        };
 
         frontend = pkgs.buildNpmPackage {
           pname = "forte-frontend";
@@ -67,27 +146,41 @@
             mkdir -p vendor
             runHook postBuild
           '';
-          tags = [ "production" "nocgo" ] ++ lib.optionals pkgs.stdenv.isLinux [ "gtk4" ];
-          ldflags = [ "-s" "-w" ];
+          tags = [
+            "production"
+            "nocgo"
+          ]
+          ++ lib.optionals pkgs.stdenv.isLinux [ "gtk4" ];
+          ldflags = [
+            "-s"
+            "-w"
+          ];
           subPackages = [ "." ];
           doCheck = false; # Tests need libmpv.so at runtime
 
-          nativeBuildInputs = with pkgs; [
-            pkg-config
-          ] ++ lib.optionals pkgs.stdenv.isLinux [
-            wrapGAppsHook4
-            imagemagick
-            desktop-file-utils
-          ];
+          nativeBuildInputs =
+            with pkgs;
+            [
+              pkg-config
+            ]
+            ++ lib.optionals pkgs.stdenv.isLinux [
+              wrapGAppsHook4
+              imagemagick
+              desktop-file-utils
+            ];
 
-          buildInputs = with pkgs; [
-            mpv
-          ] ++ lib.optionals pkgs.stdenv.isLinux [
-            gtk4
-            webkitgtk_6_0
-          ] ++ lib.optionals pkgs.stdenv.isDarwin [
-            pkgs.apple-sdk_14
-          ];
+          buildInputs =
+            with pkgs;
+            [
+              mpv
+            ]
+            ++ lib.optionals pkgs.stdenv.isLinux [
+              gtk4
+              webkitgtk_6_0
+            ]
+            ++ lib.optionals pkgs.stdenv.isDarwin [
+              pkgs.apple-sdk_14
+            ];
 
           preBuild = ''
             rm -rf frontend/dist
@@ -155,7 +248,11 @@
           users.users.${vmUser} = {
             isNormalUser = true;
             description = "Forte VM validation user";
-            extraGroups = [ "audio" "video" "wheel" ];
+            extraGroups = [
+              "audio"
+              "video"
+              "wheel"
+            ];
             password = "";
           };
 
@@ -198,13 +295,15 @@
           ];
         };
 
-        mkDesktopVm = desktop:
+        mkDesktopVm =
+          desktop:
           nixpkgs.lib.nixosSystem {
             inherit system;
             modules = [ (mkDesktopVmModule desktop) ];
           };
 
-        mkDesktopVmApp = desktop:
+        mkDesktopVmApp =
+          desktop:
           let
             vm = mkDesktopVm desktop;
             runner = pkgs.writeShellApplication {
@@ -221,7 +320,8 @@
             meta.description = "Launch Forte in an interactive ${desktop} validation VM";
           };
 
-        mkDesktopVmSmoke = desktop:
+        mkDesktopVmSmoke =
+          desktop:
           pkgs.testers.nixosTest {
             name = "forte-${desktop}-desktop-smoke";
 
@@ -286,40 +386,58 @@
           forte-vm-plasma = mkDesktopVmApp "plasma";
         };
 
-        checks = lib.optionalAttrs pkgs.stdenv.isLinux {
+        checks = {
+          pre-commit = pre-commit;
+        }
+        // lib.optionalAttrs pkgs.stdenv.isLinux {
           forte-vm-smoke-gnome = mkDesktopVmSmoke "gnome";
           forte-vm-smoke-plasma = mkDesktopVmSmoke "plasma";
         };
 
-        devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            go_1_25
-            nodejs_22
-            go-task
-            golangci-lint
-            govulncheck
-            ffmpeg
-            pkg-config
-            mpv
-          ] ++ lib.optionals pkgs.stdenv.isLinux [
-            playwright-driver
-            gtk3
-            webkitgtk_4_1
-            gtk4
-            webkitgtk_6_0
-          ] ++ lib.optionals pkgs.stdenv.isDarwin [
-            apple-sdk_14
-          ];
+        formatter = pkgs.writeShellScriptBin "pre-commit-run" ''
+          exec ${pre-commit.package}/bin/pre-commit run --all-files --config ${pre-commit.configFile}
+        '';
 
-          shellHook = ''
-            export GOPATH="$PWD/.go"
-            export PATH="$GOPATH/bin:$PATH"
-          '' + lib.optionalString pkgs.stdenv.isLinux ''
-            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.mpv ]}:$LD_LIBRARY_PATH"
-            export PLAYWRIGHT_BROWSERS_PATH="${pkgs.playwright-driver.browsers}"
-            export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-            export CHROME_PATH="$(find -L "$PLAYWRIGHT_BROWSERS_PATH" -path '*/chrome-linux*/chrome' -type f | head -n 1)"
-          '';
+        devShells.default = pkgs.mkShell {
+          buildInputs =
+            pre-commit.enabledPackages
+            ++ (
+              with pkgs;
+              [
+                go_1_25
+                nodejs_22
+                go-task
+                golangci-lint
+                govulncheck
+                ffmpeg
+                pkg-config
+                mpv
+              ]
+              ++ lib.optionals pkgs.stdenv.isLinux [
+                playwright-driver
+                gtk3
+                webkitgtk_4_1
+                gtk4
+                webkitgtk_6_0
+              ]
+              ++ lib.optionals pkgs.stdenv.isDarwin [
+                apple-sdk_14
+              ]
+            );
+
+          shellHook =
+            pre-commit.shellHook
+            + ''
+              export GOPATH="$PWD/.go"
+              export PATH="$GOPATH/bin:$PATH"
+            ''
+            + lib.optionalString pkgs.stdenv.isLinux ''
+              export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.mpv ]}:$LD_LIBRARY_PATH"
+              export PLAYWRIGHT_BROWSERS_PATH="${pkgs.playwright-driver.browsers}"
+              export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+              export CHROME_PATH="$(find -L "$PLAYWRIGHT_BROWSERS_PATH" -path '*/chrome-linux*/chrome' -type f | head -n 1)"
+            '';
         };
-      });
+      }
+    );
 }
