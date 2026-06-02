@@ -184,4 +184,3 @@ func TestPendingScrobblesLimit(t *testing.T) {
 		t.Errorf("got %d entries with limit 3, want 3", len(entries))
 	}
 }
-

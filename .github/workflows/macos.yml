@@ -44,9 +44,11 @@ jobs:
           )"
           test -n "$mpv_lib"
           ln -sf "$mpv_lib" "$RUNNER_TEMP/lib/libmpv.dylib"
-          printf 'PATH=%s/opt/ffmpeg/bin:%s/bin:%s\n' "$(brew --prefix)" "$(brew --prefix)" "$PATH" >> "$GITHUB_ENV"
-          printf 'DYLD_LIBRARY_PATH=%s/lib:%s/lib:%s\n' "$RUNNER_TEMP" "$(brew --prefix mpv)" "${DYLD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
-          printf 'PKG_CONFIG_PATH=%s/lib/pkgconfig:%s\n' "$(brew --prefix mpv)" "${PKG_CONFIG_PATH:-}" >> "$GITHUB_ENV"
+          {
+            printf 'PATH=%s/opt/ffmpeg/bin:%s/bin:%s\n' "$(brew --prefix)" "$(brew --prefix)" "$PATH"
+            printf 'DYLD_LIBRARY_PATH=%s/lib:%s/lib:%s\n' "$RUNNER_TEMP" "$(brew --prefix mpv)" "${DYLD_LIBRARY_PATH:-}"
+            printf 'PKG_CONFIG_PATH=%s/lib/pkgconfig:%s\n' "$(brew --prefix mpv)" "${PKG_CONFIG_PATH:-}"
+          } >> "$GITHUB_ENV"
 
       - name: Verify system dependencies
         run: |

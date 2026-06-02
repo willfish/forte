@@ -19,7 +19,7 @@ type responseBody struct {
 	Error *apiError `json:"error,omitempty"`
 
 	// Endpoint-specific fields.
-	Artists    *artistIndex   `json:"artists,omitempty"`
+	Artists   *artistIndex   `json:"artists,omitempty"`
 	AlbumList *albumList     `json:"albumList2,omitempty"`
 	Album     *albumDetail   `json:"album,omitempty"`
 	Search    *searchResult3 `json:"searchResult3,omitempty"`
@@ -61,13 +61,13 @@ type albumDetail struct {
 }
 
 type albumJSON struct {
-	ID         string `json:"id"`
-	Title      string `json:"title"`
-	Artist     string `json:"artist"`
-	ArtistID   string `json:"artistId"`
-	Year       int    `json:"year"`
-	SongCount  int    `json:"songCount"`
-	CoverArt   string `json:"coverArt"`
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Artist    string `json:"artist"`
+	ArtistID  string `json:"artistId"`
+	Year      int    `json:"year"`
+	SongCount int    `json:"songCount"`
+	CoverArt  string `json:"coverArt"`
 }
 
 type songJSON struct {
