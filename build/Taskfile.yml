@@ -25,6 +25,26 @@ tasks:
     cmds:
       - go mod tidy
 
+  patch:wails:
+    summary: Applies Forte's local Wails patches to the module cache
+    internal: true
+    cmds:
+      - |
+        module_dir="$(go env GOMODCACHE)/github.com/wailsapp/wails/v3@{{.WAILS_VERSION}}"
+        test -d "$module_dir"
+
+        for patch_file in \
+          '{{.ROOT_DIR}}/patches/wails-status-notifier-icon-name.patch' \
+          '{{.ROOT_DIR}}/patches/wails-gtk4-transparent-window.patch'
+        do
+          if patch -p1 -d "$module_dir" --forward --dry-run < "$patch_file" >/dev/null 2>&1; then
+            chmod -R u+w "$module_dir"
+            patch -p1 -d "$module_dir" < "$patch_file"
+          else
+            patch -p1 -d "$module_dir" --reverse --dry-run < "$patch_file" >/dev/null 2>&1
+          fi
+        done
+
   install:frontend:deps:
     summary: Install frontend dependencies
     dir: frontend
@@ -66,6 +86,7 @@ tasks:
     summary: Generates bindings for the frontend
     deps:
       - task: go:mod:tidy
+      - task: patch:wails
       - task: ensure:wails3
     sources:
       - "**/*.[jt]s"

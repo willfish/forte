@@ -41,6 +41,7 @@ tasks:
     internal: true
     deps:
       - task: common:go:mod:tidy
+      - task: common:patch:wails
       - task: common:build:frontend
         vars:
           BUILD_FLAGS:
