@@ -47,6 +47,16 @@ test.describe("Settings", () => {
     await expect(html).toHaveCSS("--theme-opacity", "0.8");
     await expect(page.locator("body")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     await expect(page.locator(".shell")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          (window as any).__wailsWindowCalls?.some(
+            (call: any) =>
+              call.method === "SetBackgroundColour" && JSON.stringify(call.args) === JSON.stringify([0, 0, 0, 0])
+          )
+        )
+      )
+      .toBe(true);
 
     await opacity.fill("0.65");
     await expect(html).toHaveCSS("--theme-opacity", "0.65");

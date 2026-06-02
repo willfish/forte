@@ -1,3 +1,5 @@
+import { Window } from '@wailsio/runtime';
+
 export type ThemePreference =
   | 'green-dark'
   | 'green-light'
@@ -73,6 +75,19 @@ function applyTransparencyPreference(pref: ThemeTransparencyPreference) {
   root.setAttribute('data-theme-transparency', pref.enabled ? 'on' : 'off');
   root.style.setProperty('--theme-opacity', String(activeOpacity));
   root.style.setProperty('--theme-surface-opacity', `${activeOpacity * 100}%`);
+  syncNativeWindowBackground(pref.enabled);
+}
+
+function syncNativeWindowBackground(transparent: boolean) {
+  try {
+    if (transparent) {
+      void Window.SetBackgroundColour(0, 0, 0, 0);
+    } else {
+      void Window.SetBackgroundColour(27, 38, 54, 255);
+    }
+  } catch {
+    // Wails runtime is unavailable in browser-only test contexts.
+  }
 }
 
 function saveTransparencyPreference(pref: ThemeTransparencyPreference) {
