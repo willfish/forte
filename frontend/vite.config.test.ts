@@ -9,6 +9,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@wailsio/runtime": path.resolve(__dirname, "tests/mocks/wails-runtime.ts"),
+      "@radio-fixtures": path.resolve(__dirname, "../testdata/radio/stations.json"),
     },
   },
 });
