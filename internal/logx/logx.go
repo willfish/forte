@@ -53,7 +53,7 @@ func Configure(levelName string) error {
 		writers = append(writers, os.Stderr)
 	}
 
-	var w io.Writer = io.Discard
+	var w = io.Discard
 	if len(writers) == 1 {
 		w = writers[0]
 	} else if len(writers) > 1 {
