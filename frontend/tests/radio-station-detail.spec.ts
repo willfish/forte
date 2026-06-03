@@ -47,6 +47,12 @@ test('opens SomaFM station detail from browse filter', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'SomaFM Mission Control', level: 1 })).toBeVisible();
   const website = page.getByRole('link', { name: 'https://somafm.com/missioncontrol/' });
   await expect(website).toHaveAttribute('href', 'https://somafm.com/missioncontrol/');
+
+  // The station art must be a proxied data: URI (not the raw external favicon URL from backend).
+  // This ensures it renders in the Wails webview (see RadioView lists which do proxy).
+  const art = page.locator(".station-art");
+  await expect(art).toBeVisible();
+  await expect(art).toHaveAttribute("src", /^data:/);
 });
 
 test('custom station detail shows derived website from stream host', async ({ page }) => {
