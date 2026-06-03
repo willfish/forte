@@ -667,4 +667,9 @@ export const Create = {
   },
 };
 
-export default { Call, CancellablePromise, Create, Window };
+export const Dialogs = {
+  SaveFile: async (_opts?: any): Promise<string> => "",
+  OpenFile: async (_opts?: any): Promise<string | string[] | null> => null,
+};
+
+export default { Call, CancellablePromise, Create, Window, Dialogs };
