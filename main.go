@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -54,6 +55,14 @@ var trayIconFinancialTimesLightIdle []byte
 //go:embed build/tray-financial-times-light-playing-32.png
 var trayIconFinancialTimesLightPlaying []byte
 
+// macOS menubar template icons (monochrome for SetTemplateIcon / native tinting).
+//
+//go:embed build/tray-macos-idle.png
+var trayIconMacIdle []byte
+
+//go:embed build/tray-macos-playing.png
+var trayIconMacPlaying []byte
+
 const appID = "io.github.willfish.forte"
 
 // setupCrashLog directs Go runtime crash output (SIGSEGV, etc.) to a file
@@ -79,11 +88,14 @@ func setupCrashLog() *os.File {
 	}
 
 	// Write process memory maps so we can resolve library addresses on crash.
-	maps, err := os.ReadFile("/proc/self/maps")
-	if err == nil {
-		_, _ = f.WriteString("=== /proc/self/maps at startup ===\n")
-		_, _ = f.Write(maps)
-		_, _ = f.WriteString("=== end maps ===\n\n")
+	// Linux only (/proc not present or different on darwin).
+	if runtime.GOOS == "linux" {
+		maps, err := os.ReadFile("/proc/self/maps")
+		if err == nil {
+			_, _ = f.WriteString("=== /proc/self/maps at startup ===\n")
+			_, _ = f.Write(maps)
+			_, _ = f.WriteString("=== end maps ===\n\n")
+		}
 	}
 
 	return f
@@ -114,6 +126,9 @@ func main() {
 		LogLevel:    logx.SlogLevel(),
 		Linux: application.LinuxOptions{
 			ProgramName: appID,
+		},
+		Mac: application.MacOptions{
+			ActivationPolicy: application.ActivationPolicyRegular,
 		},
 		Services: []application.Service{
 			application.NewService(ps),
@@ -158,29 +173,48 @@ func main() {
 	})
 
 	trayIconState := newTrayIconState("green-dark", trayStateIdle)
-	tray.SetIcon(trayIconState.current()).SetMenu(menu).AttachWindow(window)
+
+	tray.SetMenu(menu).AttachWindow(window)
 	tray.SetTooltip("Forte")
 
+	if runtime.GOOS == "darwin" {
+		// Use template icon for native macOS menubar appearance (tints for light/dark).
+		// Per design: primary click shows menu (B choice); no OnClick toggle here.
+		// Playback state still drives icon change for parity with Linux tray.
+		tray.SetTemplateIcon(getTrayIconBytesForOS(trayIconState, "darwin"))
+	} else {
+		tray.SetIcon(trayIconState.current())
+		// Left-click toggles window (Linux behaviour preserved).
+		tray.OnClick(func() {
+			tray.ToggleWindow()
+		})
+	}
+
 	ls.onThemeChange = func(theme string) {
+		if runtime.GOOS == "darwin" {
+			// macOS menubar uses fixed template icons (theme is Linux tray panel matching only).
+			return
+		}
 		tray.SetIcon(trayIconState.setTheme(theme))
 	}
 
-	// Left-click toggles window, right-click opens menu.
-	tray.OnClick(func() {
-		tray.ToggleWindow()
-	})
-
 	// Update tooltip and icon when track changes.
+	// Tooltip is no-op on darwin.
 	ps.onTrayUpdate = func(title, artist string) {
 		if title == "" {
 			tray.SetTooltip("Forte")
-			tray.SetIcon(trayIconState.setPlaybackState(trayStateIdle))
+			trayIconState.setPlaybackState(trayStateIdle)
 		} else if artist != "" {
 			tray.SetTooltip(title + " - " + artist)
-			tray.SetIcon(trayIconState.setPlaybackState(trayStatePlaying))
+			trayIconState.setPlaybackState(trayStatePlaying)
 		} else {
 			tray.SetTooltip(title)
-			tray.SetIcon(trayIconState.setPlaybackState(trayStatePlaying))
+			trayIconState.setPlaybackState(trayStatePlaying)
+		}
+		if runtime.GOOS == "darwin" {
+			tray.SetTemplateIcon(getTrayIconBytesForOS(trayIconState, "darwin"))
+		} else {
+			tray.SetIcon(getTrayIconBytesForOS(trayIconState, "linux"))
 		}
 	}
 
