@@ -88,6 +88,18 @@
               pass_filenames = false;
               stages = [ "pre-push" ];
             };
+
+            # Catch stale shas (vendorHash, npmDepsHash) before they are committed.
+            # If go.mod / package-lock.json change, the build will fail with the new "got" hash
+            # unless the pinned hash in flake.nix is updated.
+            nix-build-forte = {
+              enable = true;
+              name = "nix build .#forte .#frontend (stale sha check for vendorHash / npmDepsHash)";
+              entry = "nix build .#frontend .#forte --no-link";
+              language = "system";
+              pass_filenames = false;
+              stages = [ "pre-push" ];
+            };
           };
         };
 
@@ -162,11 +174,15 @@
             with pkgs;
             [
               pkg-config
+              makeWrapper
             ]
             ++ lib.optionals pkgs.stdenv.isLinux [
               wrapGAppsHook4
               imagemagick
               desktop-file-utils
+            ]
+            ++ lib.optionals pkgs.stdenv.isDarwin [
+              imagemagick
             ];
 
           buildInputs =
@@ -188,35 +204,99 @@
             cp -r ${frontend}/* frontend/dist/
           '';
 
-          postInstall = lib.optionalString pkgs.stdenv.isLinux ''
-            for size in 16 24 32 48 64 128 256 512; do
-              install -d "$out/share/icons/hicolor/''${size}x''${size}/apps"
-              magick build/appicon.png -resize "''${size}x''${size}" \
-                "$out/share/icons/hicolor/''${size}x''${size}/apps/io.github.willfish.forte.png"
-              cp "$out/share/icons/hicolor/''${size}x''${size}/apps/io.github.willfish.forte.png" \
-                "$out/share/icons/hicolor/''${size}x''${size}/apps/forte.png"
-            done
-            install -Dm644 build/logo.svg $out/share/icons/hicolor/scalable/apps/io.github.willfish.forte.svg
-            install -Dm644 build/logo.svg $out/share/icons/hicolor/scalable/apps/forte.svg
-            install -Dm644 build/tray-idle.svg $out/share/icons/hicolor/scalable/apps/io.github.willfish.forte-tray-idle.svg
-            install -Dm644 build/tray-playing.svg $out/share/icons/hicolor/scalable/apps/io.github.willfish.forte-tray-playing.svg
-            for size in 16 24 32 48; do
-              install -Dm644 "build/tray-idle-''${size}.png" \
-                "$out/share/icons/hicolor/''${size}x''${size}/apps/io.github.willfish.forte-tray-idle.png"
-              install -Dm644 "build/tray-playing-''${size}.png" \
-                "$out/share/icons/hicolor/''${size}x''${size}/apps/io.github.willfish.forte-tray-playing.png"
-            done
-            for theme in green-dark green-light blue-dark blue-light financial-times-dark financial-times-light; do
-              install -Dm644 "build/tray-''${theme}-idle-32.png" \
-                "$out/share/icons/hicolor/32x32/apps/io.github.willfish.forte-tray-''${theme}-idle.png"
-              install -Dm644 "build/tray-''${theme}-playing-32.png" \
-                "$out/share/icons/hicolor/32x32/apps/io.github.willfish.forte-tray-''${theme}-playing.png"
-            done
-            install -Dm644 build/appicon.png $out/share/pixmaps/forte.png
-            install -Dm644 build/linux/forte.desktop $out/share/applications/io.github.willfish.forte.desktop
-            desktop-file-validate $out/share/applications/io.github.willfish.forte.desktop
+          postInstall = ''
+            ${lib.optionalString pkgs.stdenv.isLinux ''
+              for size in 16 24 32 48 64 128 256 512; do
+                install -d "$out/share/icons/hicolor/''${size}x''${size}/apps"
+                magick build/appicon.png -resize "''${size}x''${size}" \
+                  "$out/share/icons/hicolor/''${size}x''${size}/apps/io.github.willfish.forte.png"
+                cp "$out/share/icons/hicolor/''${size}x''${size}/apps/io.github.willfish.forte.png" \
+                  "$out/share/icons/hicolor/''${size}x''${size}/apps/forte.png"
+              done
+              install -Dm644 build/logo.svg $out/share/icons/hicolor/scalable/apps/io.github.willfish.forte.svg
+              install -Dm644 build/logo.svg $out/share/icons/hicolor/scalable/apps/forte.svg
+              install -Dm644 build/tray-idle.svg $out/share/icons/hicolor/scalable/apps/io.github.willfish.forte-tray-idle.svg
+              install -Dm644 build/tray-playing.svg $out/share/icons/hicolor/scalable/apps/io.github.willfish.forte-tray-playing.svg
+              for size in 16 24 32 48; do
+                install -Dm644 "build/tray-idle-''${size}.png" \
+                  "$out/share/icons/hicolor/''${size}x''${size}/apps/io.github.willfish.forte-tray-idle.png"
+                install -Dm644 "build/tray-playing-''${size}.png" \
+                  "$out/share/icons/hicolor/''${size}x''${size}/apps/io.github.willfish.forte-tray-playing.png"
+              done
+              for theme in green-dark green-light blue-dark blue-light financial-times-dark financial-times-light; do
+                install -Dm644 "build/tray-''${theme}-idle-32.png" \
+                  "$out/share/icons/hicolor/32x32/apps/io.github.willfish.forte-tray-''${theme}-idle.png"
+                install -Dm644 "build/tray-''${theme}-playing-32.png" \
+                  "$out/share/icons/hicolor/32x32/apps/io.github.willfish.forte-tray-''${theme}-playing.png"
+              done
+              install -Dm644 build/appicon.png $out/share/pixmaps/forte.png
+              install -Dm644 build/linux/forte.desktop $out/share/applications/io.github.willfish.forte.desktop
+              desktop-file-validate $out/share/applications/io.github.willfish.forte.desktop
+            ''}
+
+            ${lib.optionalString pkgs.stdenv.isDarwin ''
+                            # Assemble macOS .app bundle (Approach 1) so the app has proper Dock icon
+                            # from install time and does not require external wrappers for libmpv.
+                            appDir="$out/Applications/Forte.app"
+                            mkdir -p "$appDir/Contents"/{MacOS,Resources}
+
+                            # Icon resources (png for association; iconset prepared for iconutil on mac builds if desired).
+                            cp build/appicon.png "$appDir/Contents/Resources/appicon.png"
+                            mkdir -p "$appDir/Contents/Resources/icon.iconset"
+                            for s in 16 32 128 256 512; do
+                              magick build/appicon.png -resize "''${s}x''${s}" -background none \
+                                "$appDir/Contents/Resources/icon.iconset/icon_''${s}x''${s}.png"
+                              magick build/appicon.png -resize "''${s}x''${s}" -background none \
+                                "$appDir/Contents/Resources/icon.iconset/icon_''${s}x''${s}@2x.png"
+                            done
+
+                            # Info.plist for bundle identity and icon.
+                            cat > "$appDir/Contents/Info.plist" << 'PLIST'
+              <?xml version="1.0" encoding="UTF-8"?>
+              <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+              <plist version="1.0">
+              <dict>
+              	<key>CFBundleDevelopmentRegion</key>
+              	<string>en</string>
+              	<key>CFBundleExecutable</key>
+              	<string>forte</string>
+              	<key>CFBundleIconFile</key>
+              	<string>appicon</string>
+              	<key>CFBundleIdentifier</key>
+              	<string>io.github.willfish.forte</string>
+              	<key>CFBundleInfoDictionaryVersion</key>
+              	<string>6.0</string>
+              	<key>CFBundleName</key>
+              	<string>Forte</string>
+              	<key>CFBundlePackageType</key>
+              	<string>APPL</string>
+              	<key>CFBundleShortVersionString</key>
+              	<string>0.1.0</string>
+              	<key>CFBundleVersion</key>
+              	<string>0.1.0</string>
+              	<key>LSMinimumSystemVersion</key>
+              	<string>10.13</string>
+              	<key>NSHighResolutionCapable</key>
+              	<true/>
+              </dict>
+              </plist>
+              PLIST
+
+                            # Real binary + launcher wrapper that injects DYLD path for libmpv (meets AC: no consumer wrapper needed).
+                            cp $out/bin/forte "$appDir/Contents/MacOS/forte-bin"
+                            chmod +x "$appDir/Contents/MacOS/forte-bin"
+
+                            makeWrapper "$appDir/Contents/MacOS/forte-bin" "$appDir/Contents/MacOS/forte" \
+                              --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.mpv ]}"
+
+                            # Keep a convenient bin/forte that is also wrapped.
+                            rm -f $out/bin/forte || true
+                            makeWrapper "$appDir/Contents/MacOS/forte" "$out/bin/forte" \
+                              --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.mpv ]}"
+            ''}
           '';
 
+          # preFixup kept for Linux only (gapps); darwin wrapper done in postInstall.
           preFixup = lib.optionalString pkgs.stdenv.isLinux ''
             gappsWrapperArgs+=(
               --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.mpv ]}"

@@ -50,7 +50,7 @@ environment.systemPackages = [
 
 ### From Source
 
-Forte is Linux-only at the moment. For local development, the Nix shell is the easiest route because it includes Go, Node, Wails, GTK/WebKit, mpv, Playwright, and linting tools.
+Forte supports Linux and macOS (via Nix). The Nix flake provides a first-class `Forte.app` on darwin (proper Dock icon, menubar status item with menu on click, playback state, self-contained libmpv). For local development, the Nix shell is the easiest route because it includes Go, Node, Wails, GTK/WebKit (linux), mpv, Playwright, and linting tools.
 
 ```sh
 nix develop

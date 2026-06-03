@@ -70,3 +70,16 @@ func (set trayThemeIconSet) iconFor(state trayPlaybackState) []byte {
 	}
 	return set.idle
 }
+
+// getTrayIconBytesForOS is the platform-aware icon selector (extracted for testability).
+// On darwin we return template bytes (for SetTemplateIcon); on other OS we use the
+// existing theme+state logic. This will be called from main.go tray setup.
+func getTrayIconBytesForOS(s *trayIconState, goos string) []byte {
+	if goos == "darwin" {
+		if s.playbackState == trayStatePlaying {
+			return trayIconMacPlaying
+		}
+		return trayIconMacIdle
+	}
+	return s.current()
+}
