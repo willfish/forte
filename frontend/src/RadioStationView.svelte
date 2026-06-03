@@ -15,6 +15,7 @@
   let { stationUuid, hint = null, onback }: Props = $props();
 
   let station = $state<RadioStationJSON | null>(null);
+  let displayFavicon = $state('');
   let loading = $state(true);
   let error = $state('');
   let isFavourite = $state(false);
@@ -37,8 +38,16 @@
     loading = true;
     error = '';
     actionError = '';
+    displayFavicon = '';
     try {
       station = await LibraryService.GetRadioStationByUUID(stationUuid);
+      if (station?.favicon) {
+        try {
+          displayFavicon = await LibraryService.ProxyImageURL(station.favicon);
+        } catch {
+          displayFavicon = '';
+        }
+      }
       isFavourite = await LibraryService.IsRadioFavourite(stationUuid);
       if (isFavourite) {
         isPinned = await LibraryService.GetRadioFavouritePinned(stationUuid);
@@ -58,6 +67,13 @@
           codec: hint.codec ?? '',
           bitrate: hint.bitrate ?? 0,
         });
+        if (station?.favicon) {
+          try {
+            displayFavicon = await LibraryService.ProxyImageURL(station.favicon);
+          } catch {
+            displayFavicon = '';
+          }
+        }
         isFavourite = await LibraryService.IsRadioFavourite(stationUuid).catch(() => false);
         if (isFavourite) {
           isPinned = await LibraryService.GetRadioFavouritePinned(stationUuid).catch(() => false);
@@ -207,8 +223,8 @@
   {:else if station}
     {@const s = station}
     <header class="station-header">
-      {#if s.favicon}
-        <img class="station-art" src={s.favicon} alt="" />
+      {#if displayFavicon}
+        <img class="station-art" src={displayFavicon} alt="" />
       {:else}
         <div class="station-art placeholder" aria-hidden="true">📻</div>
       {/if}

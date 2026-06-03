@@ -368,7 +368,14 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   }),
 
   // ProxyImageURL
-  1305746552: (url: string) => url || "",
+  // Simulate real behavior: convert remote URLs to data: URIs (for webview compatibility).
+  // Echo data: URIs as-is. Used by lists (via resolvedIcon) and will be by detail.
+  1305746552: (url: string) => {
+    if (!url) return "";
+    if (url.startsWith("data:")) return url;
+    // Fixed marker data URI so tests can assert that proxy was used for <img src>.
+    return "data:image/png;base64,PROXIEDFORTEST";
+  },
   // SearchRadioStations
   1619368624: () => demoStations.map((station, index) => ({ ...station, votes: 200 - index * 10, clicks: 500 - index * 20 })),
   // GetTopVotedRadioStations
