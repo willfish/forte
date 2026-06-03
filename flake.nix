@@ -113,7 +113,7 @@
           go = pkgs.go_1_25;
           vendorHash =
             if pkgs.stdenv.isDarwin then
-              "sha256-M356Dg/QaaeitWx7srKTH+Hpht+c/HfHLdSfwaGwJus="
+              "sha256-5ZcYXLLMFMb2DSiz9t4ghes8uFUQmH5Cw+tiSMRh5E8="
             else
               "sha256-ET8WcOfBmVK5y4mqICLeD3OTTPd4eQ/ZwnnbImmRHd8=";
           modBuildPhase = ''
