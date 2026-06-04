@@ -366,7 +366,7 @@ export function GetUserConfigPath(): $CancellablePromise<string> {
 }
 
 /**
- * ImportUserConfig loads and applies the canonical config file.
+ * ImportUserConfig loads and merges the canonical config file (same rules as startup).
  */
 export function ImportUserConfig(): $CancellablePromise<$models.UserConfigImportResultJSON> {
     return $Call.ByID(188952206).then(($result: any) => {
