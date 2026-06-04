@@ -127,6 +127,7 @@
           version = "1.0.0";
           src = ./.;
           go = pkgs.go_1_25;
+          # Linux and Darwin vendoring differ: Linux applies Wails GTK patches in modBuildPhase.
           vendorHash =
             if pkgs.stdenv.isDarwin then
               "sha256-5ZcYXLLMFMb2DSiz9t4ghes8uFUQmH5Cw+tiSMRh5E8="
@@ -319,65 +320,68 @@
 
         vmUser = "forte";
 
-        mkDesktopVmModule = desktop: { pkgs, ... }: {
-          networking.hostName = "forte-${desktop}";
-          system.stateVersion = "26.05";
+        mkDesktopVmModule =
+          desktop:
+          { pkgs, ... }:
+          {
+            networking.hostName = "forte-${desktop}";
+            system.stateVersion = "26.05";
 
-          virtualisation.vmVariant.virtualisation = {
-            cores = 2;
-            memorySize = 4096;
-            diskSize = 8192;
-          };
+            virtualisation.vmVariant.virtualisation = {
+              cores = 2;
+              memorySize = 4096;
+              diskSize = 8192;
+            };
 
-          users.users.${vmUser} = {
-            isNormalUser = true;
-            description = "Forte VM validation user";
-            extraGroups = [
-              "audio"
-              "video"
-              "wheel"
+            users.users.${vmUser} = {
+              isNormalUser = true;
+              description = "Forte VM validation user";
+              extraGroups = [
+                "audio"
+                "video"
+                "wheel"
+              ];
+              password = "";
+            };
+
+            security.polkit.enable = true;
+            services.dbus.enable = true;
+
+            services.pipewire = {
+              enable = true;
+              alsa.enable = true;
+              pulse.enable = true;
+            };
+
+            hardware.graphics.enable = true;
+            xdg.portal.enable = true;
+
+            services.xserver.enable = true;
+            services.displayManager.autoLogin = {
+              enable = true;
+              user = vmUser;
+            };
+
+            services.desktopManager.gnome.enable = desktop == "gnome";
+            services.displayManager.gdm = lib.mkIf (desktop == "gnome") {
+              enable = true;
+            };
+
+            services.desktopManager.plasma6.enable = desktop == "plasma";
+            services.displayManager.sddm = lib.mkIf (desktop == "plasma") {
+              enable = true;
+              wayland.enable = false;
+            };
+
+            environment.systemPackages = with pkgs; [
+              forte
+              dbus
+              desktop-file-utils
+              hicolor-icon-theme
+              playerctl
+              xdg-utils
             ];
-            password = "";
           };
-
-          security.polkit.enable = true;
-          services.dbus.enable = true;
-
-          services.pipewire = {
-            enable = true;
-            alsa.enable = true;
-            pulse.enable = true;
-          };
-
-          hardware.graphics.enable = true;
-          xdg.portal.enable = true;
-
-          services.xserver.enable = true;
-          services.displayManager.autoLogin = {
-            enable = true;
-            user = vmUser;
-          };
-
-          services.desktopManager.gnome.enable = desktop == "gnome";
-          services.displayManager.gdm = lib.mkIf (desktop == "gnome") {
-            enable = true;
-          };
-
-          services.desktopManager.plasma6.enable = desktop == "plasma";
-          services.displayManager.sddm = lib.mkIf (desktop == "plasma") {
-            enable = true;
-            wayland.enable = false;
-          };
-
-          environment.systemPackages = with pkgs; [
-            forte
-            dbus
-            desktop-file-utils
-            hicolor-icon-theme
-            playerctl
-            xdg-utils
-          ];
-        };
 
         mkDesktopVm =
           desktop:
@@ -409,15 +413,17 @@
           pkgs.testers.nixosTest {
             name = "forte-${desktop}-desktop-smoke";
 
-            nodes.machine = { ... }: {
-              imports = [ (mkDesktopVmModule desktop) ];
+            nodes.machine =
+              { ... }:
+              {
+                imports = [ (mkDesktopVmModule desktop) ];
 
-              virtualisation = {
-                cores = 2;
-                memorySize = 4096;
-                diskSize = 8192;
+                virtualisation = {
+                  cores = 2;
+                  memorySize = 4096;
+                  diskSize = 8192;
+                };
               };
-            };
 
             testScript = ''
               machine.start()

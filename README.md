@@ -65,12 +65,7 @@ task build
 ./bin/forte
 ```
 
-To avoid compiling `.#forte` locally (e.g. in Home Manager), use the optional Cachix cache after it is configured (see `.github/workflows/nix-cache.yml`):
-
-```sh
-cachix use willfish-forte   # once the cache exists
-nix build .#forte
-```
+`go`, `mpv`, and other toolchain packages come from **cache.nixos.org** via the `nixos-25.11` pin. Home Manager still builds the **forte app** from source on input changes; that is separate from downloading Go itself.
 
 Without Nix, install:
 
