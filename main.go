@@ -146,14 +146,6 @@ func main() {
 	tray := app.SystemTray.New()
 	tray.SetLabel("Forte")
 
-	menu := buildForteTrayMenu(app.NewMenu(), trayMenuActions{
-		playback:     ps,
-		toggleWindow: tray.ToggleWindow,
-		quit: func() {
-			app.Quit()
-		},
-	})
-
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "Forte",
 		Width:            1200,
@@ -172,6 +164,14 @@ func main() {
 		e.Cancel()
 	})
 
+	menu := buildForteTrayMenu(app.NewMenu(), trayMenuActions{
+		playback:     ps,
+		toggleWindow: func() { toggleForteWindow(window) },
+		quit: func() {
+			app.Quit()
+		},
+	})
+
 	trayIconState := newTrayIconState("green-dark", trayStateIdle)
 
 	tray.SetMenu(menu).AttachWindow(window)
@@ -186,7 +186,7 @@ func main() {
 		tray.SetIcon(trayIconState.current())
 		// Left-click toggles window (Linux behaviour preserved).
 		tray.OnClick(func() {
-			tray.ToggleWindow()
+			toggleForteWindow(window)
 		})
 	}
 
