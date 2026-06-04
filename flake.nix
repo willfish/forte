@@ -105,10 +105,10 @@
 
         frontend = pkgs.buildNpmPackage {
           pname = "forte-frontend";
-          version = "0.1.0";
+          version = "1.0.0";
           src = ./frontend;
           nodejs = pkgs.nodejs_22;
-          npmDepsHash = "sha256-kEprDYBdn3cayhPsS81DOEs+biGUquJZJvO2jD07Lp0=";
+          npmDepsHash = "sha256-MJDctjX8RZl72Vh3L0uPexNjuVHzLfZBMFJE+KzV1Lk=";
           buildPhase = ''
             npm run build
           '';
@@ -120,7 +120,7 @@
 
         forte = pkgs.buildGoModule {
           pname = "forte";
-          version = "0.1.0";
+          version = "1.0.0";
           src = ./.;
           go = pkgs.go_1_25;
           vendorHash =
@@ -271,9 +271,9 @@
               	<key>CFBundlePackageType</key>
               	<string>APPL</string>
               	<key>CFBundleShortVersionString</key>
-              	<string>0.1.0</string>
+                <string>1.0.0</string>
               	<key>CFBundleVersion</key>
-              	<string>0.1.0</string>
+                <string>1.0.0</string>
               	<key>LSMinimumSystemVersion</key>
               	<string>10.13</string>
               	<key>NSHighResolutionCapable</key>
