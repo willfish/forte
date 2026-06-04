@@ -1,8 +1,10 @@
 {
   description = "Forte - A modern music player";
 
+  # Pin to the same channel as NixOS 25.11 / Home Manager so go, mpv, GTK, and
+  # WebKit reuse cache.nixos.org binaries instead of a second unstable tree.
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     flake-utils.url = "github:numtide/flake-utils";
     pre-commit-hooks = {
       url = "github:cachix/git-hooks.nix";
@@ -98,6 +100,8 @@
               entry = "nix build .#frontend .#forte --no-link";
               language = "system";
               pass_filenames = false;
+              # Only when hashes might have changed — avoids a full Nix build on every push.
+              files = "^(flake\\.nix|go\\.mod|go\\.sum|frontend/package-lock\\.json)$";
               stages = [ "pre-push" ];
             };
           };
@@ -453,6 +457,57 @@
               machine.succeed("pkill -TERM -u ${vmUser} -f '[f]orte' || true")
             '';
           };
+
+        devShellBase = {
+          buildInputs =
+            pre-commit.enabledPackages
+            ++ (with pkgs; [
+              go_1_25
+              nodejs_22
+              go-task
+              golangci-lint
+              govulncheck
+              ffmpeg
+              pkg-config
+              mpv
+            ]);
+
+          shellHook =
+            pre-commit.shellHook
+            + ''
+              export GOPATH="$PWD/.go"
+              export PATH="$GOPATH/bin:$PATH"
+            ''
+            + lib.optionalString pkgs.stdenv.isLinux ''
+              export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.mpv ]}:$LD_LIBRARY_PATH"
+            '';
+        };
+
+        devShellFull = devShellBase // {
+          buildInputs =
+            devShellBase.buildInputs
+            ++ (
+              with pkgs;
+              lib.optionals pkgs.stdenv.isLinux [
+                playwright-driver
+                gtk3
+                webkitgtk_4_1
+                gtk4
+                webkitgtk_6_0
+              ]
+              ++ lib.optionals pkgs.stdenv.isDarwin [
+                apple-sdk_14
+              ]
+            );
+
+          shellHook =
+            devShellBase.shellHook
+            + lib.optionalString pkgs.stdenv.isLinux ''
+              export PLAYWRIGHT_BROWSERS_PATH="${pkgs.playwright-driver.browsers}"
+              export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+              export CHROME_PATH="$(find -L "$PLAYWRIGHT_BROWSERS_PATH" -path '*/chrome-linux*/chrome' -type f | head -n 1)"
+            '';
+        };
       in
       {
         packages = {
@@ -475,48 +530,14 @@
         };
 
         formatter = pkgs.writeShellScriptBin "pre-commit-run" ''
-          exec ${pre-commit.package}/bin/pre-commit run --all-files --config ${pre-commit.configFile}
+          exec ${pre-commit.config.package}/bin/pre-commit run --all-files --config ${pre-commit.config.configFile}
         '';
 
-        devShells.default = pkgs.mkShell {
-          buildInputs =
-            pre-commit.enabledPackages
-            ++ (
-              with pkgs;
-              [
-                go_1_25
-                nodejs_22
-                go-task
-                golangci-lint
-                govulncheck
-                ffmpeg
-                pkg-config
-                mpv
-              ]
-              ++ lib.optionals pkgs.stdenv.isLinux [
-                playwright-driver
-                gtk3
-                webkitgtk_4_1
-                gtk4
-                webkitgtk_6_0
-              ]
-              ++ lib.optionals pkgs.stdenv.isDarwin [
-                apple-sdk_14
-              ]
-            );
-
-          shellHook =
-            pre-commit.shellHook
-            + ''
-              export GOPATH="$PWD/.go"
-              export PATH="$GOPATH/bin:$PATH"
-            ''
-            + lib.optionalString pkgs.stdenv.isLinux ''
-              export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.mpv ]}:$LD_LIBRARY_PATH"
-              export PLAYWRIGHT_BROWSERS_PATH="${pkgs.playwright-driver.browsers}"
-              export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-              export CHROME_PATH="$(find -L "$PLAYWRIGHT_BROWSERS_PATH" -path '*/chrome-linux*/chrome' -type f | head -n 1)"
-            '';
+        devShells = {
+          # Fast path: Go, mpv, Node, linters — matches CI apt + task build workflow.
+          default = pkgs.mkShell devShellBase;
+          # Wails native link + Playwright e2e (pulls GTK/WebKit; use only when needed).
+          full = pkgs.mkShell devShellFull;
         };
       }
     );

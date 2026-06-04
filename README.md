@@ -50,12 +50,26 @@ environment.systemPackages = [
 
 ### From Source
 
-Forte supports Linux and macOS (via Nix). The Nix flake provides a first-class `Forte.app` on darwin (proper Dock icon, menubar status item with menu on click, playback state, self-contained libmpv). For local development, the Nix shell is the easiest route because it includes Go, Node, Wails, GTK/WebKit (linux), mpv, Playwright, and linting tools.
+Forte supports Linux and macOS (via Nix). The Nix flake provides a first-class `Forte.app` on darwin (proper Dock icon, menubar status item with menu on click, playback state, self-contained libmpv).
+
+The flake pins **nixos-25.11** (same channel as current NixOS/Home Manager) so `go`, `mpv`, and friends come from **cache.nixos.org** instead of a second unstable nixpkgs tree.
 
 ```sh
+# Fast dev shell: Go, Node, mpv, linters (no GTK/WebKit download)
 nix develop
+
+# Full shell when linking Wails or running Playwright in Nix
+nix develop .#full
+
 task build
 ./bin/forte
+```
+
+To avoid compiling `.#forte` locally (e.g. in Home Manager), use the optional Cachix cache after it is configured (see `.github/workflows/nix-cache.yml`):
+
+```sh
+cachix use willfish-forte   # once the cache exists
+nix build .#forte
 ```
 
 Without Nix, install:
