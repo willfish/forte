@@ -20,7 +20,7 @@ tasks:
   package:
     summary: Packages a production build of the application
     env:
-      VERSION: '{{.VERSION | default "0.0.0-dev"}}'
+      VERSION: '{{.VERSION | default "1.0.0"}}'
     cmds:
       - task: "linux:package"
 
