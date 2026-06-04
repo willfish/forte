@@ -1,0 +1,35 @@
+# Push Nix-built forte + frontend to Cachix so `nix build` / Home Manager can
+# download substitutes instead of compiling locally.
+#
+# Setup (once):
+#   cachix create willfish-forte
+#   gh secret set CACHIX_AUTH_TOKEN --repo willfish/forte
+# Local:
+#   cachix use willfish-forte
+name: Nix cache
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  push:
+    name: Push to Cachix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: cachix/install-nix-action@v31
+
+      - uses: cachix/cachix-action@v16
+        with:
+          name: willfish-forte
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      - name: Build and push packages
+        run: |
+          nix build .#forte .#frontend --print-out-paths | cachix push willfish-forte
