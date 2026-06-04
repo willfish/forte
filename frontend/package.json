@@ -1,7 +1,7 @@
 {
   "name": "forte-frontend",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "packageManager": "npm@10.9.4",
   "scripts": {

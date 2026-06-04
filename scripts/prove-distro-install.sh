@@ -64,7 +64,7 @@ export PATH="$HOME/go/bin:$PATH"
 go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.95
 go install github.com/go-task/task/v3/cmd/task@v3.51.1
 
-export VERSION=0.1.0-test
+export VERSION=1.0.0-test
 export GIT_COMMITTER_NAME=Forte
 export GIT_COMMITTER_EMAIL=forte@example.invalid
 task linux:create:deb
@@ -162,7 +162,7 @@ export PATH="$HOME/go/bin:$PATH"
 go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.95
 go install github.com/go-task/task/v3/cmd/task@v3.51.1
 
-export VERSION=0.1.0-test
+export VERSION=1.0.0-test
 export GIT_COMMITTER_NAME=Forte
 export GIT_COMMITTER_EMAIL=forte@example.invalid
 task linux:create:aur

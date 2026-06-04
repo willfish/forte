@@ -5,7 +5,7 @@ info:
   productIdentifier: "io.github.willfish.forte"
   description: "A modern music player"
   copyright: "(c) 2026, William Fish"
-  version: "0.1.0"
+  version: "1.0.0"
 
 dev_mode:
   root_path: .
