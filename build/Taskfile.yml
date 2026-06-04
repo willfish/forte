@@ -48,7 +48,36 @@ tasks:
     summary: Runs `go mod tidy`
     internal: true
     cmds:
-      - go mod tidy
+      - |
+        lock_dir='{{.ROOT_DIR}}/.go/go-mod-tidy.lock'
+        node_modules='{{.ROOT_DIR}}/frontend/node_modules'
+        hidden_node_modules='{{.ROOT_DIR}}/frontend/.node_modules.go-mod-tidy'
+
+        mkdir -p "$(dirname "$lock_dir")"
+        while ! mkdir "$lock_dir" 2>/dev/null; do
+          sleep 0.2
+        done
+
+        restore_node_modules() {
+          if [ -d "$hidden_node_modules" ]; then
+            rm -rf "$node_modules"
+            mv "$hidden_node_modules" "$node_modules"
+          fi
+        }
+
+        cleanup() {
+          restore_node_modules
+          rmdir "$lock_dir"
+        }
+
+        trap cleanup EXIT
+
+        if [ -d "$node_modules" ]; then
+          rm -rf "$hidden_node_modules"
+          mv "$node_modules" "$hidden_node_modules"
+        fi
+
+        go mod tidy
 
   patch:wails:
     summary: Applies Forte's local Wails patches to the module cache
@@ -92,7 +121,16 @@ tasks:
       - sh: npm version
         msg: "Looks like npm isn't installed. Npm is part of the Node installer: https://nodejs.org/en/download/"
     cmds:
-      - npm ci
+      - |
+        lock_dir='{{.ROOT_DIR}}/.go/go-mod-tidy.lock'
+
+        mkdir -p "$(dirname "$lock_dir")"
+        while ! mkdir "$lock_dir" 2>/dev/null; do
+          sleep 0.2
+        done
+        trap 'rmdir "$lock_dir"' EXIT
+
+        npm ci
 
   build:frontend:
     label: build:frontend (DEV={{.DEV}})
