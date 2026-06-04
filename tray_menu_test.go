@@ -12,6 +12,12 @@ type fakeTrayPlayback struct {
 	calls []string
 }
 
+type fakeTrayWindow struct {
+	visible   bool
+	minimised bool
+	calls     []string
+}
+
 func (f *fakeTrayPlayback) State() string {
 	return f.state
 }
@@ -34,6 +40,32 @@ func (f *fakeTrayPlayback) Next() {
 
 func (f *fakeTrayPlayback) Previous() {
 	f.calls = append(f.calls, "previous")
+}
+
+func (f *fakeTrayWindow) IsVisible() bool {
+	return f.visible
+}
+
+func (f *fakeTrayWindow) IsMinimised() bool {
+	return f.minimised
+}
+
+func (f *fakeTrayWindow) Hide() application.Window {
+	f.calls = append(f.calls, "hide")
+	return nil
+}
+
+func (f *fakeTrayWindow) Restore() {
+	f.calls = append(f.calls, "restore")
+}
+
+func (f *fakeTrayWindow) Show() application.Window {
+	f.calls = append(f.calls, "show")
+	return nil
+}
+
+func (f *fakeTrayWindow) Focus() {
+	f.calls = append(f.calls, "focus")
 }
 
 func TestForteTrayMenuShape(t *testing.T) {
@@ -102,6 +134,39 @@ func TestForteTrayMenuActions(t *testing.T) {
 	}
 	if quit != 1 {
 		t.Fatalf("quit called %d times, want 1", quit)
+	}
+}
+
+func TestToggleForteWindow(t *testing.T) {
+	tests := []struct {
+		name      string
+		window    *fakeTrayWindow
+		wantCalls []string
+	}{
+		{
+			name:      "hides visible window",
+			window:    &fakeTrayWindow{visible: true},
+			wantCalls: []string{"hide"},
+		},
+		{
+			name:      "shows hidden window",
+			window:    &fakeTrayWindow{},
+			wantCalls: []string{"restore", "show", "focus"},
+		},
+		{
+			name:      "restores minimised visible window",
+			window:    &fakeTrayWindow{visible: true, minimised: true},
+			wantCalls: []string{"restore", "show", "focus"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			toggleForteWindow(tt.window)
+			if !reflect.DeepEqual(tt.window.calls, tt.wantCalls) {
+				t.Fatalf("calls = %#v, want %#v", tt.window.calls, tt.wantCalls)
+			}
+		})
 	}
 }
 
