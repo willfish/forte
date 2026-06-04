@@ -2,6 +2,15 @@ package main
 
 import "github.com/wailsapp/wails/v3/pkg/application"
 
+type trayWindow interface {
+	IsVisible() bool
+	IsMinimised() bool
+	Hide() application.Window
+	Restore()
+	Show() application.Window
+	Focus()
+}
+
 type trayPlaybackController interface {
 	State() string
 	Pause()
@@ -60,4 +69,17 @@ func buildForteTrayMenu(menu *application.Menu, actions trayMenuActions) *applic
 		})
 	}
 	return menu
+}
+
+func toggleForteWindow(window trayWindow) {
+	if window == nil {
+		return
+	}
+	if window.IsVisible() && !window.IsMinimised() {
+		window.Hide()
+		return
+	}
+	window.Restore()
+	window.Show()
+	window.Focus()
 }
