@@ -11,7 +11,8 @@
 
   let toasts = $state<ToastItem[]>([]);
   let nextId = 0;
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let pollTimer: ReturnType<typeof setTimeout> | null = null;
+  let polling = false;
 
   function toastGroup(message: string): string {
     if (message.startsWith('Radio stream ') || message === 'Radio reconnected') {
@@ -21,35 +22,43 @@
   }
 
   function startPolling() {
-    if (pollTimer) return;
-    pollTimer = setInterval(async () => {
-      try {
-        const items = await PlayerService.GetToasts();
-        if (items && items.length > 0) {
-          const now = Date.now();
-          for (const item of items) {
-            const group = toastGroup(item.message);
-            toasts = toasts.filter(t => toastGroup(t.message) !== group);
-            toasts.push({
-              id: nextId++,
-              message: item.message,
-              type: item.type || 'info',
-              expiry: now + 4000,
-            });
-          }
+    if (polling) return;
+    polling = true;
+    poll();
+  }
+
+  async function poll() {
+    try {
+      const items = await PlayerService.GetToasts();
+      if (items && items.length > 0) {
+        const now = Date.now();
+        for (const item of items) {
+          const group = toastGroup(item.message);
+          toasts = toasts.filter(t => toastGroup(t.message) !== group);
+          toasts.push({
+            id: nextId++,
+            message: item.message,
+            type: item.type || 'info',
+            expiry: now + 4000,
+          });
         }
-      } catch {
-        // ignore polling errors
       }
-      // Remove expired toasts.
-      const now = Date.now();
-      toasts = toasts.filter(t => t.expiry > now);
-    }, 500);
+    } catch {
+      // ignore polling errors
+    }
+    // Remove expired toasts.
+    const now = Date.now();
+    toasts = toasts.filter(t => t.expiry > now);
+
+    if (polling) {
+      pollTimer = setTimeout(poll, 2000);
+    }
   }
 
   function stopPolling() {
+    polling = false;
     if (pollTimer) {
-      clearInterval(pollTimer);
+      clearTimeout(pollTimer);
       pollTimer = null;
     }
   }

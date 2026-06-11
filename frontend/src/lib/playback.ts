@@ -20,8 +20,10 @@ const stoppedStatus: PlaybackStatus = {
 };
 
 let current: PlaybackStatus = { ...stoppedStatus };
-let statusTimer: ReturnType<typeof setInterval> | null = null;
+let statusTimer: ReturnType<typeof setTimeout> | null = null;
 let artworkTimer: ReturnType<typeof setInterval> | null = null;
+let statusInFlight = false;
+let pollingActive = false;
 let lastArtworkKey = '';
 const listeners: Array<(status: PlaybackStatus) => void> = [];
 
@@ -41,6 +43,8 @@ export function onPlaybackStatusChange(fn: (status: PlaybackStatus) => void): ()
 }
 
 export async function refreshPlaybackStatus() {
+  if (statusInFlight) return;
+  statusInFlight = true;
   try {
     const next = await PlayerService.GetPlaybackStatus();
     current = {
@@ -63,6 +67,8 @@ export async function refreshPlaybackStatus() {
     notify();
   } catch {
     // Keep the last known state when the backend is briefly unavailable.
+  } finally {
+    statusInFlight = false;
   }
 }
 
@@ -96,15 +102,26 @@ function notify() {
 }
 
 function startPolling() {
-  if (statusTimer) return;
-  void refreshPlaybackStatus();
-  statusTimer = setInterval(refreshPlaybackStatus, 250);
+  if (pollingActive) return;
+  pollingActive = true;
+  pollPlaybackStatus();
   artworkTimer = setInterval(refreshArtwork, 1000);
 }
 
+async function pollPlaybackStatus() {
+  await refreshPlaybackStatus();
+  if (!pollingActive || listeners.length === 0) {
+    statusTimer = null;
+    return;
+  }
+  const delay = current.radioMode ? 2000 : 250;
+  statusTimer = setTimeout(pollPlaybackStatus, delay);
+}
+
 function stopPolling() {
+  pollingActive = false;
   if (statusTimer) {
-    clearInterval(statusTimer);
+    clearTimeout(statusTimer);
     statusTimer = null;
   }
   if (artworkTimer) {
