@@ -633,9 +633,11 @@ class MockCancellablePromise<T> extends Promise<T> {
 }
 
 const windowCalls: Array<{ method: string; args: any[] }> = [];
+const callCounts = new Map<number, number>();
 
 export const Call = {
   ByID(id: number, ...args: any[]): MockCancellablePromise<any> {
+    callCounts.set(id, (callCounts.get(id) ?? 0) + 1);
     const handler = fixtures[id];
     if (handler) {
       return MockCancellablePromise.resolve(handler(...args));
@@ -659,6 +661,7 @@ export const Window = {
 
 if (typeof window !== "undefined") {
   (window as any).__wailsWindowCalls = windowCalls;
+  (window as any).__wailsCallCounts = callCounts;
 }
 
 export const Create = {
