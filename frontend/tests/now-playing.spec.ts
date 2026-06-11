@@ -37,4 +37,32 @@ test.describe("Now playing view", () => {
     await page.goto("/");
     await expect(page.getByRole("slider", { name: "Volume" })).toBeVisible();
   });
+
+  test("radio playback backs off high-frequency status polling", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Play Jazz FM" }).click();
+    await expect(page.locator("footer")).toContainText("LIVE");
+
+    await page.evaluate(() => {
+      (window as any).__wailsCallCounts.clear();
+    });
+    await page.waitForTimeout(1300);
+
+    const statusCalls = await page.evaluate(() => (window as any).__wailsCallCounts.get(958915679) ?? 0);
+    expect(statusCalls).toBeLessThanOrEqual(2);
+  });
+
+  test("idle toast polling stays low during unattended playback", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Play Jazz FM" }).click();
+    await expect(page.locator("footer")).toContainText("LIVE");
+
+    await page.evaluate(() => {
+      (window as any).__wailsCallCounts.clear();
+    });
+    await page.waitForTimeout(1300);
+
+    const toastCalls = await page.evaluate(() => (window as any).__wailsCallCounts.get(327853480) ?? 0);
+    expect(toastCalls).toBeLessThanOrEqual(1);
+  });
 });
