@@ -2,11 +2,15 @@ package main
 
 import (
 	"embed"
+	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strings"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -65,6 +69,64 @@ var trayIconMacPlaying []byte
 
 const appID = "io.github.willfish.forte"
 
+type crashLogHeader struct {
+	StartedAt time.Time
+	PID       int
+	Exe       string
+	Args      []string
+}
+
+func openCrashLog(logDir string, now time.Time, pid int) (*os.File, string, error) {
+	crashDir := filepath.Join(logDir, "crashes")
+	if err := os.MkdirAll(crashDir, 0o755); err != nil {
+		return nil, "", err
+	}
+
+	path := filepath.Join(crashDir, fmt.Sprintf("forte-%s-%d.log", now.Format("20060102-150405"), pid))
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil, "", err
+	}
+
+	pointer := fmt.Sprintf("Latest Forte crash capture: %s\n", path)
+	if err := os.WriteFile(filepath.Join(logDir, "crash.log"), []byte(pointer), 0o644); err != nil {
+		_ = f.Close()
+		return nil, "", err
+	}
+
+	return f, path, nil
+}
+
+func writeCrashLogHeader(w io.Writer, h crashLogHeader) error {
+	buildMain := "(unknown)"
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Path != "" {
+		buildMain = info.Main.Path
+	}
+
+	_, err := fmt.Fprintf(w, `=== Forte crash capture startup ===
+started_at=%s
+pid=%d
+exe=%s
+args=%s
+go_version=%s
+go_os=%s
+go_arch=%s
+build_main=%s
+=== end startup ===
+
+`,
+		h.StartedAt.UTC().Format(time.RFC3339),
+		h.PID,
+		h.Exe,
+		strings.Join(h.Args, " "),
+		runtime.Version(),
+		runtime.GOOS,
+		runtime.GOARCH,
+		buildMain,
+	)
+	return err
+}
+
 // setupCrashLog directs Go runtime crash output (SIGSEGV, etc.) to a file
 // so crashes from the installed program can be diagnosed. It also writes
 // /proc/self/maps at startup so library addresses can be resolved from the
@@ -78,7 +140,7 @@ func setupCrashLog() *os.File {
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
 		return nil
 	}
-	f, err := os.Create(filepath.Join(logDir, "crash.log"))
+	f, _, err := openCrashLog(logDir, time.Now(), os.Getpid())
 	if err != nil {
 		return nil
 	}
@@ -86,6 +148,14 @@ func setupCrashLog() *os.File {
 		_ = f.Close()
 		return nil
 	}
+
+	exe, _ := os.Executable()
+	_ = writeCrashLogHeader(f, crashLogHeader{
+		StartedAt: time.Now(),
+		PID:       os.Getpid(),
+		Exe:       exe,
+		Args:      os.Args,
+	})
 
 	// Write process memory maps so we can resolve library addresses on crash.
 	// Linux only (/proc not present or different on darwin).
