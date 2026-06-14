@@ -477,6 +477,7 @@
             nodejs_22
             go-task
             golangci-lint
+            git-cliff
             govulncheck
             ffmpeg
             pkg-config

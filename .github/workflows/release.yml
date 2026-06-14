@@ -37,6 +37,15 @@ jobs:
         with:
           version: 3.51.1
 
+      - name: Generate release notes
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+        env:
+          OUTPUT: RELEASE_NOTES.md
+          GITHUB_REPO: ${{ github.repository }}
+
       - name: Set version from tag
         run: printf 'VERSION=%s\n' "${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
@@ -55,7 +64,7 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" \
             bin/* \
-            --generate-notes \
+            --notes-file RELEASE_NOTES.md \
             --title "$GITHUB_REF_NAME"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
