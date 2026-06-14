@@ -231,6 +231,9 @@
   let showPassword = $state(false);
   let syncing = $state(false);
   let syncResult = $state<{ ok: boolean; message: string } | null>(null);
+  let musicDirectories = $state<string[]>([]);
+  let musicDirectoryBusy = $state(false);
+  let musicDirectoryStatus = $state<{ ok: boolean; message: string } | null>(null);
 
   async function loadServers() {
     servers = ((await LibraryService.GetServers()) || []).map((s: ServerResponse) => ({
@@ -251,6 +254,77 @@
       servers = [];
     }
   });
+
+  async function loadMusicDirectories() {
+    try {
+      musicDirectories = (await LibraryService.GetMusicDirectories()) || [];
+    } catch {
+      musicDirectories = [];
+    }
+  }
+
+  $effect(() => {
+    if (appPreferences.libraryEnabled) {
+      loadMusicDirectories();
+    } else {
+      musicDirectories = [];
+      musicDirectoryStatus = null;
+    }
+  });
+
+  async function addMusicDirectory() {
+    musicDirectoryBusy = true;
+    musicDirectoryStatus = null;
+    try {
+      const selected = await Dialogs.OpenFile({
+        Title: 'Add music directory',
+        CanChooseFiles: false,
+        CanChooseDirectories: true,
+      });
+      const path = Array.isArray(selected) ? selected[0] : selected;
+      if (!path) {
+        musicDirectoryStatus = { ok: false, message: 'Add directory cancelled' };
+        return;
+      }
+      await LibraryService.AddMusicDirectory(path);
+      await loadMusicDirectories();
+      if (!musicDirectories.includes(path)) {
+        musicDirectories = [...musicDirectories, path];
+      }
+      musicDirectoryStatus = { ok: true, message: 'Music directory added' };
+    } catch (err) {
+      musicDirectoryStatus = { ok: false, message: err instanceof Error ? err.message : 'Add directory failed' };
+    } finally {
+      musicDirectoryBusy = false;
+    }
+  }
+
+  async function removeMusicDirectory(path: string) {
+    musicDirectoryBusy = true;
+    musicDirectoryStatus = null;
+    try {
+      await LibraryService.RemoveMusicDirectory(path);
+      await loadMusicDirectories();
+      musicDirectoryStatus = { ok: true, message: 'Music directory removed' };
+    } catch (err) {
+      musicDirectoryStatus = { ok: false, message: err instanceof Error ? err.message : 'Remove directory failed' };
+    } finally {
+      musicDirectoryBusy = false;
+    }
+  }
+
+  async function scanMusicLibrary() {
+    musicDirectoryBusy = true;
+    musicDirectoryStatus = null;
+    try {
+      await LibraryService.ScanMusicLibrary();
+      musicDirectoryStatus = { ok: true, message: 'Library scan completed' };
+    } catch (err) {
+      musicDirectoryStatus = { ok: false, message: err instanceof Error ? err.message : 'Library scan failed' };
+    } finally {
+      musicDirectoryBusy = false;
+    }
+  }
 
   function startAdd() {
     editing = { id: '', name: '', type: 'subsonic', url: '', username: '', password: '', hasPassword: false };
@@ -674,6 +748,45 @@
   </section>
 
   {#if appPreferences.libraryEnabled}
+  <section class="section">
+    <h3>Local Library</h3>
+    {#if musicDirectories.length === 0}
+      <p class="empty-msg">No music directories configured.</p>
+    {:else}
+      <ul class="directory-list">
+        {#each musicDirectories as dir}
+          <li class="directory-item">
+            <span class="directory-path">{dir}</span>
+            <button
+              class="action-btn delete"
+              type="button"
+              onclick={() => removeMusicDirectory(dir)}
+              disabled={musicDirectoryBusy}
+              aria-label={`Remove ${dir}`}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+              </svg>
+            </button>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+    <div class="library-actions">
+      <button class="btn-add" type="button" onclick={addMusicDirectory} disabled={musicDirectoryBusy}>
+        Add directory…
+      </button>
+      <button class="btn-sync" type="button" onclick={scanMusicLibrary} disabled={musicDirectoryBusy || musicDirectories.length === 0}>
+        {musicDirectoryBusy ? 'Working...' : 'Scan now'}
+      </button>
+    </div>
+    {#if musicDirectoryStatus}
+      <p class="config-status" class:ok={musicDirectoryStatus.ok} class:error={!musicDirectoryStatus.ok}>
+        {musicDirectoryStatus.message}
+      </p>
+    {/if}
+  </section>
+
   <section class="section servers-section">
     <h3>Servers</h3>
 
@@ -1058,6 +1171,39 @@
     list-style: none;
     margin: 0 0 0.75rem;
     padding: 0;
+  }
+
+  .directory-list {
+    list-style: none;
+    margin: 0 0 0.75rem;
+    padding: 0;
+  }
+
+  .directory-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0;
+  }
+
+  .directory-path {
+    flex: 1;
+    min-width: 0;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-family: ui-monospace, monospace;
+    font-size: 0.8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .library-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem;
   }
 
   .server-item {

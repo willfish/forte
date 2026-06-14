@@ -7,7 +7,7 @@ Forte is a Linux desktop music player built with Go, Wails, Svelte, mpv, and SQL
 ## What It Does
 
 - **Radio first** - browse Radio Browser and SomaFM stations, filter by country or codec, save favourites, pin stations, add custom streams, and keep playback history.
-- **Library mode when you want it** - scan local FLAC, MP3, Ogg, Opus, and WAV files, then browse albums, artists, tracks, playlists, and listening stats.
+- **Library mode when you want it** - add music directories in Settings, scan local FLAC, MP3, Ogg, Opus, and WAV files, then browse albums, artists, tracks, playlists, and listening stats.
 - **Streaming libraries** - connect Subsonic-compatible and Jellyfin servers, test credentials, sync catalogues, and play remote tracks alongside local files.
 - **Playback built on mpv** - queue management, shuffle, repeat, seeking, volume control, ReplayGain support, and gapless-style queue preloading.
 - **Desktop integration** - MPRIS controls, desktop notifications, a COSMIC-friendly themed tray icon, launcher icons, and configurable dark/light colour themes.
@@ -97,6 +97,9 @@ task dev
 
 # Build the Linux desktop app
 task build
+
+# Local pre-PR verification
+make check
 
 # Seed demo data for screenshots and UI testing
 task demo

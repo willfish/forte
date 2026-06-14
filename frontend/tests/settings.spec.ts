@@ -74,6 +74,26 @@ test.describe("Settings", () => {
     await expect(page.getByText("No servers configured")).toBeVisible();
   });
 
+  test("adds scans and removes a local music directory", async ({ page }) => {
+    await enableLibraryMode(page);
+    const musicPath = "/home/test/Music";
+
+    await expect(page.getByRole("heading", { name: "Local Library" })).toBeVisible();
+    await expect(page.getByText("No music directories configured.")).toBeVisible();
+
+    await page.evaluate((path) => localStorage.setItem("forte.nextOpenFile", path), musicPath);
+    await page.getByRole("button", { name: "Add directory…" }).click();
+    await expect(page.getByText(musicPath)).toBeVisible();
+    await expect(page.getByText("Music directory added")).toBeVisible();
+
+    await page.getByRole("button", { name: "Scan now" }).click();
+    await expect(page.getByText("Library scan completed")).toBeVisible();
+
+    await page.locator(".directory-item").filter({ hasText: musicPath }).getByRole("button", { name: /Remove/ }).click();
+    await expect(page.getByText("Music directory removed")).toBeVisible();
+    await expect(page.getByText("No music directories configured.")).toBeVisible();
+  });
+
   test("add server button opens form", async ({ page }) => {
     await enableLibraryMode(page);
     await page.getByRole("button", { name: "Add server" }).click();

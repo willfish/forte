@@ -250,6 +250,13 @@ ALTER TABLE radio_custom_stations ADD COLUMN codec TEXT NOT NULL DEFAULT '';
 ALTER TABLE radio_custom_stations ADD COLUMN bitrate INTEGER NOT NULL DEFAULT 0;
 `
 
+const migration017 = `
+CREATE TABLE local_directories (
+	path     TEXT PRIMARY KEY,
+	added_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`
+
 const migration013 = `
 DROP TABLE fts_tracks;
 

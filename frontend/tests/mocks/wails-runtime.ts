@@ -77,6 +77,7 @@ let radioFavourites = [
 ];
 
 let customStations: any[] = [];
+let musicDirectories: string[] = [];
 
 let radioHistory = [
   {
@@ -259,6 +260,27 @@ function filteredDemoStations(country = "", codec = "", tag = "") {
   );
 }
 
+function searchDemoStations(query = "") {
+  const q = query.trim().toLowerCase();
+  if (!q) return demoStations;
+  return demoStations.filter((station) => station.name.toLowerCase().includes(q));
+}
+
+function mockDelayFor(namespace: string, key: string): number {
+  const raw = globalThis.localStorage?.getItem(`forte.${namespace}Delays`);
+  if (!raw) return 0;
+  try {
+    const delays = JSON.parse(raw) as Record<string, number>;
+    return Number(delays[key] || 0);
+  } catch {
+    return 0;
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 const fixtures: Record<number, (...args: any[]) => any> = {
   // --- LibraryService ---
   // GetAlbums
@@ -297,14 +319,28 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   4244880336: () => [
     { trackId: 1, title: "Airbag", artist: "Radiohead", album: "OK Computer", durationMs: 282000, filePath: "/music/airbag.flac", position: 0 },
   ],
-  // AddTrackToPlaylist
-  2287316659: () => undefined,
-  // RemoveTrackFromPlaylist
-  970681807: () => undefined,
-  // MoveTrackInPlaylist
-  465154155: () => undefined,
-  // GetServers
-  3711954650: () => [],
+	  // AddTrackToPlaylist
+	  2287316659: () => undefined,
+	  // RemoveTrackFromPlaylist
+	  970681807: () => undefined,
+	  // MoveTrackInPlaylist
+	  465154155: () => undefined,
+	  // GetMusicDirectories
+	  2414175136: () => musicDirectories,
+	  // AddMusicDirectory
+	  1886803159: (path: string) => {
+	    if (!musicDirectories.includes(path)) {
+	      musicDirectories = [...musicDirectories, path];
+	    }
+	  },
+	  // RemoveMusicDirectory
+	  3475289348: (path: string) => {
+	    musicDirectories = musicDirectories.filter((dir) => dir !== path);
+	  },
+	  // ScanMusicLibrary
+	  896031417: () => undefined,
+	  // GetServers
+	  3711954650: () => [],
   // AddServer
   477958106: () => undefined,
   // UpdateServer
@@ -377,7 +413,10 @@ const fixtures: Record<number, (...args: any[]) => any> = {
     return "data:image/png;base64,PROXIEDFORTEST";
   },
   // SearchRadioStations
-  1619368624: () => demoStations.map((station, index) => ({ ...station, votes: 200 - index * 10, clicks: 500 - index * 20 })),
+  1619368624: async (query: string) => {
+    await delay(mockDelayFor("radioSearch", query));
+    return searchDemoStations(query).map((station, index) => ({ ...station, votes: 200 - index * 10, clicks: 500 - index * 20 }));
+  },
   // GetTopVotedRadioStations
   1723581283: () => demoStations.map((station, index) => ({ ...station, votes: 200 - index * 10, clicks: 500 - index * 20 })),
   // GetSomaFMStations
@@ -474,14 +513,16 @@ const fixtures: Record<number, (...args: any[]) => any> = {
   2733979162: () => {
     radioHistory = [];
   },
-  // GetAppPreferences
-  3910505449: () => appPreferences,
-  // SaveAppPreferences
-  1128588116: (prefs: typeof appPreferences) => {
-    appPreferences = { ...appPreferences, ...prefs };
-  },
-  // SetThemePreference
-  3763400674: () => undefined,
+	  // GetAppPreferences
+	  3910505449: () => appPreferences,
+	  // SaveAppPreferences
+	  1128588116: (prefs: typeof appPreferences) => {
+	    appPreferences = { ...appPreferences, ...prefs };
+	  },
+	  // GetUserConfigPath
+	  198184712: () => "/home/test/.config/forte/config.toml",
+	  // SetThemePreference
+	  3763400674: () => undefined,
 
   // --- PlayerService ---
   // GetPlaybackStatus
@@ -669,7 +710,14 @@ export const Create = {
 
 export const Dialogs = {
   SaveFile: async (_opts?: any): Promise<string> => "",
-  OpenFile: async (_opts?: any): Promise<string | string[] | null> => null,
+  OpenFile: async (_opts?: any): Promise<string | string[] | null> => {
+    const selected = globalThis.localStorage?.getItem("forte.nextOpenFile") || "";
+    if (selected) {
+      globalThis.localStorage?.removeItem("forte.nextOpenFile");
+      return selected;
+    }
+    return null;
+  },
 };
 
 export default { Call, CancellablePromise, Create, Window, Dialogs };

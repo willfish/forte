@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -73,6 +74,18 @@ func TestNilDB(t *testing.T) {
 	}
 	if err := s.SyncServers(); err == nil {
 		t.Error("SyncServers: expected error")
+	}
+	if _, err := s.GetMusicDirectories(); err == nil {
+		t.Error("GetMusicDirectories: expected error")
+	}
+	if err := s.AddMusicDirectory("/tmp/music"); err == nil {
+		t.Error("AddMusicDirectory: expected error")
+	}
+	if err := s.RemoveMusicDirectory("/tmp/music"); err == nil {
+		t.Error("RemoveMusicDirectory: expected error")
+	}
+	if err := s.ScanMusicLibrary(); err == nil {
+		t.Error("ScanMusicLibrary: expected error")
 	}
 	if _, err := s.GetPlaylists(); err == nil {
 		t.Error("GetPlaylists: expected error")
@@ -163,6 +176,58 @@ func TestNilDB(t *testing.T) {
 	}
 	if err := s.ConnectListenBrainz("tok"); err == nil {
 		t.Error("ConnectListenBrainz: expected error")
+	}
+}
+
+func TestMusicDirectoryServiceRoundTrip(t *testing.T) {
+	s := openTestService(t)
+	dir := t.TempDir()
+
+	if err := s.AddMusicDirectory(" " + dir + " "); err != nil {
+		t.Fatalf("AddMusicDirectory: %v", err)
+	}
+
+	dirs, err := s.GetMusicDirectories()
+	if err != nil {
+		t.Fatalf("GetMusicDirectories: %v", err)
+	}
+	if len(dirs) != 1 {
+		t.Fatalf("got %d directories, want 1", len(dirs))
+	}
+	want, _ := filepath.Abs(dir)
+	if dirs[0] != want {
+		t.Fatalf("directory = %q, want %q", dirs[0], want)
+	}
+
+	if err := s.RemoveMusicDirectory(dir); err != nil {
+		t.Fatalf("RemoveMusicDirectory: %v", err)
+	}
+	dirs, err = s.GetMusicDirectories()
+	if err != nil {
+		t.Fatalf("GetMusicDirectories after remove: %v", err)
+	}
+	if len(dirs) != 0 {
+		t.Fatalf("got %d directories after remove, want 0", len(dirs))
+	}
+}
+
+func TestAddMusicDirectoryRequiresDirectory(t *testing.T) {
+	s := openTestService(t)
+	file := filepath.Join(t.TempDir(), "track.flac")
+	if err := os.WriteFile(file, []byte("not a directory"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.AddMusicDirectory(file); err == nil {
+		t.Fatal("AddMusicDirectory file error = nil, want error")
+	}
+}
+
+func TestScanMusicLibraryRequiresDirectories(t *testing.T) {
+	s := openTestService(t)
+
+	if err := s.ScanMusicLibrary(); err == nil {
+		t.Fatal("ScanMusicLibrary error = nil, want error")
 	}
 }
 

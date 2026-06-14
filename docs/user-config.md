@@ -23,6 +23,9 @@ Forte can export and import portable user settings as a sectioned TOML file.
 
 **Merge** means stations already in the database are left unchanged (pins, names, and metadata are not rolled back by an older export). **Replace** is for restoring from a backup you explicitly chose.
 
+Local music directories are configured in Settings and persisted in SQLite.
+They are not exported to `config.toml` in schema v1.
+
 Unknown top-level sections in a future file should be ignored (not implemented yet). Unsupported `schemaVersion` fails import with a clear error; startup logs the error and continues with existing DB state.
 
 ## Behaviour
