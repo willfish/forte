@@ -95,6 +95,7 @@
   let searchInputRef: HTMLInputElement | undefined = $state();
   let selectedStationUuid = $state<string | null>(getRadioStationDetail());
   let selectedStationHint = $state<RadioStationHint | null>(getRadioStationHint());
+  let stationLoadSeq = 0;
 
   // Active filters.
   let activeTags = $state<string[]>([]);
@@ -126,6 +127,16 @@
 
   function clearRadioError() {
     radioError = '';
+  }
+
+  function beginStationLoad(): number {
+    stationLoadSeq += 1;
+    loading = true;
+    return stationLoadSeq;
+  }
+
+  function isCurrentStationLoad(seq: number): boolean {
+    return seq === stationLoadSeq;
   }
 
   function isEditableTarget(target: EventTarget | null): boolean {
@@ -233,7 +244,7 @@
   }
 
   async function loadFeatured() {
-    loading = true;
+    const seq = beginStationLoad();
     try {
       // Fetch top-voted stations from curated countries in parallel,
       // then merge and deduplicate for a mainstream default view.
@@ -255,43 +266,63 @@
         }
       }
       merged.sort((a, b) => b.votes - a.votes);
-      stations = await proxyAndFilter(merged, 50);
+      const nextStations = await proxyAndFilter(merged, 50);
+      if (isCurrentStationLoad(seq)) {
+        stations = nextStations;
+      }
     } catch {
-      stations = [];
+      if (isCurrentStationLoad(seq)) {
+        stations = [];
+      }
     } finally {
-      loading = false;
+      if (isCurrentStationLoad(seq)) {
+        loading = false;
+      }
     }
   }
 
   async function loadSomaFMFiltered() {
-    loading = true;
+    const seq = beginStationLoad();
     try {
       const result = await LibraryService.GetSomaFMStations();
       const mapped = (result || []).map(mapStation).filter(stationMatchesActiveFilters);
       await proxyStationIcons(mapped.map(s => s.favicon));
-      stations = mapped;
+      if (isCurrentStationLoad(seq)) {
+        stations = mapped;
+      }
     } catch {
-      stations = [];
+      if (isCurrentStationLoad(seq)) {
+        stations = [];
+      }
     } finally {
-      loading = false;
+      if (isCurrentStationLoad(seq)) {
+        loading = false;
+      }
     }
   }
 
   async function loadFiltered() {
-    loading = true;
+    if (activeSource === 'somafm') {
+      await loadSomaFMFiltered();
+      return;
+    }
+    const seq = beginStationLoad();
     try {
-      if (activeSource === 'somafm') {
-        await loadSomaFMFiltered();
-        return;
-      }
       const result = await LibraryService.SearchRadioStationsFiltered(
         activeCountry, activeCodec, activeTags[0] || '', 100
       );
-      stations = await proxyAndFilter((result || []).map(mapStation).filter(stationMatchesActiveFilters), 50);
+      const nextStations = await proxyAndFilter((result || []).map(mapStation).filter(stationMatchesActiveFilters), 50);
+      if (isCurrentStationLoad(seq)) {
+        stations = nextStations;
+      }
     } catch {
-      stations = [];
+      if (isCurrentStationLoad(seq)) {
+        stations = [];
+      }
     } finally {
-      loading = false;
+      if (isCurrentStationLoad(seq)) {
+        loading = false;
+      }
     }
   }
 
@@ -445,15 +476,22 @@
       return;
     }
 
-    loading = true;
+    const seq = beginStationLoad();
     debounceTimer = setTimeout(async () => {
       try {
         const result = await LibraryService.SearchRadioStations(value.trim(), 100);
-        stations = await proxyAndFilter((result || []).map(mapStation), 50);
+        const nextStations = await proxyAndFilter((result || []).map(mapStation), 50);
+        if (isCurrentStationLoad(seq)) {
+          stations = nextStations;
+        }
       } catch {
-        stations = [];
+        if (isCurrentStationLoad(seq)) {
+          stations = [];
+        }
       } finally {
-        loading = false;
+        if (isCurrentStationLoad(seq)) {
+          loading = false;
+        }
       }
     }, 300);
   }

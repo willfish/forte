@@ -233,6 +233,48 @@ func TestScanChangedRealAudioFileUpdatesExistingTrack(t *testing.T) {
 	}
 }
 
+func TestScanRemovesDeletedLocalTracksUnderScannedRoots(t *testing.T) {
+	db := openTestDB(t)
+	scanner := NewScanner(db)
+
+	dir := t.TempDir()
+	missingPath := filepath.Join(dir, "missing.flac")
+	outsidePath := filepath.Join(t.TempDir(), "outside.flac")
+
+	mustExec(t, db, "INSERT INTO artists (id, name) VALUES (1, 'Artist')")
+	mustExec(t, db, `INSERT INTO tracks (id, artist_id, title, file_path)
+		VALUES (1, 1, 'Missing', ?), (2, 1, 'Outside', ?), (3, 1, 'Server', 'server://srv/track')`,
+		missingPath, outsidePath)
+	mustExec(t, db, "INSERT INTO fts_tracks (rowid, title, artist, album, genre) VALUES (1, 'Missing', 'Artist', '', '')")
+	mustExec(t, db, "INSERT INTO fts_tracks (rowid, title, artist, album, genre) VALUES (2, 'Outside', 'Artist', '', '')")
+	mustExec(t, db, "INSERT INTO fts_tracks (rowid, title, artist, album, genre) VALUES (3, 'Server', 'Artist', '', '')")
+
+	if err := scanner.Scan(context.Background(), []string{dir}, nil); err != nil {
+		t.Fatalf("Scan(): %v", err)
+	}
+
+	for _, tc := range []struct {
+		name  string
+		query string
+		want  int
+	}{
+		{name: "missing local track", query: "SELECT COUNT(*) FROM tracks WHERE id = 1", want: 0},
+		{name: "missing local fts", query: "SELECT COUNT(*) FROM fts_tracks WHERE rowid = 1", want: 0},
+		{name: "outside local track", query: "SELECT COUNT(*) FROM tracks WHERE id = 2", want: 1},
+		{name: "outside local fts", query: "SELECT COUNT(*) FROM fts_tracks WHERE rowid = 2", want: 1},
+		{name: "server track", query: "SELECT COUNT(*) FROM tracks WHERE id = 3", want: 1},
+		{name: "server fts", query: "SELECT COUNT(*) FROM fts_tracks WHERE rowid = 3", want: 1},
+	} {
+		var count int
+		if err := db.QueryRow(tc.query).Scan(&count); err != nil {
+			t.Fatalf("%s count: %v", tc.name, err)
+		}
+		if count != tc.want {
+			t.Fatalf("%s count = %d, want %d", tc.name, count, tc.want)
+		}
+	}
+}
+
 func TestScanCancellation(t *testing.T) {
 	db := openTestDB(t)
 	scanner := NewScanner(db)

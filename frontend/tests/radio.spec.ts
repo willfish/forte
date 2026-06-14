@@ -44,6 +44,24 @@ test('shows search bar on Browse tab', async ({ page }) => {
   await expect(page.getByPlaceholder('Search stations by name...')).toBeVisible();
 });
 
+test('keeps the newest radio search results when an older request finishes late', async ({ page }) => {
+  await page.evaluate(() => {
+    localStorage.setItem('forte.radioSearchDelays', JSON.stringify({ jazz: 800, bbc: 0 }));
+  });
+  await page.reload();
+  await radioNavButton(page).click();
+
+  const search = page.getByPlaceholder('Search stations by name...');
+  await search.fill('jazz');
+  await page.waitForTimeout(350);
+  await search.fill('bbc');
+
+  await expect(page.getByRole('listitem').filter({ hasText: 'BBC World Service' })).toBeVisible();
+  await page.waitForTimeout(700);
+  await expect(page.getByRole('listitem').filter({ hasText: 'BBC World Service' })).toBeVisible();
+  await expect(page.getByRole('listitem').filter({ hasText: 'Adroit Jazz Underground' })).toHaveCount(0);
+});
+
 test('pressing slash focuses Browse search', async ({ page }) => {
   await radioNavButton(page).click();
   const search = page.getByPlaceholder('Search stations by name...');
