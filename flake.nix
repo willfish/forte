@@ -5,6 +5,7 @@
   # WebKit reuse cache.nixos.org binaries instead of a second unstable tree.
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    nixpkgs-go.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     pre-commit-hooks = {
       url = "github:cachix/git-hooks.nix";
@@ -16,6 +17,7 @@
     {
       self,
       nixpkgs,
+      nixpkgs-go,
       flake-utils,
       pre-commit-hooks,
       ...
@@ -24,7 +26,9 @@
       system:
       let
         pkgs = import nixpkgs { inherit system; };
+        goPkgs = import nixpkgs-go { inherit system; };
         lib = pkgs.lib;
+        go_1_25_11 = goPkgs.go_1_25;
 
         pre-commit = pre-commit-hooks.lib.${system}.run {
           src = ./.;
@@ -126,7 +130,7 @@
           pname = "forte";
           version = "1.0.0";
           src = ./.;
-          go = pkgs.go_1_25;
+          go = go_1_25_11;
           # Linux and Darwin vendoring differ: Linux applies Wails GTK patches in modBuildPhase.
           vendorHash =
             if pkgs.stdenv.isDarwin then
@@ -465,18 +469,19 @@
           };
 
         devShellBase = {
-          buildInputs =
-            pre-commit.enabledPackages
-            ++ (with pkgs; [
-              go_1_25
-              nodejs_22
-              go-task
-              golangci-lint
-              govulncheck
-              ffmpeg
-              pkg-config
-              mpv
-            ]);
+          buildInputs = [
+            go_1_25_11
+          ]
+          ++ pre-commit.enabledPackages
+          ++ (with pkgs; [
+            nodejs_22
+            go-task
+            golangci-lint
+            govulncheck
+            ffmpeg
+            pkg-config
+            mpv
+          ]);
 
           shellHook =
             pre-commit.shellHook

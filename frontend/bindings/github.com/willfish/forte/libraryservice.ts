@@ -24,6 +24,13 @@ export function AddCustomRadioStation(name: string, streamURL: string, faviconUR
 }
 
 /**
+ * AddMusicDirectory stores a local music library root.
+ */
+export function AddMusicDirectory(path: string): $CancellablePromise<void> {
+    return $Call.ByID(1886803159, path);
+}
+
+/**
  * AddRadioFavourite saves a radio station to favourites.
  */
 export function AddRadioFavourite(stationUUID: string, name: string, streamURL: string, faviconURL: string, homepage: string, tags: string, country: string, codec: string, bitrate: number): $CancellablePromise<void> {
@@ -192,11 +199,20 @@ export function GetListenBrainzConfig(): $CancellablePromise<$models.ListenBrain
 }
 
 /**
+ * GetMusicDirectories returns configured local music library roots.
+ */
+export function GetMusicDirectories(): $CancellablePromise<string[]> {
+    return $Call.ByID(2414175136).then(($result: any) => {
+        return $$createType9($result);
+    });
+}
+
+/**
  * GetPlaylistTracks returns the tracks in a playlist.
  */
 export function GetPlaylistTracks(playlistID: number): $CancellablePromise<$models.PlaylistTrack[]> {
     return $Call.ByID(4244880336, playlistID).then(($result: any) => {
-        return $$createType10($result);
+        return $$createType11($result);
     });
 }
 
@@ -205,7 +221,7 @@ export function GetPlaylistTracks(playlistID: number): $CancellablePromise<$mode
  */
 export function GetPlaylists(): $CancellablePromise<$models.Playlist[]> {
     return $Call.ByID(1524576557).then(($result: any) => {
-        return $$createType12($result);
+        return $$createType13($result);
     });
 }
 
@@ -221,7 +237,7 @@ export function GetRadioFavouritePinned(stationUUID: string): $CancellablePromis
  */
 export function GetRadioFavourites(): $CancellablePromise<$models.RadioFavouriteJSON[]> {
     return $Call.ByID(590575721).then(($result: any) => {
-        return $$createType14($result);
+        return $$createType15($result);
     });
 }
 
@@ -230,7 +246,7 @@ export function GetRadioFavourites(): $CancellablePromise<$models.RadioFavourite
  */
 export function GetRadioHistory(limit: number): $CancellablePromise<$models.RadioHistoryJSON[]> {
     return $Call.ByID(3857005579, limit).then(($result: any) => {
-        return $$createType16($result);
+        return $$createType17($result);
     });
 }
 
@@ -239,7 +255,7 @@ export function GetRadioHistory(limit: number): $CancellablePromise<$models.Radi
  */
 export function GetRadioStationByUUID(stationUUID: string): $CancellablePromise<$models.RadioStationJSON> {
     return $Call.ByID(4150278773, stationUUID).then(($result: any) => {
-        return $$createType17($result);
+        return $$createType18($result);
     });
 }
 
@@ -248,7 +264,7 @@ export function GetRadioStationByUUID(stationUUID: string): $CancellablePromise<
  */
 export function GetRadioStationsByCountry(country: string, limit: number): $CancellablePromise<$models.RadioStationJSON[]> {
     return $Call.ByID(3988982917, country, limit).then(($result: any) => {
-        return $$createType18($result);
+        return $$createType19($result);
     });
 }
 
@@ -257,7 +273,7 @@ export function GetRadioStationsByCountry(country: string, limit: number): $Canc
  */
 export function GetRadioStationsByTag(tag: string, limit: number): $CancellablePromise<$models.RadioStationJSON[]> {
     return $Call.ByID(3897998615, tag, limit).then(($result: any) => {
-        return $$createType18($result);
+        return $$createType19($result);
     });
 }
 
@@ -266,7 +282,7 @@ export function GetRadioStationsByTag(tag: string, limit: number): $CancellableP
  */
 export function GetRecentlyPlayed(limit: number): $CancellablePromise<$models.RecentPlayJSON[]> {
     return $Call.ByID(3884039413, limit).then(($result: any) => {
-        return $$createType20($result);
+        return $$createType21($result);
     });
 }
 
@@ -275,7 +291,7 @@ export function GetRecentlyPlayed(limit: number): $CancellablePromise<$models.Re
  */
 export function GetScrobbleConfig(): $CancellablePromise<$models.ScrobbleConfigJSON> {
     return $Call.ByID(3948527462).then(($result: any) => {
-        return $$createType21($result);
+        return $$createType22($result);
     });
 }
 
@@ -291,7 +307,7 @@ export function GetScrobbleQueueSize(): $CancellablePromise<number> {
  */
 export function GetServerStatuses(): $CancellablePromise<$models.ServerStatusJSON[]> {
     return $Call.ByID(1839345631).then(($result: any) => {
-        return $$createType23($result);
+        return $$createType24($result);
     });
 }
 
@@ -300,7 +316,7 @@ export function GetServerStatuses(): $CancellablePromise<$models.ServerStatusJSO
  */
 export function GetServers(): $CancellablePromise<$models.ServerConfig[]> {
     return $Call.ByID(3711954650).then(($result: any) => {
-        return $$createType25($result);
+        return $$createType26($result);
     });
 }
 
@@ -309,7 +325,7 @@ export function GetServers(): $CancellablePromise<$models.ServerConfig[]> {
  */
 export function GetSomaFMStations(): $CancellablePromise<$models.RadioStationJSON[]> {
     return $Call.ByID(3406641218).then(($result: any) => {
-        return $$createType18($result);
+        return $$createType19($result);
     });
 }
 
@@ -318,7 +334,7 @@ export function GetSomaFMStations(): $CancellablePromise<$models.RadioStationJSO
  */
 export function GetTopAlbums(period: string, limit: number): $CancellablePromise<$models.StatEntryJSON[]> {
     return $Call.ByID(1740480677, period, limit).then(($result: any) => {
-        return $$createType27($result);
+        return $$createType28($result);
     });
 }
 
@@ -327,7 +343,7 @@ export function GetTopAlbums(period: string, limit: number): $CancellablePromise
  */
 export function GetTopArtists(period: string, limit: number): $CancellablePromise<$models.StatEntryJSON[]> {
     return $Call.ByID(2628386383, period, limit).then(($result: any) => {
-        return $$createType27($result);
+        return $$createType28($result);
     });
 }
 
@@ -336,7 +352,7 @@ export function GetTopArtists(period: string, limit: number): $CancellablePromis
  */
 export function GetTopClickedRadioStations(limit: number): $CancellablePromise<$models.RadioStationJSON[]> {
     return $Call.ByID(46869912, limit).then(($result: any) => {
-        return $$createType18($result);
+        return $$createType19($result);
     });
 }
 
@@ -345,7 +361,7 @@ export function GetTopClickedRadioStations(limit: number): $CancellablePromise<$
  */
 export function GetTopTracks(period: string, limit: number): $CancellablePromise<$models.StatEntryJSON[]> {
     return $Call.ByID(3437861925, period, limit).then(($result: any) => {
-        return $$createType27($result);
+        return $$createType28($result);
     });
 }
 
@@ -354,7 +370,7 @@ export function GetTopTracks(period: string, limit: number): $CancellablePromise
  */
 export function GetTopVotedRadioStations(limit: number): $CancellablePromise<$models.RadioStationJSON[]> {
     return $Call.ByID(1723581283, limit).then(($result: any) => {
-        return $$createType18($result);
+        return $$createType19($result);
     });
 }
 
@@ -370,7 +386,7 @@ export function GetUserConfigPath(): $CancellablePromise<string> {
  */
 export function ImportUserConfig(): $CancellablePromise<$models.UserConfigImportResultJSON> {
     return $Call.ByID(188952206).then(($result: any) => {
-        return $$createType28($result);
+        return $$createType29($result);
     });
 }
 
@@ -379,7 +395,7 @@ export function ImportUserConfig(): $CancellablePromise<$models.UserConfigImport
  */
 export function ImportUserConfigFromPath(path: string): $CancellablePromise<$models.UserConfigImportResultJSON> {
     return $Call.ByID(2145098713, path).then(($result: any) => {
-        return $$createType28($result);
+        return $$createType29($result);
     });
 }
 
@@ -411,6 +427,13 @@ export function OpenURL(rawURL: string): $CancellablePromise<void> {
  */
 export function ProxyImageURL(url: string): $CancellablePromise<string> {
     return $Call.ByID(1305746552, url);
+}
+
+/**
+ * RemoveMusicDirectory removes a local music library root.
+ */
+export function RemoveMusicDirectory(path: string): $CancellablePromise<void> {
+    return $Call.ByID(3475289348, path);
 }
 
 /**
@@ -449,11 +472,18 @@ export function SaveScrobbleAPIKeys(apiKey: string, apiSecret: string): $Cancell
 }
 
 /**
+ * ScanMusicLibrary scans all configured local music directories.
+ */
+export function ScanMusicLibrary(): $CancellablePromise<void> {
+    return $Call.ByID(896031417);
+}
+
+/**
  * Search searches the library for tracks matching the query.
  */
 export function Search(query: string, limit: number): $CancellablePromise<$models.SearchResult[]> {
     return $Call.ByID(2206755262, query, limit).then(($result: any) => {
-        return $$createType30($result);
+        return $$createType31($result);
     });
 }
 
@@ -462,7 +492,7 @@ export function Search(query: string, limit: number): $CancellablePromise<$model
  */
 export function SearchRadioStations(query: string, limit: number): $CancellablePromise<$models.RadioStationJSON[]> {
     return $Call.ByID(1619368624, query, limit).then(($result: any) => {
-        return $$createType18($result);
+        return $$createType19($result);
     });
 }
 
@@ -471,7 +501,7 @@ export function SearchRadioStations(query: string, limit: number): $CancellableP
  */
 export function SearchRadioStationsFiltered(country: string, codec: string, tag: string, limit: number): $CancellablePromise<$models.RadioStationJSON[]> {
     return $Call.ByID(2804279923, country, codec, tag, limit).then(($result: any) => {
-        return $$createType18($result);
+        return $$createType19($result);
     });
 }
 
@@ -542,25 +572,26 @@ const $$createType5 = $models.AppPreferencesJSON.createFrom;
 const $$createType6 = $models.ArtistInfoJSON.createFrom;
 const $$createType7 = $Create.Array($$createType0);
 const $$createType8 = $models.ListenBrainzConfigJSON.createFrom;
-const $$createType9 = $models.PlaylistTrack.createFrom;
-const $$createType10 = $Create.Array($$createType9);
-const $$createType11 = $models.Playlist.createFrom;
-const $$createType12 = $Create.Array($$createType11);
-const $$createType13 = $models.RadioFavouriteJSON.createFrom;
-const $$createType14 = $Create.Array($$createType13);
-const $$createType15 = $models.RadioHistoryJSON.createFrom;
-const $$createType16 = $Create.Array($$createType15);
-const $$createType17 = $models.RadioStationJSON.createFrom;
-const $$createType18 = $Create.Array($$createType17);
-const $$createType19 = $models.RecentPlayJSON.createFrom;
-const $$createType20 = $Create.Array($$createType19);
-const $$createType21 = $models.ScrobbleConfigJSON.createFrom;
-const $$createType22 = $models.ServerStatusJSON.createFrom;
-const $$createType23 = $Create.Array($$createType22);
-const $$createType24 = $models.ServerConfig.createFrom;
-const $$createType25 = $Create.Array($$createType24);
-const $$createType26 = $models.StatEntryJSON.createFrom;
-const $$createType27 = $Create.Array($$createType26);
-const $$createType28 = $models.UserConfigImportResultJSON.createFrom;
-const $$createType29 = $models.SearchResult.createFrom;
-const $$createType30 = $Create.Array($$createType29);
+const $$createType9 = $Create.Array($Create.Any);
+const $$createType10 = $models.PlaylistTrack.createFrom;
+const $$createType11 = $Create.Array($$createType10);
+const $$createType12 = $models.Playlist.createFrom;
+const $$createType13 = $Create.Array($$createType12);
+const $$createType14 = $models.RadioFavouriteJSON.createFrom;
+const $$createType15 = $Create.Array($$createType14);
+const $$createType16 = $models.RadioHistoryJSON.createFrom;
+const $$createType17 = $Create.Array($$createType16);
+const $$createType18 = $models.RadioStationJSON.createFrom;
+const $$createType19 = $Create.Array($$createType18);
+const $$createType20 = $models.RecentPlayJSON.createFrom;
+const $$createType21 = $Create.Array($$createType20);
+const $$createType22 = $models.ScrobbleConfigJSON.createFrom;
+const $$createType23 = $models.ServerStatusJSON.createFrom;
+const $$createType24 = $Create.Array($$createType23);
+const $$createType25 = $models.ServerConfig.createFrom;
+const $$createType26 = $Create.Array($$createType25);
+const $$createType27 = $models.StatEntryJSON.createFrom;
+const $$createType28 = $Create.Array($$createType27);
+const $$createType29 = $models.UserConfigImportResultJSON.createFrom;
+const $$createType30 = $models.SearchResult.createFrom;
+const $$createType31 = $Create.Array($$createType30);

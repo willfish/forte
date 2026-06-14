@@ -284,6 +284,62 @@ func (s *LibraryService) SyncServers() error {
 	return library.SyncAllServers(context.Background(), s.db)
 }
 
+// GetMusicDirectories returns configured local music library roots.
+func (s *LibraryService) GetMusicDirectories() ([]string, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("library not initialised")
+	}
+	dirs, err := s.db.GetLocalDirectories()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]string, len(dirs))
+	for i, dir := range dirs {
+		result[i] = dir.Path
+	}
+	return result, nil
+}
+
+// AddMusicDirectory stores a local music library root.
+func (s *LibraryService) AddMusicDirectory(path string) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	path = strings.TrimSpace(path)
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("music directory: %w", err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("music directory must be a directory")
+	}
+	return s.db.AddLocalDirectory(path)
+}
+
+// RemoveMusicDirectory removes a local music library root.
+func (s *LibraryService) RemoveMusicDirectory(path string) error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	return s.db.RemoveLocalDirectory(strings.TrimSpace(path))
+}
+
+// ScanMusicLibrary scans all configured local music directories.
+func (s *LibraryService) ScanMusicLibrary() error {
+	if s.db == nil {
+		return fmt.Errorf("library not initialised")
+	}
+	dirs, err := s.GetMusicDirectories()
+	if err != nil {
+		return err
+	}
+	if len(dirs) == 0 {
+		return fmt.Errorf("no music directories configured")
+	}
+	scanner := library.NewScanner(s.db)
+	return scanner.Scan(context.Background(), dirs, nil)
+}
+
 // Playlist is the JSON-friendly playlist type exposed to the frontend.
 type Playlist struct {
 	ID   int64  `json:"id"`

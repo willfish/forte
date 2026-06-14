@@ -43,6 +43,7 @@ func NewScanner(db *DB) *Scanner {
 func (s *Scanner) Scan(ctx context.Context, dirs []string, progress chan<- Progress) error {
 	// Collect all audio file paths first for progress reporting.
 	var paths []string
+	seenPaths := make(map[string]bool)
 	for _, dir := range dirs {
 		if _, err := os.Stat(dir); err != nil {
 			return fmt.Errorf("scan dir: %w", err)
@@ -60,6 +61,7 @@ func (s *Scanner) Scan(ctx context.Context, dirs []string, progress chan<- Progr
 			}
 			if isAudioFile(path) {
 				paths = append(paths, path)
+				seenPaths[filepath.Clean(path)] = true
 			}
 			return nil
 		})
@@ -112,7 +114,94 @@ func (s *Scanner) Scan(ctx context.Context, dirs []string, progress chan<- Progr
 		}
 	}
 
+	if err := s.reconcileDeletedLocalTracks(ctx, dirs, seenPaths); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func (s *Scanner) reconcileDeletedLocalTracks(ctx context.Context, dirs []string, seenPaths map[string]bool) error {
+	roots := make([]string, 0, len(dirs))
+	for _, dir := range dirs {
+		root, err := filepath.Abs(dir)
+		if err != nil {
+			root = filepath.Clean(dir)
+		}
+		roots = append(roots, filepath.Clean(root))
+	}
+
+	rows, err := s.db.QueryContext(ctx, "SELECT id, file_path FROM tracks WHERE server_id = ''")
+	if err != nil {
+		return fmt.Errorf("query local tracks for reconcile: %w", err)
+	}
+
+	type staleTrack struct {
+		id   int64
+		path string
+	}
+	var stale []staleTrack
+	for rows.Next() {
+		var track staleTrack
+		if err := rows.Scan(&track.id, &track.path); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("scan local track for reconcile: %w", err)
+		}
+		if IsServerPath(track.path) || !isUnderAnyRoot(track.path, roots) {
+			continue
+		}
+		if !seenPaths[filepath.Clean(track.path)] {
+			stale = append(stale, track)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return fmt.Errorf("iterate local tracks for reconcile: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close local tracks for reconcile: %w", err)
+	}
+	if len(stale) == 0 {
+		return nil
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin reconcile tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	for _, track := range stale {
+		if _, err := tx.ExecContext(ctx, "DELETE FROM fts_tracks WHERE rowid = ?", track.id); err != nil {
+			return fmt.Errorf("delete stale track fts %q: %w", track.path, err)
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM tracks WHERE id = ?", track.id); err != nil {
+			return fmt.Errorf("delete stale track %q: %w", track.path, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit reconcile tx: %w", err)
+	}
+	return nil
+}
+
+func isUnderAnyRoot(path string, roots []string) bool {
+	cleanPath, err := filepath.Abs(path)
+	if err != nil {
+		cleanPath = filepath.Clean(path)
+	}
+	cleanPath = filepath.Clean(cleanPath)
+	for _, root := range roots {
+		rel, err := filepath.Rel(root, cleanPath)
+		if err != nil {
+			continue
+		}
+		if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Scanner) processFile(ctx context.Context, tx *sql.Tx, path string) error {
