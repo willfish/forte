@@ -21,8 +21,7 @@ import (
 	"github.com/willfish/forte/internal/library"
 	"github.com/willfish/forte/internal/metadata"
 	"github.com/willfish/forte/internal/player"
-	"github.com/willfish/forte/internal/scrobbling/lastfm"
-	"github.com/willfish/forte/internal/scrobbling/listenbrainz"
+	"github.com/willfish/forte/internal/scrobbling"
 	"github.com/willfish/forte/internal/system"
 )
 
@@ -32,6 +31,7 @@ type PlayerService struct {
 	queue          *player.Queue
 	db             *library.DB
 	resolver       *library.PathResolver
+	scrobbler      *scrobbling.Coordinator
 	mpris          *system.MPRIS
 	notifier       *system.Notifier
 	toasts         *player.Notifications
@@ -42,12 +42,6 @@ type PlayerService struct {
 	tickerDone     chan struct{} // closed when the ticker goroutine exits
 	shutdownOnce   sync.Once
 	shutdownErr    error
-
-	// Scrobble tracking state (protected by scrobbleMu).
-	scrobbleMu      sync.Mutex
-	scrobbleTrackID int64
-	scrobbleElapsed time.Duration
-	scrobbled       bool
 
 	// Radio mode state (protected by radioMu).
 	radioMu               sync.RWMutex
@@ -89,6 +83,7 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 	}
 	p.db = db
 	p.resolver = library.NewPathResolver(db)
+	p.scrobbler = scrobbling.NewCoordinator(db)
 
 	// When mpv auto-advances to the next track (gapless), advance the queue.
 	e.SetOnTrackChange(func() {
@@ -857,127 +852,29 @@ func (p *PlayerService) skipToNextPlayable() {
 }
 
 // startScrobbleTracking resets scrobble state for the current track and
-// sends a "now playing" notification to Last.fm if configured.
+// sends now-playing notifications if configured.
 func (p *PlayerService) startScrobbleTracking() {
+	if p.scrobbler == nil {
+		return
+	}
 	cur := p.queue.Current()
 	if cur == nil {
 		return
 	}
-	p.scrobbleMu.Lock()
-	p.scrobbleTrackID = cur.TrackID
-	p.scrobbleElapsed = 0
-	p.scrobbled = false
-	p.scrobbleMu.Unlock()
-
-	if p.db == nil {
-		return
-	}
-
-	// Last.fm now-playing.
-	cfg, err := p.db.LoadScrobbleConfig()
-	if err == nil && cfg.Enabled && cfg.SessionKey != "" {
-		track := lastfm.TrackInfo{
-			Artist:   cur.Artist,
-			Track:    cur.Title,
-			Album:    cur.Album,
-			Duration: cur.DurationMs / 1000,
-		}
-		go func() {
-			if err := lastfm.NowPlaying(cfg.APIKey, cfg.APISecret, cfg.SessionKey, track); err != nil {
-				log.Printf("lastfm now-playing: %v", err)
-			}
-		}()
-	}
-
-	// ListenBrainz now-playing.
-	lbCfg, err := p.db.LoadListenBrainzConfig()
-	if err == nil && lbCfg.Enabled && lbCfg.UserToken != "" {
-		lbTrack := listenbrainz.TrackInfo{
-			Artist:     cur.Artist,
-			Track:      cur.Title,
-			Album:      cur.Album,
-			DurationMs: cur.DurationMs,
-		}
-		go func() {
-			if err := listenbrainz.NowPlaying(lbCfg.UserToken, lbTrack); err != nil {
-				log.Printf("listenbrainz now-playing: %v", err)
-			}
-		}()
-	}
+	p.scrobbler.TrackStarted(scrobbling.Track{
+		ID:         cur.TrackID,
+		Artist:     cur.Artist,
+		Title:      cur.Title,
+		Album:      cur.Album,
+		DurationMs: cur.DurationMs,
+	})
 }
 
 // checkScrobble accumulates play time and submits a scrobble when the
 // threshold is reached (50% of duration or 4 minutes, whichever is first).
 func (p *PlayerService) checkScrobble() {
-	if p.engine == nil {
-		return
-	}
-	if p.engine.State().String() != "playing" {
-		return
-	}
-
-	cur := p.queue.Current()
-
-	p.scrobbleMu.Lock()
-	if p.scrobbled {
-		p.scrobbleMu.Unlock()
-		return
-	}
-	p.scrobbleElapsed += time.Second
-	if cur == nil || cur.TrackID != p.scrobbleTrackID {
-		p.scrobbleMu.Unlock()
-		return
-	}
-	threshold := time.Duration(lastfm.ScrobbleThreshold(cur.DurationMs)) * time.Millisecond
-	if threshold <= 0 || p.scrobbleElapsed < threshold {
-		p.scrobbleMu.Unlock()
-		return
-	}
-	p.scrobbled = true
-	elapsedMs := int(p.scrobbleElapsed.Milliseconds())
-	p.scrobbleMu.Unlock()
-
-	if p.db == nil {
-		return
-	}
-
-	// Record play in local listening history.
-	_ = p.db.RecordPlay(cur.TrackID, elapsedMs)
-
-	ts := time.Now().Unix()
-
-	// Last.fm scrobble.
-	cfg, err := p.db.LoadScrobbleConfig()
-	if err == nil && cfg.Enabled && cfg.SessionKey != "" {
-		track := lastfm.TrackInfo{
-			Artist:   cur.Artist,
-			Track:    cur.Title,
-			Album:    cur.Album,
-			Duration: cur.DurationMs / 1000,
-		}
-		go func() {
-			if err := lastfm.Scrobble(cfg.APIKey, cfg.APISecret, cfg.SessionKey, track, ts); err != nil {
-				log.Printf("lastfm scrobble: %v (queued for retry)", err)
-				p.enqueueFailedScrobble("lastfm", track.Artist, track.Track, track.Album, cur.DurationMs, ts)
-			}
-		}()
-	}
-
-	// ListenBrainz scrobble.
-	lbCfg, err := p.db.LoadListenBrainzConfig()
-	if err == nil && lbCfg.Enabled && lbCfg.UserToken != "" {
-		lbTrack := listenbrainz.TrackInfo{
-			Artist:     cur.Artist,
-			Track:      cur.Title,
-			Album:      cur.Album,
-			DurationMs: cur.DurationMs,
-		}
-		go func() {
-			if err := listenbrainz.Scrobble(lbCfg.UserToken, lbTrack, ts); err != nil {
-				log.Printf("listenbrainz scrobble: %v (queued for retry)", err)
-				p.enqueueFailedScrobble("listenbrainz", lbTrack.Artist, lbTrack.Track, lbTrack.Album, cur.DurationMs, ts)
-			}
-		}()
+	if p.scrobbler != nil {
+		p.scrobbler.Tick(p.State())
 	}
 }
 
@@ -999,134 +896,11 @@ func (p *PlayerService) resolvePaths(paths []string) []string {
 	return resolved
 }
 
-// scrobbleTrackJSON is the JSON format stored in the queue for retry.
-type scrobbleTrackJSON struct {
-	Artist     string `json:"artist"`
-	Track      string `json:"track"`
-	Album      string `json:"album"`
-	DurationMs int    `json:"duration_ms"`
-}
-
-// enqueueFailedScrobble saves a failed scrobble to the retry queue.
-func (p *PlayerService) enqueueFailedScrobble(service, artist, track, album string, durationMs int, ts int64) {
-	if p.db == nil {
-		return
-	}
-	data, err := json.Marshal(scrobbleTrackJSON{
-		Artist:     artist,
-		Track:      track,
-		Album:      album,
-		DurationMs: durationMs,
-	})
-	if err != nil {
-		log.Printf("scrobble queue: marshal: %v", err)
-		return
-	}
-	if err := p.db.EnqueueScrobble(service, string(data), ts); err != nil {
-		log.Printf("scrobble queue: enqueue: %v", err)
-	}
-}
-
 // flushScrobbleQueue retries pending scrobbles for all services.
 func (p *PlayerService) flushScrobbleQueue() {
-	if p.db == nil {
-		return
+	if p.scrobbler != nil {
+		p.scrobbler.FlushQueue()
 	}
-
-	if err := p.db.PruneScrobbleQueue(); err != nil {
-		log.Printf("scrobble queue: prune: %v", err)
-	}
-
-	p.flushLastFmQueue()
-	p.flushListenBrainzQueue()
-}
-
-// flushLastFmQueue retries pending Last.fm scrobbles in batches of up to 50.
-func (p *PlayerService) flushLastFmQueue() {
-	cfg, err := p.db.LoadScrobbleConfig()
-	if err != nil || !cfg.Enabled || cfg.SessionKey == "" {
-		return
-	}
-
-	entries, err := p.db.PendingScrobbles("lastfm", 50)
-	if err != nil || len(entries) == 0 {
-		return
-	}
-
-	tracks := make([]lastfm.TrackInfo, len(entries))
-	timestamps := make([]int64, len(entries))
-	for i, e := range entries {
-		var t scrobbleTrackJSON
-		if err := json.Unmarshal([]byte(e.TrackJSON), &t); err != nil {
-			log.Printf("scrobble queue: unmarshal lastfm entry %d: %v", e.ID, err)
-			_ = p.db.RemoveScrobble(e.ID) // corrupted entry
-			return
-		}
-		tracks[i] = lastfm.TrackInfo{
-			Artist:   t.Artist,
-			Track:    t.Track,
-			Album:    t.Album,
-			Duration: t.DurationMs / 1000,
-		}
-		timestamps[i] = e.Timestamp
-	}
-
-	if err := lastfm.ScrobbleBatch(cfg.APIKey, cfg.APISecret, cfg.SessionKey, tracks, timestamps); err != nil {
-		log.Printf("scrobble queue: lastfm batch: %v", err)
-		for _, e := range entries {
-			_ = p.db.MarkScrobbleAttempt(e.ID)
-		}
-		return
-	}
-
-	for _, e := range entries {
-		_ = p.db.RemoveScrobble(e.ID)
-	}
-	log.Printf("scrobble queue: flushed %d lastfm scrobbles", len(entries))
-}
-
-// flushListenBrainzQueue retries pending ListenBrainz scrobbles in batches of up to 100.
-func (p *PlayerService) flushListenBrainzQueue() {
-	lbCfg, err := p.db.LoadListenBrainzConfig()
-	if err != nil || !lbCfg.Enabled || lbCfg.UserToken == "" {
-		return
-	}
-
-	entries, err := p.db.PendingScrobbles("listenbrainz", 100)
-	if err != nil || len(entries) == 0 {
-		return
-	}
-
-	tracks := make([]listenbrainz.TrackInfo, len(entries))
-	timestamps := make([]int64, len(entries))
-	for i, e := range entries {
-		var t scrobbleTrackJSON
-		if err := json.Unmarshal([]byte(e.TrackJSON), &t); err != nil {
-			log.Printf("scrobble queue: unmarshal listenbrainz entry %d: %v", e.ID, err)
-			_ = p.db.RemoveScrobble(e.ID) // corrupted entry
-			return
-		}
-		tracks[i] = listenbrainz.TrackInfo{
-			Artist:     t.Artist,
-			Track:      t.Track,
-			Album:      t.Album,
-			DurationMs: t.DurationMs,
-		}
-		timestamps[i] = e.Timestamp
-	}
-
-	if err := listenbrainz.ScrobbleBatch(lbCfg.UserToken, tracks, timestamps); err != nil {
-		log.Printf("scrobble queue: listenbrainz batch: %v", err)
-		for _, e := range entries {
-			_ = p.db.MarkScrobbleAttempt(e.ID)
-		}
-		return
-	}
-
-	for _, e := range entries {
-		_ = p.db.RemoveScrobble(e.ID)
-	}
-	log.Printf("scrobble queue: flushed %d listenbrainz scrobbles", len(entries))
 }
 
 // PlayRadio starts playback of a radio stream. It saves the current library
