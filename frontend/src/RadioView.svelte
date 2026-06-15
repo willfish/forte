@@ -1,7 +1,16 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { LibraryService, PlayerService } from "../bindings/github.com/willfish/forte";
-  import { onPlaybackStatusChange, refreshPlaybackStatus } from './lib/playback';
+  import { onPlaybackStatusChange } from './lib/playback';
+  import {
+    createRadioClient,
+    formatTags,
+    radioCodecs,
+    radioCountries,
+    type CustomStation,
+    type Favourite,
+    type HistoryEntry,
+    type Station,
+  } from './lib/radio';
   import {
     clearRadioStationDetail,
     getRadioStationDetail,
@@ -13,60 +22,6 @@
   } from './lib/stores';
   import RadioStationView from './RadioStationView.svelte';
   import type { PlaybackState } from './lib/types';
-
-  type Station = {
-    uuid: string;
-    name: string;
-    streamUrl: string;
-    homepage: string;
-    favicon: string;
-    country: string;
-    tags: string;
-    bitrate: number;
-    codec: string;
-    votes: number;
-    clicks: number;
-  };
-
-  type Favourite = {
-    stationUuid: string;
-    name: string;
-    streamUrl: string;
-    faviconUrl: string;
-    homepage: string;
-    country: string;
-    codec: string;
-    bitrate: number;
-    tags: string;
-    addedAt: string;
-    pinned: boolean;
-  };
-
-  type CustomStation = {
-    stationUuid: string;
-    name: string;
-    streamUrl: string;
-    faviconUrl: string;
-    homepage: string;
-    tags: string;
-    createdAt: string;
-  };
-
-  type HistoryEntry = {
-    stationUuid: string;
-    name: string;
-    streamUrl: string;
-    faviconUrl: string;
-    homepage: string;
-    country: string;
-    codec: string;
-    bitrate: number;
-    tags: string;
-    lastTitle: string;
-    lastError: string;
-    playCount: number;
-    lastPlayedAt: string;
-  };
 
   const {
     initialTab = 'featured',
@@ -103,15 +58,9 @@
   let activeCountry = $state('');
   let activeCodec = $state('');
 
-  const countries = [
-    { code: 'US', label: 'US', names: ['The United States Of America', 'United States'] },
-    { code: 'GB', label: 'UK', names: ['United Kingdom', 'The United Kingdom Of Great Britain And Northern Ireland'] },
-    { code: 'DE', label: 'DE', names: ['Germany'] },
-    { code: 'FR', label: 'FR', names: ['France'] },
-    { code: 'CA', label: 'CA', names: ['Canada'] },
-    { code: 'AU', label: 'AU', names: ['Australia'] },
-  ];
-  const codecs = ['MP3', 'AAC', 'OGG'];
+  const radioClient = createRadioClient();
+  const countries = radioCountries;
+  const codecs = radioCodecs;
   const radioTabs: Array<typeof tab> = ['featured', 'favourites', 'history', 'custom'];
 
   function describeError(err: unknown): string {
@@ -170,7 +119,7 @@
 
     await Promise.all(toFetch.map(async (url) => {
       try {
-        const dataUri = await LibraryService.ProxyImageURL(url);
+        const dataUri = await radioClient.proxyImageURL(url);
         iconCache.set(url, dataUri || '');
         if (dataUri) resolved.add(url);
       } catch {
@@ -226,46 +175,10 @@
     return raw.slice(0, limit);
   }
 
-  function stationHasTag(station: Station, tag: string): boolean {
-    if (!tag) return true;
-    return formatTags(station.tags).some(t => t.toLowerCase() === tag.toLowerCase());
-  }
-
-  function stationMatchesCountry(station: Station, countryCode: string): boolean {
-    if (!countryCode) return true;
-    const country = countries.find(c => c.code === countryCode);
-    return country ? country.names.includes(station.country) : station.country === countryCode;
-  }
-
-  function stationMatchesActiveFilters(station: Station): boolean {
-    return stationMatchesCountry(station, activeCountry) &&
-      (!activeCodec || station.codec.toLowerCase() === activeCodec.toLowerCase()) &&
-      activeTags.every(tag => stationHasTag(station, tag));
-  }
-
   async function loadFeatured() {
     const seq = beginStationLoad();
     try {
-      // Fetch top-voted stations from curated countries in parallel,
-      // then merge and deduplicate for a mainstream default view.
-      const perCountry = await Promise.all(
-        countries.map(c =>
-          LibraryService.SearchRadioStationsFiltered(c.code, '', '', 20)
-            .then(r => (r || []).map(mapStation))
-            .catch(() => [] as Station[])
-        )
-      );
-      const seen = new Set<string>();
-      const merged: Station[] = [];
-      for (const batch of perCountry) {
-        for (const s of batch) {
-          if (!seen.has(s.uuid)) {
-            seen.add(s.uuid);
-            merged.push(s);
-          }
-        }
-      }
-      merged.sort((a, b) => b.votes - a.votes);
+      const merged = await radioClient.getFeaturedStations(countries);
       const nextStations = await proxyAndFilter(merged, 50);
       if (isCurrentStationLoad(seq)) {
         stations = nextStations;
@@ -284,8 +197,12 @@
   async function loadSomaFMFiltered() {
     const seq = beginStationLoad();
     try {
-      const result = await LibraryService.GetSomaFMStations();
-      const mapped = (result || []).map(mapStation).filter(stationMatchesActiveFilters);
+      const mapped = await radioClient.getSomaFMStations({
+        activeTags,
+        activeSource,
+        activeCountry,
+        activeCodec,
+      });
       await proxyStationIcons(mapped.map(s => s.favicon));
       if (isCurrentStationLoad(seq)) {
         stations = mapped;
@@ -308,10 +225,13 @@
     }
     const seq = beginStationLoad();
     try {
-      const result = await LibraryService.SearchRadioStationsFiltered(
-        activeCountry, activeCodec, activeTags[0] || '', 100
-      );
-      const nextStations = await proxyAndFilter((result || []).map(mapStation).filter(stationMatchesActiveFilters), 50);
+      const result = await radioClient.getFilteredStations({
+        activeTags,
+        activeSource,
+        activeCountry,
+        activeCodec,
+      });
+      const nextStations = await proxyAndFilter(result, 50);
       if (isCurrentStationLoad(seq)) {
         stations = nextStations;
       }
@@ -328,20 +248,7 @@
 
   async function loadFavourites() {
     try {
-      const result = await LibraryService.GetRadioFavourites();
-      favourites = (result || []).map((f: any) => ({
-        stationUuid: f.stationUuid,
-        name: f.name,
-        streamUrl: f.streamUrl,
-        faviconUrl: f.faviconUrl,
-        homepage: f.homepage || '',
-        country: f.country || '',
-        codec: f.codec || '',
-        bitrate: f.bitrate || 0,
-        tags: f.tags,
-        addedAt: f.addedAt,
-        pinned: Boolean(f.pinned),
-      }));
+      favourites = await radioClient.getFavourites();
       favouriteUuids = new Set(favourites.map(f => f.stationUuid));
       await proxyStationIcons(favourites.map(f => f.faviconUrl));
     } catch {
@@ -352,16 +259,7 @@
 
   async function loadCustomStations() {
     try {
-      const result = await LibraryService.GetCustomRadioStations();
-      customStations = (result || []).map((s: any) => ({
-        stationUuid: s.stationUuid,
-        name: s.name,
-        streamUrl: s.streamUrl,
-        faviconUrl: s.faviconUrl,
-        homepage: s.homepage || '',
-        tags: s.tags,
-        createdAt: s.createdAt,
-      }));
+      customStations = await radioClient.getCustomStations();
       await proxyStationIcons(customStations.map(s => s.faviconUrl));
     } catch {
       customStations = [];
@@ -370,42 +268,11 @@
 
   async function loadHistory() {
     try {
-      const result = await LibraryService.GetRadioHistory(50);
-      history = (result || []).map((h: any) => ({
-        stationUuid: h.stationUuid,
-        name: h.name,
-        streamUrl: h.streamUrl,
-        faviconUrl: h.faviconUrl,
-        homepage: h.homepage || '',
-        country: h.country || '',
-        codec: h.codec || '',
-        bitrate: h.bitrate || 0,
-        tags: h.tags,
-        lastTitle: h.trackTitle || h.lastTitle || '',
-        lastError: h.lastError,
-        playCount: h.playCount,
-        lastPlayedAt: h.lastPlayedAt,
-      }));
+      history = await radioClient.getHistory(50);
       await proxyStationIcons(history.map(h => h.faviconUrl));
     } catch {
       history = [];
     }
-  }
-
-  function mapStation(s: any): Station {
-    return {
-      uuid: s.uuid,
-      name: s.name,
-      streamUrl: s.streamUrl,
-      homepage: s.homepage || '',
-      favicon: s.favicon,
-      country: s.country,
-      tags: s.tags,
-      bitrate: s.bitrate,
-      codec: s.codec,
-      votes: s.votes,
-      clicks: s.clicks,
-    };
   }
 
   function stationHintFromStation(station: Station): RadioStationHint {
@@ -479,8 +346,8 @@
     const seq = beginStationLoad();
     debounceTimer = setTimeout(async () => {
       try {
-        const result = await LibraryService.SearchRadioStations(value.trim(), 100);
-        const nextStations = await proxyAndFilter((result || []).map(mapStation), 50);
+        const result = await radioClient.searchStations(value.trim());
+        const nextStations = await proxyAndFilter(result, 50);
         if (isCurrentStationLoad(seq)) {
           stations = nextStations;
         }
@@ -616,21 +483,28 @@
   ) {
     try {
       clearRadioError();
-      if (isCurrentStation(stationUuid)) {
-        if (playbackState === 'playing') {
-          await PlayerService.Pause();
-        } else if (playbackState === 'paused') {
-          await PlayerService.Resume();
+      const nextHistory = await radioClient.playStation(
+        {
+          stationUuid,
+          name,
+          streamUrl: url,
+          favicon,
+          homepage,
+          tags,
+          country,
+          codec,
+          bitrate,
+        },
+        {
+          radioMode,
+          currentStationUuid,
+          playbackState,
         }
-        await refreshPlaybackStatus();
-        return;
+      );
+      if (nextHistory) {
+        history = nextHistory;
+        await proxyStationIcons(history.map(h => h.faviconUrl));
       }
-
-      // Proxy artwork so the webview can display it.
-      const art = favicon ? await LibraryService.ProxyImageURL(favicon) : '';
-      await PlayerService.PlayRadioStation(stationUuid, name, url, art, homepage, tags, country, codec, bitrate);
-      await refreshPlaybackStatus();
-      await loadHistory();
     } catch (err) {
       showRadioError(`Couldn't play ${name}.`, err);
     }
@@ -712,7 +586,7 @@
   async function toggleFavourite(station: Station) {
     if (favouriteUuids.has(station.uuid)) {
       try {
-        await LibraryService.RemoveRadioFavourite(station.uuid);
+        await radioClient.removeFavourite(station.uuid);
         favouriteUuids.delete(station.uuid);
         favouriteUuids = new Set(favouriteUuids);
         favourites = favourites.filter(f => f.stationUuid !== station.uuid);
@@ -721,20 +595,10 @@
       }
     } else {
       try {
-        await LibraryService.AddRadioFavourite(
-          station.uuid,
-          station.name,
-          station.streamUrl,
-          station.favicon,
-          station.homepage,
-          station.tags,
-          station.country,
-          station.codec,
-          station.bitrate
-        );
+        favourites = await radioClient.addFavourite(station);
         favouriteUuids.add(station.uuid);
         favouriteUuids = new Set(favouriteUuids);
-        await loadFavourites();
+        await proxyStationIcons(favourites.map(f => f.faviconUrl));
       } catch (err) {
         showRadioError('Could not add this favourite.', err);
       }
@@ -743,7 +607,7 @@
 
   async function removeFavourite(uuid: string) {
     try {
-      await LibraryService.RemoveRadioFavourite(uuid);
+      await radioClient.removeFavourite(uuid);
       favouriteUuids.delete(uuid);
       favouriteUuids = new Set(favouriteUuids);
       favourites = favourites.filter(f => f.stationUuid !== uuid);
@@ -754,8 +618,9 @@
 
   async function togglePinned(fav: Favourite) {
     try {
-      await LibraryService.SetRadioFavouritePinned(fav.stationUuid, !fav.pinned);
-      await loadFavourites();
+      favourites = await radioClient.setFavouritePinned(fav);
+      favouriteUuids = new Set(favourites.map(f => f.stationUuid));
+      await proxyStationIcons(favourites.map(f => f.faviconUrl));
     } catch (err) {
       showRadioError('Could not update this favourite.', err);
     }
@@ -769,7 +634,7 @@
 
     customSaving = true;
     try {
-      const saved = await LibraryService.AddCustomRadioStation(
+      const saved = await radioClient.saveCustomStation(
         name,
         streamUrl,
         customFaviconUrl.trim(),
@@ -799,7 +664,7 @@
 
   async function deleteCustomStation(uuid: string) {
     try {
-      await LibraryService.DeleteCustomRadioStation(uuid);
+      await radioClient.deleteCustomStation(uuid);
       await loadCustomStations();
     } catch (err) {
       showRadioError('Could not delete this station.', err);
@@ -808,16 +673,11 @@
 
   async function clearHistory() {
     try {
-      await LibraryService.ClearRadioHistory();
+      await radioClient.clearHistory();
       history = [];
     } catch (err) {
       showRadioError('Could not clear radio history.', err);
     }
-  }
-
-  function formatTags(tags: string): string[] {
-    if (!tags) return [];
-    return tags.split(',').map(t => t.trim()).filter(Boolean).slice(0, 4);
   }
 
   // Load data on mount.
