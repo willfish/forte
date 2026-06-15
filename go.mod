@@ -11,7 +11,7 @@ require (
 	github.com/wailsapp/wails/v3 v3.0.0-alpha.95
 	go.senan.xyz/taglib v0.12.0
 	golang.org/x/net v0.55.0
-	modernc.org/sqlite v1.51.0
+	modernc.org/sqlite v1.52.0
 )
 
 require (
