@@ -41,8 +41,11 @@ func mustExecService(t *testing.T, s *LibraryService, query string, args ...any)
 	}
 }
 
-func TestStationsToJSONNormalizesStaleTimesRadioURL(t *testing.T) {
-	stations := stationsToJSON([]radio.Station{
+func TestRadioCatalogNormalizesStaleTimesRadioURL(t *testing.T) {
+	catalog := radio.NewCatalog(radio.CatalogConfig{
+		ResolveArtwork: func(favicon, homepage string) string { return favicon },
+	})
+	stations := catalog.ProjectStations([]radio.Station{
 		{
 			UUID:      "times-radio-uk",
 			Name:      "Times Radio UK",

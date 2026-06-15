@@ -987,19 +987,7 @@ func (s *LibraryService) GetArtistByName(name string) (int64, error) {
 }
 
 // RadioStationJSON is the JSON-friendly radio station type exposed to the frontend.
-type RadioStationJSON struct {
-	UUID      string `json:"uuid"`
-	Name      string `json:"name"`
-	StreamURL string `json:"streamUrl"`
-	Homepage  string `json:"homepage"`
-	Favicon   string `json:"favicon"`
-	Country   string `json:"country"`
-	Tags      string `json:"tags"`
-	Bitrate   int    `json:"bitrate"`
-	Codec     string `json:"codec"`
-	Votes     int    `json:"votes"`
-	Clicks    int    `json:"clicks"`
-}
+type RadioStationJSON = radio.StationView
 
 var somafmClient = radio.NewSomaFMClient()
 
@@ -1013,144 +1001,20 @@ func listSomaFMStations() ([]radio.Station, error) {
 	return somafmClient.Stations()
 }
 
-func stationsToJSON(stations []radio.Station) []RadioStationJSON {
-	result := make([]RadioStationJSON, len(stations))
-	favicons := resolveStationFavicons(stations)
-	for i, s := range stations {
-		result[i] = RadioStationJSON{
-			UUID:      s.UUID,
-			Name:      s.Name,
-			StreamURL: normalizeRadioStreamURL(s.StreamURL),
-			Homepage:  strings.TrimSpace(s.Homepage),
-			Favicon:   favicons[i],
-			Country:   s.Country,
-			Tags:      s.Tags,
-			Bitrate:   s.Bitrate,
-			Codec:     s.Codec,
-			Votes:     s.Votes,
-			Clicks:    s.Clicks,
-		}
-	}
-	return result
-}
-
-func resolveStationFavicons(stations []radio.Station) []string {
-	favicons := make([]string, len(stations))
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, 8)
-	for i, station := range stations {
-		i, station := i, station
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			favicons[i] = resolveRadioArtwork(station.Favicon, station.Homepage)
-		}()
-	}
-	wg.Wait()
-	return favicons
-}
-
-func normalizeRadioStreamURL(streamURL string) string {
-	u, err := url.Parse(streamURL)
-	if err != nil {
-		return streamURL
-	}
-	switch strings.ToLower(u.Hostname()) {
-	case "timesradio.wireless.radio":
-		return "https://times.live.stream.broadcasting.news/stream"
-	default:
-		return streamURL
-	}
-}
-
 var radioClient = radio.NewClient()
+
+func (s *LibraryService) radioCatalog() *radio.Catalog {
+	return radio.NewCatalog(radio.CatalogConfig{
+		Directory:      radioClient,
+		SomaFMStations: listSomaFMStations,
+		SavedStations:  s.db,
+		ResolveArtwork: resolveRadioArtwork,
+	})
+}
 
 // GetRadioStationByUUID returns full station metadata, fetching from RadioBrowser when possible.
 func (s *LibraryService) GetRadioStationByUUID(stationUUID string) (RadioStationJSON, error) {
-	stationUUID = strings.TrimSpace(stationUUID)
-	if stationUUID == "" {
-		return RadioStationJSON{}, fmt.Errorf("station uuid is required")
-	}
-
-	if stations, err := radioClient.ByUUID(stationUUID); err == nil && len(stations) > 0 {
-		return stationsToJSON(stations)[0], nil
-	}
-
-	if strings.HasPrefix(stationUUID, "somafm-") {
-		stations, err := listSomaFMStations()
-		if err != nil {
-			return RadioStationJSON{}, err
-		}
-		for _, station := range stations {
-			if station.UUID == stationUUID {
-				return stationsToJSON([]radio.Station{station})[0], nil
-			}
-		}
-	}
-
-	if s.db != nil {
-		if station, ok, err := s.lookupSavedRadioStation(stationUUID); err != nil {
-			return RadioStationJSON{}, err
-		} else if ok {
-			return station, nil
-		}
-	}
-
-	return RadioStationJSON{}, fmt.Errorf("station not found")
-}
-
-func (s *LibraryService) lookupSavedRadioStation(stationUUID string) (RadioStationJSON, bool, error) {
-	custom, err := s.db.GetCustomRadioStations()
-	if err != nil {
-		return RadioStationJSON{}, false, err
-	}
-	for _, station := range custom {
-		if station.StationUUID == stationUUID {
-			return savedRadioStationJSON(stationUUID, station.Name, station.StreamURL, station.FaviconURL, station.Homepage, station.Tags, station.Country, station.Bitrate, station.Codec), true, nil
-		}
-	}
-
-	favs, err := s.db.GetRadioFavourites()
-	if err != nil {
-		return RadioStationJSON{}, false, err
-	}
-	for _, fav := range favs {
-		if fav.StationUUID == stationUUID {
-			return savedRadioStationJSON(fav.StationUUID, fav.Name, fav.StreamURL, fav.FaviconURL, fav.Homepage, fav.Tags, fav.Country, fav.Bitrate, fav.Codec), true, nil
-		}
-	}
-
-	history, err := s.db.GetRadioHistory(200)
-	if err != nil {
-		return RadioStationJSON{}, false, err
-	}
-	for _, entry := range history {
-		if entry.StationUUID == stationUUID {
-			return savedRadioStationJSON(entry.StationUUID, entry.Name, entry.StreamURL, entry.FaviconURL, entry.Homepage, entry.Tags, entry.Country, entry.Bitrate, entry.Codec), true, nil
-		}
-	}
-
-	return RadioStationJSON{}, false, nil
-}
-
-func savedRadioStationJSON(stationUUID, name, streamURL, faviconURL, homepage, tags, country string, bitrate int, codec string) RadioStationJSON {
-	favicon := faviconURL
-	if favicon == "" && homepage != "" {
-		favicon = resolveRadioArtwork("", homepage)
-	}
-	return RadioStationJSON{
-		UUID:      stationUUID,
-		Name:      name,
-		StreamURL: normalizeRadioStreamURL(streamURL),
-		Homepage:  strings.TrimSpace(homepage),
-		Favicon:   favicon,
-		Country:   country,
-		Tags:      tags,
-		Bitrate:   bitrate,
-		Codec:     codec,
-	}
+	return s.radioCatalog().LookupStation(stationUUID)
 }
 
 // OpenURL opens an http(s) URL in the system browser.
@@ -1169,65 +1033,37 @@ func (s *LibraryService) OpenURL(rawURL string) error {
 
 // SearchRadioStations searches for radio stations by name.
 func (s *LibraryService) SearchRadioStations(query string, limit int) ([]RadioStationJSON, error) {
-	stations, err := radioClient.Search(query, limit)
-	if err != nil {
-		return nil, err
-	}
-	return stationsToJSON(stations), nil
+	return s.radioCatalog().Search(query, limit)
 }
 
 // SearchRadioStationsFiltered searches with optional country, codec, and tag filters.
 func (s *LibraryService) SearchRadioStationsFiltered(country, codec, tag string, limit int) ([]RadioStationJSON, error) {
-	stations, err := radioClient.SearchFiltered(country, codec, tag, limit)
-	if err != nil {
-		return nil, err
-	}
-	return stationsToJSON(stations), nil
+	return s.radioCatalog().SearchFiltered(country, codec, tag, limit)
 }
 
 // GetRadioStationsByTag returns radio stations matching a tag.
 func (s *LibraryService) GetRadioStationsByTag(tag string, limit int) ([]RadioStationJSON, error) {
-	stations, err := radioClient.ByTag(tag, limit)
-	if err != nil {
-		return nil, err
-	}
-	return stationsToJSON(stations), nil
+	return s.radioCatalog().ByTag(tag, limit)
 }
 
 // GetRadioStationsByCountry returns radio stations matching a country.
 func (s *LibraryService) GetRadioStationsByCountry(country string, limit int) ([]RadioStationJSON, error) {
-	stations, err := radioClient.ByCountry(country, limit)
-	if err != nil {
-		return nil, err
-	}
-	return stationsToJSON(stations), nil
+	return s.radioCatalog().ByCountry(country, limit)
 }
 
 // GetTopVotedRadioStations returns the top voted radio stations.
 func (s *LibraryService) GetTopVotedRadioStations(limit int) ([]RadioStationJSON, error) {
-	stations, err := radioClient.TopVoted(limit)
-	if err != nil {
-		return nil, err
-	}
-	return stationsToJSON(stations), nil
+	return s.radioCatalog().TopVoted(limit)
 }
 
 // GetTopClickedRadioStations returns the most clicked radio stations.
 func (s *LibraryService) GetTopClickedRadioStations(limit int) ([]RadioStationJSON, error) {
-	stations, err := radioClient.TopClicked(limit)
-	if err != nil {
-		return nil, err
-	}
-	return stationsToJSON(stations), nil
+	return s.radioCatalog().TopClicked(limit)
 }
 
 // GetSomaFMStations returns all SomaFM channels.
 func (s *LibraryService) GetSomaFMStations() ([]RadioStationJSON, error) {
-	stations, err := listSomaFMStations()
-	if err != nil {
-		return nil, err
-	}
-	return stationsToJSON(stations), nil
+	return s.radioCatalog().SomaFM()
 }
 
 // RadioFavouriteJSON is the JSON-friendly radio favourite type exposed to the frontend.
