@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/willfish/forte/internal/streaming"
-	"github.com/willfish/forte/internal/streaming/jellyfin"
-	"github.com/willfish/forte/internal/streaming/subsonic"
 )
 
 // artworkClient is used for fetching album artwork with a generous timeout.
@@ -35,7 +33,7 @@ func SyncAllServers(ctx context.Context, db *DB) error {
 
 // SyncServer syncs a single server's catalog into the local database.
 func SyncServer(ctx context.Context, db *DB, srv Server) error {
-	provider, err := newProvider(srv)
+	provider, err := NewServerProvider(srv)
 	if err != nil {
 		return err
 	}
@@ -268,17 +266,6 @@ func reconcile(ctx context.Context, db *DB, serverID string, seenAlbums map[stri
 // serverFilePath returns the synthetic file path for a server track.
 func serverFilePath(serverID, remoteID string) string {
 	return "server://" + serverID + "/" + remoteID
-}
-
-func newProvider(srv Server) (streaming.Provider, error) {
-	switch srv.Type {
-	case "subsonic":
-		return subsonic.New(srv.URL, srv.Username, srv.Password), nil
-	case "jellyfin":
-		return jellyfin.New(srv.URL, srv.Username, srv.Password), nil
-	default:
-		return nil, fmt.Errorf("unknown server type: %s", srv.Type)
-	}
 }
 
 func fetchArtwork(url string) ([]byte, error) {

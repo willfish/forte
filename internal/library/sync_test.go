@@ -17,9 +17,9 @@ func TestServerFilePath(t *testing.T) {
 
 func TestNewProviderSubsonic(t *testing.T) {
 	srv := Server{ID: "1", Name: "Test", Type: "subsonic", URL: "http://localhost", Username: "u", Password: "p"}
-	p, err := newProvider(srv)
+	p, err := NewServerProvider(srv)
 	if err != nil {
-		t.Fatalf("newProvider subsonic: %v", err)
+		t.Fatalf("NewServerProvider subsonic: %v", err)
 	}
 	if p == nil {
 		t.Fatal("expected non-nil provider")
@@ -28,9 +28,9 @@ func TestNewProviderSubsonic(t *testing.T) {
 
 func TestNewProviderJellyfin(t *testing.T) {
 	srv := Server{ID: "1", Name: "Test", Type: "jellyfin", URL: "http://localhost", Username: "u", Password: "p"}
-	p, err := newProvider(srv)
+	p, err := NewServerProvider(srv)
 	if err != nil {
-		t.Fatalf("newProvider jellyfin: %v", err)
+		t.Fatalf("NewServerProvider jellyfin: %v", err)
 	}
 	if p == nil {
 		t.Fatal("expected non-nil provider")
@@ -39,7 +39,7 @@ func TestNewProviderJellyfin(t *testing.T) {
 
 func TestNewProviderUnknown(t *testing.T) {
 	srv := Server{ID: "1", Name: "Test", Type: "unknown", URL: "http://localhost"}
-	_, err := newProvider(srv)
+	_, err := NewServerProvider(srv)
 	if err == nil {
 		t.Error("expected error for unknown server type")
 	}
