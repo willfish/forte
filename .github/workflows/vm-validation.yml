@@ -25,7 +25,7 @@ jobs:
           - plasma
 
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
 
       - uses: cachix/install-nix-action@v31
         with:
@@ -62,7 +62,7 @@ jobs:
           - arch
 
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
 
       - name: Prove package install
         run: scripts/prove-distro-install.sh "${{ matrix.distro }}"
