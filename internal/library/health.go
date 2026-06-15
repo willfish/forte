@@ -140,7 +140,7 @@ func (h *HealthMonitor) pingAll() {
 			continue
 		}
 
-		provider, err := newProvider(srv)
+		provider, err := NewServerProvider(srv)
 		if err != nil {
 			slog.Warn("health: create provider", "server", srv.Name, "err", err)
 			continue

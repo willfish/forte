@@ -6,8 +6,6 @@ import (
 	"sync"
 
 	"github.com/willfish/forte/internal/streaming"
-	"github.com/willfish/forte/internal/streaming/jellyfin"
-	"github.com/willfish/forte/internal/streaming/subsonic"
 )
 
 const serverPathPrefix = "server://"
@@ -83,16 +81,10 @@ func (r *PathResolver) getProvider(serverID string) (streaming.Provider, error) 
 		return nil, fmt.Errorf("get server %s: %w", serverID, err)
 	}
 
-	var provider streaming.Provider
-	switch srv.Type {
-	case "subsonic":
-		provider = subsonic.New(srv.URL, srv.Username, srv.Password)
-	case "jellyfin":
-		provider = jellyfin.New(srv.URL, srv.Username, srv.Password)
-	default:
-		return nil, fmt.Errorf("unknown server type: %s", srv.Type)
+	provider, err := NewServerProvider(srv)
+	if err != nil {
+		return nil, err
 	}
-
 	r.providers[serverID] = provider
 	return provider, nil
 }

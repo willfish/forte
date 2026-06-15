@@ -23,8 +23,6 @@ import (
 	"github.com/willfish/forte/internal/radio"
 	"github.com/willfish/forte/internal/scrobbling/lastfm"
 	"github.com/willfish/forte/internal/scrobbling/listenbrainz"
-	"github.com/willfish/forte/internal/streaming/jellyfin"
-	"github.com/willfish/forte/internal/streaming/subsonic"
 	"github.com/willfish/forte/internal/userconfig"
 )
 
@@ -582,14 +580,16 @@ func (s *LibraryService) GetServerStatuses() ([]ServerStatusJSON, error) {
 
 // TestConnection tests connectivity to a streaming server without persisting it.
 func (s *LibraryService) TestConnection(cfg ServerConfig) error {
-	switch cfg.Type {
-	case "subsonic":
-		return subsonic.New(cfg.URL, cfg.Username, cfg.Password).Ping()
-	case "jellyfin":
-		return jellyfin.New(cfg.URL, cfg.Username, cfg.Password).Ping()
-	default:
-		return fmt.Errorf("unknown server type: %s", cfg.Type)
+	provider, err := library.NewServerProvider(library.Server{
+		Type:     cfg.Type,
+		URL:      cfg.URL,
+		Username: cfg.Username,
+		Password: cfg.Password,
+	})
+	if err != nil {
+		return err
 	}
+	return provider.Ping()
 }
 
 // ScrobbleConfigJSON is the JSON-friendly scrobble config exposed to the frontend.
