@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -28,7 +27,7 @@ import (
 // PlayerService exposes audio playback controls to the frontend.
 type PlayerService struct {
 	engine         *player.Engine
-	queue          *player.Queue
+	runtime        *player.Runtime
 	db             *library.DB
 	resolver       *library.PathResolver
 	scrobbler      *scrobbling.Coordinator
@@ -37,7 +36,6 @@ type PlayerService struct {
 	toasts         *player.Notifications
 	isServerOnline func(string) bool          // set by main.go to check server health
 	onTrayUpdate   func(title, artist string) // set by main.go for tooltip updates
-	manualSkip     int32                      // atomic: set before explicit Next/Previous to suppress auto-advance
 	stopSave       chan struct{}
 	tickerDone     chan struct{} // closed when the ticker goroutine exits
 	shutdownOnce   sync.Once
@@ -65,7 +63,14 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 		return fmt.Errorf("player startup: %w", err)
 	}
 	p.engine = e
-	p.queue = player.NewQueue()
+	p.runtime = player.NewRuntime(e, player.RuntimeOptions{
+		ResolvePaths: p.resolvePaths,
+		OnTrackChanged: func() {
+			p.pushMPRISMetadata()
+			p.startScrobbleTracking()
+		},
+		OnStopped: p.clearPlaybackMetadata,
+	})
 	p.toasts = player.NewNotifications()
 
 	// Open the database for persisting playback state.
@@ -84,33 +89,6 @@ func (p *PlayerService) ServiceStartup(_ context.Context, _ application.ServiceO
 	p.db = db
 	p.resolver = library.NewPathResolver(db)
 	p.scrobbler = scrobbling.NewCoordinator(db)
-
-	// When mpv auto-advances to the next track (gapless), advance the queue.
-	e.SetOnTrackChange(func() {
-		if atomic.CompareAndSwapInt32(&p.manualSkip, 1, 0) {
-			return // explicit Next/Previous already updated the queue
-		}
-		p.queue.Next()
-		p.pushMPRISMetadata()
-		p.startScrobbleTracking()
-	})
-
-	// When the mpv playlist ends, loop back if repeat-all is on.
-	e.SetOnPlaylistEnd(func() {
-		if p.queue.Repeat() != player.RepeatAll {
-			if p.mpris != nil {
-				p.mpris.UpdatePlaybackStatus("stopped")
-				p.mpris.ClearMetadata()
-			}
-			return
-		}
-		p.queue.SetPosition(0)
-		paths := p.queue.Paths(0)
-		if len(paths) > 0 {
-			atomic.StoreInt32(&p.manualSkip, 1)
-			_ = p.engine.PlayAll(p.resolvePaths(paths))
-		}
-	})
 
 	// When mpv fails to play a stream, stop radio or skip past offline server tracks.
 	e.SetOnStreamError(func() {
@@ -224,7 +202,10 @@ func (p *PlayerService) ServiceShutdown() error {
 }
 
 func (p *PlayerService) pushMPRISMetadata() {
-	cur := p.queue.Current()
+	if p.runtime == nil {
+		return
+	}
+	cur := p.runtime.CurrentTrack()
 	if p.mpris != nil {
 		if cur == nil {
 			p.mpris.ClearMetadata()
@@ -257,11 +238,18 @@ func (p *PlayerService) pushMPRISMetadata() {
 	}
 }
 
+func (p *PlayerService) clearPlaybackMetadata() {
+	if p.mpris != nil {
+		p.mpris.UpdatePlaybackStatus("stopped")
+		p.mpris.ClearMetadata()
+	}
+}
+
 func (p *PlayerService) saveState() {
-	if p.db == nil || p.queue == nil {
+	if p.db == nil || p.runtime == nil {
 		return
 	}
-	tracks := p.queue.Tracks()
+	tracks := p.runtime.QueueTracks()
 	queueJSON, err := json.Marshal(tracks)
 	if err != nil {
 		log.Printf("save state: marshal queue: %v", err)
@@ -280,11 +268,11 @@ func (p *PlayerService) saveState() {
 
 	state := library.PlaybackState{
 		QueueJSON:       string(queueJSON),
-		Position:        p.queue.Position(),
+		Position:        p.runtime.QueuePosition(),
 		TrackPositionMs: posMs,
 		Volume:          vol,
-		Shuffle:         p.queue.Shuffled(),
-		RepeatMode:      p.queue.Repeat().String(),
+		Shuffle:         p.runtime.Shuffled(),
+		RepeatMode:      p.runtime.Repeat(),
 	}
 	if err := p.db.SavePlaybackState(state); err != nil {
 		log.Printf("save state: %v", err)
@@ -341,33 +329,32 @@ func (p *PlayerService) restoreState() {
 	}
 
 	// Restore queue and modes.
-	p.queue.Replace(valid, pos)
+	if p.runtime == nil {
+		return
+	}
+	p.runtime.ReplaceQueue(valid, pos)
 
-	var rm player.RepeatMode
+	repeatMode := "off"
 	switch state.RepeatMode {
 	case "all":
-		rm = player.RepeatAll
+		repeatMode = "all"
 	case "one":
-		rm = player.RepeatOne
-	default:
-		rm = player.RepeatOff
+		repeatMode = "one"
 	}
-	p.queue.SetRepeat(rm)
+	p.runtime.SetRepeat(repeatMode)
 
 	if state.Shuffle {
-		p.queue.SetShuffle(true)
+		p.runtime.SetShuffle(true)
 	}
 
 	// Set volume and repeat-one loop on the engine.
 	if p.engine != nil {
 		p.engine.SetVolume(state.Volume)
-		p.engine.SetLoopFile(rm == player.RepeatOne)
 
 		// Load the playlist but start paused.
-		paths := p.queue.Paths(pos)
+		paths := p.runtime.QueuePaths(pos)
 		if len(paths) > 0 {
-			atomic.StoreInt32(&p.manualSkip, 1)
-			if err := p.engine.PlayAll(p.resolvePaths(paths)); err == nil {
+			if err := p.runtime.PlayFromQueuePosition(); err == nil {
 				// Pause immediately and seek to saved position.
 				p.engine.Pause()
 				if state.TrackPositionMs > 0 {
@@ -381,17 +368,10 @@ func (p *PlayerService) restoreState() {
 // PlayQueue replaces the queue with the given tracks and starts playback
 // from startAt. This is the primary entry point for playing from the UI.
 func (p *PlayerService) PlayQueue(tracks []player.QueueTrack, startAt int) error {
-	if p.engine == nil {
+	if p.runtime == nil {
 		return fmt.Errorf("player not initialised")
 	}
-	p.queue.Replace(tracks, startAt)
-	paths := p.queue.Paths(startAt)
-	if len(paths) == 0 {
-		return nil
-	}
-	resolved := p.resolvePaths(paths)
-	atomic.StoreInt32(&p.manualSkip, 1) // suppress callback for initial load
-	err := p.engine.PlayAll(resolved)
+	err := p.runtime.PlayQueue(tracks, startAt)
 	p.pushMPRISMetadata()
 	p.startScrobbleTracking()
 	return err
@@ -400,48 +380,39 @@ func (p *PlayerService) PlayQueue(tracks []player.QueueTrack, startAt int) error
 // QueueAppend adds a track to the end of the queue.
 // If nothing is playing, it does not start playback.
 func (p *PlayerService) QueueAppend(track player.QueueTrack) {
-	p.queue.Append(track)
+	if p.runtime != nil {
+		p.runtime.QueueAppend(track)
+	}
 }
 
 // QueueInsertNext inserts a track immediately after the current track.
 func (p *PlayerService) QueueInsertNext(track player.QueueTrack) {
-	p.queue.InsertAfterCurrent(track)
+	if p.runtime != nil {
+		p.runtime.QueueInsertNext(track)
+	}
 }
 
 // QueueRemove removes the track at the given index.
 // If the removed track was the current track, playback restarts from
 // the new current position.
 func (p *PlayerService) QueueRemove(index int) error {
-	wasCurrent := p.queue.Remove(index)
-	if wasCurrent && p.engine != nil {
-		cur := p.queue.Current()
-		if cur == nil {
-			p.engine.Stop()
-			return nil
-		}
-		paths := p.queue.Paths(p.queue.Position())
-		if len(paths) > 0 {
-			atomic.StoreInt32(&p.manualSkip, 1)
-			return p.engine.PlayAll(p.resolvePaths(paths))
-		}
+	if p.runtime == nil {
+		return nil
 	}
-	return nil
+	return p.runtime.QueueRemove(index)
 }
 
 // QueueMove moves a track from one position to another.
 func (p *PlayerService) QueueMove(from, to int) {
-	p.queue.Move(from, to)
+	if p.runtime != nil {
+		p.runtime.QueueMove(from, to)
+	}
 }
 
 // QueueClear clears the queue and stops playback.
 func (p *PlayerService) QueueClear() {
-	p.queue.Clear()
-	if p.engine != nil {
-		p.engine.Stop()
-	}
-	if p.mpris != nil {
-		p.mpris.UpdatePlaybackStatus("stopped")
-		p.mpris.ClearMetadata()
+	if p.runtime != nil {
+		p.runtime.QueueClear()
 	}
 	if p.onTrayUpdate != nil {
 		p.onTrayUpdate("", "")
@@ -450,28 +421,26 @@ func (p *PlayerService) QueueClear() {
 
 // GetQueue returns all tracks in the queue.
 func (p *PlayerService) GetQueue() []player.QueueTrack {
-	return p.queue.Tracks()
+	if p.runtime == nil {
+		return nil
+	}
+	return p.runtime.QueueTracks()
 }
 
 // GetQueuePosition returns the current queue position (-1 if empty).
 func (p *PlayerService) GetQueuePosition() int {
-	return p.queue.Position()
+	if p.runtime == nil {
+		return -1
+	}
+	return p.runtime.QueuePosition()
 }
 
 // SetShuffle enables or disables shuffle mode.
 // When toggled, the mpv playlist is rebuilt to match the new order.
 func (p *PlayerService) SetShuffle(enabled bool) {
-	p.queue.SetShuffle(enabled)
-	if p.engine == nil {
-		return
+	if p.runtime != nil {
+		p.runtime.SetShuffle(enabled)
 	}
-	// Rebuild the mpv playlist from the track after current.
-	pos := p.queue.Position()
-	if pos < 0 {
-		return
-	}
-	upcoming := p.queue.Paths(pos + 1)
-	p.engine.ReplaceUpcoming(p.resolvePaths(upcoming))
 	if p.mpris != nil {
 		p.mpris.UpdateShuffle(enabled)
 	}
@@ -479,24 +448,16 @@ func (p *PlayerService) SetShuffle(enabled bool) {
 
 // GetShuffle returns whether shuffle mode is active.
 func (p *PlayerService) GetShuffle() bool {
-	return p.queue.Shuffled()
+	if p.runtime == nil {
+		return false
+	}
+	return p.runtime.Shuffled()
 }
 
 // SetRepeat sets the repeat mode: "off", "all", or "one".
 func (p *PlayerService) SetRepeat(mode string) {
-	var rm player.RepeatMode
-	switch mode {
-	case "all":
-		rm = player.RepeatAll
-	case "one":
-		rm = player.RepeatOne
-	default:
-		rm = player.RepeatOff
-	}
-	p.queue.SetRepeat(rm)
-
-	if p.engine != nil {
-		p.engine.SetLoopFile(rm == player.RepeatOne)
+	if p.runtime != nil {
+		p.runtime.SetRepeat(mode)
 	}
 	if p.mpris != nil {
 		p.mpris.UpdateLoopStatus(mode)
@@ -505,39 +466,40 @@ func (p *PlayerService) SetRepeat(mode string) {
 
 // GetRepeat returns the current repeat mode as a string.
 func (p *PlayerService) GetRepeat() string {
-	return p.queue.Repeat().String()
+	if p.runtime == nil {
+		return "off"
+	}
+	return p.runtime.Repeat()
 }
 
 // Play starts playback of the audio file at the given path.
 func (p *PlayerService) Play(path string) error {
-	if p.engine == nil {
+	if p.runtime == nil {
 		return fmt.Errorf("player not initialised")
 	}
-	resolved := p.resolvePaths([]string{path})
-	return p.engine.Play(resolved[0])
+	return p.runtime.Play(path)
 }
 
 // Enqueue appends a track to the playlist for gapless playback.
 func (p *PlayerService) Enqueue(path string) error {
-	if p.engine == nil {
+	if p.runtime == nil {
 		return fmt.Errorf("player not initialised")
 	}
-	resolved := p.resolvePaths([]string{path})
-	return p.engine.Enqueue(resolved[0])
+	return p.runtime.Enqueue(path)
 }
 
 // PlayAll replaces the playlist and plays the given tracks in order.
 func (p *PlayerService) PlayAll(paths []string) error {
-	if p.engine == nil {
+	if p.runtime == nil {
 		return fmt.Errorf("player not initialised")
 	}
-	return p.engine.PlayAll(p.resolvePaths(paths))
+	return p.runtime.PlayAll(paths)
 }
 
 // Pause pauses the current playback.
 func (p *PlayerService) Pause() {
-	if p.engine != nil {
-		p.engine.Pause()
+	if p.runtime != nil {
+		p.runtime.Pause()
 	}
 	if p.mpris != nil {
 		p.mpris.UpdatePlaybackStatus("paused")
@@ -546,8 +508,8 @@ func (p *PlayerService) Pause() {
 
 // Resume resumes paused playback.
 func (p *PlayerService) Resume() {
-	if p.engine != nil {
-		p.engine.Resume()
+	if p.runtime != nil {
+		p.runtime.Resume()
 	}
 	if p.mpris != nil {
 		p.mpris.UpdatePlaybackStatus("playing")
@@ -564,12 +526,8 @@ func (p *PlayerService) Stop() {
 		return
 	}
 
-	if p.engine != nil {
-		p.engine.Stop()
-	}
-	if p.mpris != nil {
-		p.mpris.UpdatePlaybackStatus("stopped")
-		p.mpris.ClearMetadata()
+	if p.runtime != nil {
+		p.runtime.Stop()
 	}
 	if p.onTrayUpdate != nil {
 		p.onTrayUpdate("", "")
@@ -578,15 +536,15 @@ func (p *PlayerService) Stop() {
 
 // Seek seeks to the given position in seconds.
 func (p *PlayerService) Seek(seconds float64) {
-	if p.engine != nil {
-		p.engine.Seek(seconds)
+	if p.runtime != nil {
+		p.runtime.Seek(seconds)
 	}
 }
 
 // SetVolume sets the volume (0-100).
 func (p *PlayerService) SetVolume(percent int) {
-	if p.engine != nil {
-		p.engine.SetVolume(percent)
+	if p.runtime != nil {
+		p.runtime.SetVolume(percent)
 	}
 	if p.mpris != nil {
 		p.mpris.UpdateVolume(percent)
@@ -595,43 +553,43 @@ func (p *PlayerService) SetVolume(percent int) {
 
 // Volume returns the current volume (0-100).
 func (p *PlayerService) Volume() int {
-	if p.engine == nil {
+	if p.runtime == nil {
 		return 0
 	}
-	return p.engine.Volume()
+	return p.runtime.Volume()
 }
 
 // Position returns the current playback position in seconds.
 func (p *PlayerService) Position() float64 {
-	if p.engine == nil {
+	if p.runtime == nil {
 		return 0
 	}
-	return p.engine.Position()
+	return p.runtime.Position()
 }
 
 // Duration returns the duration of the current track in seconds.
 func (p *PlayerService) Duration() float64 {
-	if p.engine == nil {
+	if p.runtime == nil {
 		return 0
 	}
-	return p.engine.Duration()
+	return p.runtime.Duration()
 }
 
 // State returns the current playback state as a string.
 func (p *PlayerService) State() string {
-	if p.engine == nil {
+	if p.runtime == nil {
 		return "stopped"
 	}
-	return p.engine.State().String()
+	return p.runtime.State().String()
 }
 
 // MediaTitle returns the title of the currently playing track.
 // In radio mode, filters out the raw stream URL (shown when no ICY metadata is available).
 func (p *PlayerService) MediaTitle() string {
-	if p.engine == nil {
+	if p.runtime == nil {
 		return ""
 	}
-	t := p.engine.MediaTitle()
+	t := p.runtime.MediaTitle()
 
 	p.radioMu.RLock()
 	isRadio := p.radioMode
@@ -675,85 +633,50 @@ func cleanRadioMediaTitle(title, streamURL string) string {
 
 // MediaArtist returns the artist of the currently playing track.
 func (p *PlayerService) MediaArtist() string {
-	if p.engine == nil {
+	if p.runtime == nil {
 		return ""
 	}
-	return p.engine.MediaArtist()
+	return p.runtime.MediaArtist()
 }
 
 // MediaAlbum returns the album of the currently playing track.
 func (p *PlayerService) MediaAlbum() string {
-	if p.engine == nil {
+	if p.runtime == nil {
 		return ""
 	}
-	return p.engine.MediaAlbum()
+	return p.runtime.MediaAlbum()
 }
 
 // MediaPath returns the file path of the currently playing track.
 func (p *PlayerService) MediaPath() string {
-	if p.engine == nil {
+	if p.runtime == nil {
 		return ""
 	}
-	return p.engine.MediaPath()
+	return p.runtime.MediaPath()
 }
 
 // Next skips to the next track in the queue.
 func (p *PlayerService) Next() {
-	if p.engine == nil {
-		return
-	}
-	repeat := p.queue.Repeat()
-	if repeat == player.RepeatOne {
-		// Repeat-one: seek to start instead of advancing.
-		p.engine.Seek(0)
-		return
-	}
-	if p.queue.Next() {
-		atomic.StoreInt32(&p.manualSkip, 1)
-		if repeat == player.RepeatAll && p.queue.Position() == 0 {
-			// Wrapped around: reload playlist from the start.
-			paths := p.queue.Paths(0)
-			if len(paths) > 0 {
-				_ = p.engine.PlayAll(p.resolvePaths(paths))
-			}
-		} else {
-			p.engine.Next()
-		}
+	if p.runtime != nil {
+		p.runtime.Next()
 	}
 }
 
 // Previous skips to the previous track in the queue.
 func (p *PlayerService) Previous() {
-	if p.engine == nil {
-		return
-	}
-	repeat := p.queue.Repeat()
-	if repeat == player.RepeatOne {
-		p.engine.Seek(0)
-		return
-	}
-	if p.queue.Previous() {
-		atomic.StoreInt32(&p.manualSkip, 1)
-		if repeat == player.RepeatAll && p.queue.Position() == p.queue.Len()-1 {
-			// Wrapped backward: reload playlist from the end.
-			paths := p.queue.Paths(p.queue.Position())
-			if len(paths) > 0 {
-				_ = p.engine.PlayAll(p.resolvePaths(paths))
-			}
-		} else {
-			p.engine.Previous()
-		}
+	if p.runtime != nil {
+		p.runtime.Previous()
 	}
 }
 
 // Artwork returns the album artwork for the currently playing track
 // as a base64-encoded data URI, or an empty string if unavailable.
 func (p *PlayerService) Artwork() string {
-	if p.engine == nil {
+	if p.runtime == nil {
 		return ""
 	}
 	// Use the queue's file_path (which may be server://) rather than engine's media path.
-	cur := p.queue.Current()
+	cur := p.runtime.CurrentTrack()
 	if cur == nil {
 		return ""
 	}
@@ -761,7 +684,7 @@ func (p *PlayerService) Artwork() string {
 		// For server tracks, look up artwork from the album in the DB.
 		return p.serverTrackArtwork(cur.TrackID)
 	}
-	path := p.engine.MediaPath()
+	path := p.runtime.MediaPath()
 	if path == "" {
 		return ""
 	}
@@ -798,7 +721,10 @@ func (p *PlayerService) GetToasts() []player.Toast {
 // skipToNextPlayable advances the queue past any tracks on offline servers,
 // playing the first reachable track. Pushes toast notifications for skipped tracks.
 func (p *PlayerService) skipToNextPlayable() {
-	cur := p.queue.Current()
+	if p.runtime == nil || p.engine == nil {
+		return
+	}
+	cur := p.runtime.CurrentTrack()
 	if cur != nil && library.IsServerPath(cur.FilePath) {
 		serverID, _, _ := library.ParseServerPath(cur.FilePath)
 		if p.isServerOnline != nil && !p.isServerOnline(serverID) {
@@ -809,21 +735,19 @@ func (p *PlayerService) skipToNextPlayable() {
 	}
 
 	// Try advancing through the queue to find a playable track.
-	maxAttempts := p.queue.Len()
+	maxAttempts := p.runtime.QueueLen()
 	for range maxAttempts {
-		if !p.queue.Next() {
+		if !p.runtime.AdvanceQueue() {
 			break
 		}
-		next := p.queue.Current()
+		next := p.runtime.CurrentTrack()
 		if next == nil {
 			break
 		}
 		if !library.IsServerPath(next.FilePath) {
 			// Local track, play it.
-			atomic.StoreInt32(&p.manualSkip, 1)
-			paths := p.queue.Paths(p.queue.Position())
-			if len(paths) > 0 {
-				_ = p.engine.PlayAll(p.resolvePaths(paths))
+			if len(p.runtime.QueuePaths(p.runtime.QueuePosition())) > 0 {
+				_ = p.runtime.PlayFromQueuePosition()
 				p.pushMPRISMetadata()
 			}
 			return
@@ -831,10 +755,8 @@ func (p *PlayerService) skipToNextPlayable() {
 		serverID, _, _ := library.ParseServerPath(next.FilePath)
 		if p.isServerOnline == nil || p.isServerOnline(serverID) {
 			// Server track on an online server, try it.
-			atomic.StoreInt32(&p.manualSkip, 1)
-			paths := p.queue.Paths(p.queue.Position())
-			if len(paths) > 0 {
-				_ = p.engine.PlayAll(p.resolvePaths(paths))
+			if len(p.runtime.QueuePaths(p.runtime.QueuePosition())) > 0 {
+				_ = p.runtime.PlayFromQueuePosition()
 				p.pushMPRISMetadata()
 			}
 			return
@@ -857,7 +779,10 @@ func (p *PlayerService) startScrobbleTracking() {
 	if p.scrobbler == nil {
 		return
 	}
-	cur := p.queue.Current()
+	if p.runtime == nil {
+		return
+	}
+	cur := p.runtime.CurrentTrack()
 	if cur == nil {
 		return
 	}
@@ -924,8 +849,10 @@ func (p *PlayerService) playRadioStation(stationUUID, stationName, streamURL, ar
 
 	p.radioMu.Lock()
 	if !p.radioMode {
-		p.savedQueue = p.queue.Tracks()
-		p.savedPosition = p.queue.Position()
+		if p.runtime != nil {
+			p.savedQueue = p.runtime.QueueTracks()
+			p.savedPosition = p.runtime.QueuePosition()
+		}
 	}
 	p.radioMode = true
 	p.radioStationUUID = stationUUID
@@ -944,7 +871,9 @@ func (p *PlayerService) playRadioStation(stationUUID, stationName, streamURL, ar
 		go p.fetchRadioArtwork(artworkURL)
 	}
 
-	p.queue.Clear()
+	if p.runtime != nil {
+		p.runtime.QueueClear()
+	}
 	if err := p.engine.Play(streamURL); err != nil {
 		return fmt.Errorf("play radio: %w", err)
 	}
@@ -1043,7 +972,9 @@ func (p *PlayerService) StopRadio() {
 		if pos < 0 || pos >= len(savedQueue) {
 			pos = 0
 		}
-		p.queue.Replace(savedQueue, pos)
+		if p.runtime != nil {
+			p.runtime.ReplaceQueue(savedQueue, pos)
+		}
 	}
 
 	if p.mpris != nil {
