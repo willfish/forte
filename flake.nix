@@ -116,7 +116,7 @@
           version = "1.0.0";
           src = ./frontend;
           nodejs = pkgs.nodejs_22;
-          npmDepsHash = "sha256-MJDctjX8RZl72Vh3L0uPexNjuVHzLfZBMFJE+KzV1Lk=";
+          npmDepsHash = "sha256-vpZ8Y69RwXas72BFeNXe6oGZB8kh9lT6YDuroKnK0kU=";
           buildPhase = ''
             npm run build
           '';
