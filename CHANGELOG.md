@@ -16,6 +16,14 @@ All notable changes to Forte are generated from Conventional Commit history.
 - **deps:** Bump trufflehog to 3.95.5
 - **deps:** Bump checkout to 6.0.2
 - **changelog:** Generate release notes from conventional commits
+- **deps:** Bump actions/checkout from 6.0.2 to 6.0.3
+- **deps:** Bump modernc.org/sqlite from 1.51.0 to 1.52.0
+- Update Nix dependency hashes
+- Update Darwin Go module hash
+- **deps-dev:** Bump svelte-check from 4.5.0 to 4.6.0 in /frontend
+- Update Nix dependency hashes
+- **deps-dev:** Bump svelte from 5.56.1 to 5.56.3 in /frontend
+- Update Nix dependency hashes
 
 
 
@@ -27,6 +35,15 @@ All notable changes to Forte are generated from Conventional Commit history.
 ### Fixes
 - **radio:** Reduce idle ipc polling
 - **library:** Improve local scans and go toolchain
+
+
+
+### Refactoring
+- Extract scrobbling coordinator
+- Centralize streaming provider creation
+- **radio:** Move workflow into client model
+- Move radio station catalog behind module
+- **player:** Extract playback runtime
 
 ## [1.0.0] - 2026-06-04
 
