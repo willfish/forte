@@ -134,7 +134,7 @@
           # Linux and Darwin vendoring differ: Linux applies Wails GTK patches in modBuildPhase.
           vendorHash =
             if pkgs.stdenv.isDarwin then
-              "sha256-jDskc8heCxZuICKQ8k+VEUoJZX6N+xpdyDF2pFcHFM8="
+              "sha256-jFOIrOFGG1yMtooZ+Kd7bfIuD/V3zDC/tMhRc0KE8OY="
             else
               "sha256-kVn0SOazLJ4KO0z39IEONS69M6LHW5ZN7Dy+ZzMYLyE=";
           modBuildPhase = ''
