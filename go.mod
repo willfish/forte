@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/fsnotify/fsnotify v1.10.1
-	github.com/gen2brain/go-mpv v0.2.3
+	github.com/gen2brain/go-mpv v0.4.0
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
@@ -24,7 +24,7 @@ require (
 	github.com/coder/websocket v1.8.14 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/ebitengine/purego v0.9.1 // indirect
+	github.com/ebitengine/purego v0.10.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.9.0 // indirect
@@ -52,7 +52,7 @@ require (
 	github.com/wailsapp/wails/webview2 v1.0.24 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	golang.org/x/crypto v0.52.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/tools v0.45.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
