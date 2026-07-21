@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.3
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v6.5.0
         with:
           go-version: "1.25.12"
 
@@ -52,7 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.3
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v6.5.0
         with:
           go-version: "1.25.12"
 
@@ -106,7 +106,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.3
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v6.5.0
         with:
           go-version: "1.25.12"
 
@@ -141,7 +141,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v6.5.0
         with:
           go-version: "1.25.12"
 
