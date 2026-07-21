@@ -116,7 +116,7 @@
           version = "1.0.0";
           src = ./frontend;
           nodejs = pkgs.nodejs_22;
-          npmDepsHash = "sha256-cEln1V/Ikki9wLu6sdeTJ5VyBCwvRwFl2Us9X3I33s4=";
+          npmDepsHash = "sha256-PahafYpJmcK6EBwPVBOZr0r76s+fLNdFRqpWgtLamRU=";
           buildPhase = ''
             npm run build
           '';
@@ -134,9 +134,9 @@
           # Linux and Darwin vendoring differ: Linux applies Wails GTK patches in modBuildPhase.
           vendorHash =
             if pkgs.stdenv.isDarwin then
-              "sha256-jFOIrOFGG1yMtooZ+Kd7bfIuD/V3zDC/tMhRc0KE8OY="
+              "sha256-5qXyWfKRlKM2a++5DpVITo2tv+ugLHTy+KpiYsovzVY="
             else
-              "sha256-kVn0SOazLJ4KO0z39IEONS69M6LHW5ZN7Dy+ZzMYLyE=";
+              "sha256-TpuyThDpT0wgMprTW/AJ46NLHE9ExXamgn4w2n+FWnY=";
           modBuildPhase = ''
             runHook preBuild
 
@@ -148,8 +148,8 @@
             export GIT_SSL_CAINFO=$NIX_SSL_CERT_FILE
             go mod download
 
-            webview2Loader="$GOPATH/pkg/mod/github.com/wailsapp/wails/webview2@v1.0.24/webviewloader"
-            chmod -R u+w "$GOPATH/pkg/mod/github.com/wailsapp/wails/webview2@v1.0.24"
+            webview2Loader="$GOPATH/pkg/mod/github.com/wailsapp/wails/webview2@v1.0.27/webviewloader"
+            chmod -R u+w "$GOPATH/pkg/mod/github.com/wailsapp/wails/webview2@v1.0.27"
             mkdir -p "$webview2Loader/x86" "$webview2Loader/x64" "$webview2Loader/arm64"
             : > "$webview2Loader/x86/WebView2Loader.dll"
             : > "$webview2Loader/x64/WebView2Loader.dll"
