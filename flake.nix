@@ -28,7 +28,7 @@
         pkgs = import nixpkgs { inherit system; };
         goPkgs = import nixpkgs-go { inherit system; };
         lib = pkgs.lib;
-        go_1_25_11 = goPkgs.go_1_25;
+        go_1_25_12 = goPkgs.go_1_25;
 
         pre-commit = pre-commit-hooks.lib.${system}.run {
           src = ./.;
@@ -130,7 +130,7 @@
           pname = "forte";
           version = "1.0.0";
           src = ./.;
-          go = go_1_25_11;
+          go = go_1_25_12;
           # Linux and Darwin vendoring differ: Linux applies Wails GTK patches in modBuildPhase.
           vendorHash =
             if pkgs.stdenv.isDarwin then
@@ -470,7 +470,7 @@
 
         devShellBase = {
           buildInputs = [
-            go_1_25_11
+            go_1_25_12
           ]
           ++ pre-commit.enabledPackages
           ++ (with pkgs; [
