@@ -5,6 +5,10 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as radio$0 from "./internal/radio/models.js";
+
 /**
  * Album is the JSON-friendly album type exposed to the frontend.
  */
@@ -602,66 +606,12 @@ export class RadioHistoryJSON {
 /**
  * RadioStationJSON is the JSON-friendly radio station type exposed to the frontend.
  */
-export class RadioStationJSON {
-    "uuid": string;
-    "name": string;
-    "streamUrl": string;
-    "homepage": string;
-    "favicon": string;
-    "country": string;
-    "tags": string;
-    "bitrate": number;
-    "codec": string;
-    "votes": number;
-    "clicks": number;
+export const RadioStationJSON = radio$0.StationView;
 
-    /** Creates a new RadioStationJSON instance. */
-    constructor($$source: Partial<RadioStationJSON> = {}) {
-        if (!("uuid" in $$source)) {
-            this["uuid"] = "";
-        }
-        if (!("name" in $$source)) {
-            this["name"] = "";
-        }
-        if (!("streamUrl" in $$source)) {
-            this["streamUrl"] = "";
-        }
-        if (!("homepage" in $$source)) {
-            this["homepage"] = "";
-        }
-        if (!("favicon" in $$source)) {
-            this["favicon"] = "";
-        }
-        if (!("country" in $$source)) {
-            this["country"] = "";
-        }
-        if (!("tags" in $$source)) {
-            this["tags"] = "";
-        }
-        if (!("bitrate" in $$source)) {
-            this["bitrate"] = 0;
-        }
-        if (!("codec" in $$source)) {
-            this["codec"] = "";
-        }
-        if (!("votes" in $$source)) {
-            this["votes"] = 0;
-        }
-        if (!("clicks" in $$source)) {
-            this["clicks"] = 0;
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new RadioStationJSON instance from a string or object.
-     */
-    static createFrom($$source: any = {}): RadioStationJSON {
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        return new RadioStationJSON($$parsedSource as Partial<RadioStationJSON>);
-    }
-}
+/**
+ * RadioStationJSON is the JSON-friendly radio station type exposed to the frontend.
+ */
+export type RadioStationJSON = radio$0.StationView;
 
 /**
  * RecentPlayJSON is the JSON-friendly recent play type exposed to the frontend.
