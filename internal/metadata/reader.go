@@ -52,7 +52,7 @@ func ReadTags(path string) (TrackMeta, error) {
 		Year:        parseNum(first(tags[taglib.Date])),
 		Genre:       first(tags[taglib.Genre]),
 		Duration:    props.Length,
-		Bitrate:     int(props.Bitrate),
+		Bitrate:     int(props.BitRate),
 		SampleRate:  int(props.SampleRate),
 		Channels:    int(props.Channels),
 		HasArtwork:  len(props.Images) > 0,
