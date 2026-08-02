@@ -10,7 +10,7 @@ require (
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/wailsapp/wails/v3 v3.0.0-alpha2.109
 	go.senan.xyz/taglib v0.12.0
-	golang.org/x/net v0.55.0
+	golang.org/x/net v0.56.0
 	modernc.org/sqlite v1.52.0
 )
 
