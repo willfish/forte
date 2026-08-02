@@ -150,18 +150,19 @@
 
             # Wails embeds WebView2Loader.dll placeholders that are not present in the module
             # source used by go mod vendor. Stub empty DLLs so embeds resolve.
-            for webview2Loader in \
-              "$GOPATH"/pkg/mod/github.com/wailsapp/wails/webview2@*/webviewloader \
-              "$GOPATH"/pkg/mod/github.com/wailsapp/wails/v3@*/internal/webview2/webviewloader
-            do
-              parent="$(dirname "$webview2Loader")"
-              if [ -d "$parent" ]; then
-                chmod -R u+w "$parent"
-                mkdir -p "$webview2Loader/x86" "$webview2Loader/x64" "$webview2Loader/arm64"
-                : > "$webview2Loader/x86/WebView2Loader.dll"
-                : > "$webview2Loader/x64/WebView2Loader.dll"
-                : > "$webview2Loader/arm64/WebView2Loader.dll"
-              fi
+            mod_cache="$(go env GOMODCACHE)"
+            if [ -z "$mod_cache" ]; then
+              mod_cache="''${GOPATH:-$HOME/go}/pkg/mod"
+            fi
+            find "$mod_cache" -type d \( \
+              -path '*/wails/webview2@*/webviewloader' -o \
+              -path '*/wails/v3@*/internal/webview2/webviewloader' \
+            \) 2>/dev/null | while read -r webview2Loader; do
+              chmod -R u+w "$(dirname "$webview2Loader")"
+              mkdir -p "$webview2Loader/x86" "$webview2Loader/x64" "$webview2Loader/arm64"
+              : > "$webview2Loader/x86/WebView2Loader.dll"
+              : > "$webview2Loader/x64/WebView2Loader.dll"
+              : > "$webview2Loader/arm64/WebView2Loader.dll"
             done
 
             if (( "''${NIX_DEBUG:-0}" >= 1 )); then
