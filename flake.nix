@@ -136,7 +136,7 @@
             if pkgs.stdenv.isDarwin then
               "sha256-I0LcCcvgLN4VHNWSVknq9FmSQWHD68u1GXmzQoWNAoQ="
             else
-              "sha256-JYsNbsMwWIhVVj/CJVf9TenqDzlnozthJgK99Zky+Eg=";
+              "sha256-T+RS3PwMUuPrllOQ0/xMGmIMX9Bsxm5QD8/uXyBD92Y=";
           modBuildPhase = ''
             runHook preBuild
 
