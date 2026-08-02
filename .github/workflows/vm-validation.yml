@@ -25,9 +25,9 @@ jobs:
           - plasma
 
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
 
-      - uses: cachix/install-nix-action@v31
+      - uses: cachix/install-nix-action@v31.11.0
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
@@ -43,7 +43,7 @@ jobs:
             cp -Lr result/* "vm-artifacts/${{ matrix.desktop }}/" || true
           fi
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7.0.1
         if: always()
         with:
           name: vm-validation-${{ matrix.desktop }}
@@ -62,12 +62,12 @@ jobs:
           - arch
 
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
 
       - name: Prove package install
         run: scripts/prove-distro-install.sh "${{ matrix.distro }}"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7.0.1
         if: always()
         with:
           name: distro-install-${{ matrix.distro }}

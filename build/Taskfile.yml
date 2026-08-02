@@ -1,7 +1,7 @@
 version: '3'
 
 vars:
-  WAILS_VERSION: v3.0.0-alpha2.117
+  WAILS_VERSION: v3.0.0-beta.1
   WAILS_BIN: '{{.ROOT_DIR}}/.go/bin/wails3'
 
 tasks:
@@ -10,7 +10,7 @@ tasks:
     internal: true
     preconditions:
       - sh: go version
-        msg: "Go is required to install wails3. Install Go 1.25+ or enter `nix develop`."
+        msg: "Go is required to install wails3. Install Go 1.26+ or enter `nix develop`."
     cmds:
       - |
         lock_dir='{{.ROOT_DIR}}/.go/wails-install.lock'
