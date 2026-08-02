@@ -12,6 +12,10 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as radio$0 from "./internal/radio/models.js";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
 /**
@@ -581,7 +585,7 @@ const $$createType14 = $models.RadioFavouriteJSON.createFrom;
 const $$createType15 = $Create.Array($$createType14);
 const $$createType16 = $models.RadioHistoryJSON.createFrom;
 const $$createType17 = $Create.Array($$createType16);
-const $$createType18 = $models.RadioStationJSON.createFrom;
+const $$createType18 = radio$0.StationView.createFrom;
 const $$createType19 = $Create.Array($$createType18);
 const $$createType20 = $models.RecentPlayJSON.createFrom;
 const $$createType21 = $Create.Array($$createType20);

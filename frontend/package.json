@@ -13,7 +13,7 @@
     "test:e2e": "npx playwright test"
   },
   "dependencies": {
-    "@wailsio/runtime": "3.0.0-alpha.79"
+    "@wailsio/runtime": "3.0.0-alpha.95"
   },
   "devDependencies": {
     "@lucide/svelte": "1.17.0",

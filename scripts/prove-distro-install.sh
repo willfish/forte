@@ -61,7 +61,7 @@ apt-get install -y \
   pkg-config
 
 export PATH="$HOME/go/bin:$PATH"
-go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.95
+go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha2.109
 go install github.com/go-task/task/v3/cmd/task@v3.51.1
 
 export VERSION=1.0.0-test
@@ -159,7 +159,7 @@ pacman -S --noconfirm --needed \
   webkitgtk-6.0
 
 export PATH="$HOME/go/bin:$PATH"
-go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.95
+go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha2.109
 go install github.com/go-task/task/v3/cmd/task@v3.51.1
 
 export VERSION=1.0.0-test
