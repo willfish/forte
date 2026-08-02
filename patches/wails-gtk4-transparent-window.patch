@@ -10,8 +10,8 @@
 
 --- a/pkg/application/linux_cgo.c
 +++ b/pkg/application/linux_cgo.c
-@@ -946,6 +946,52 @@
- #endif
+@@ -1082,6 +1082,52 @@
+     window_send_always_on_top_x11(window, GPOINTER_TO_INT(stored) == 1 ? TRUE : FALSE);
  }
 
 +static void clear_window_opaque_region(GtkWidget *widget) {
@@ -65,7 +65,7 @@
  // ============================================================================
 --- a/pkg/application/linux_cgo.go
 +++ b/pkg/application/linux_cgo.go
-@@ -1286,7 +1286,7 @@
+@@ -1356,7 +1356,7 @@
  }
 
  func (w *linuxWebviewWindow) setTransparent() {

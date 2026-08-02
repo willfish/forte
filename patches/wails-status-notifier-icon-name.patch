@@ -1,6 +1,6 @@
 --- a/pkg/application/systemtray_linux.go
 +++ b/pkg/application/systemtray_linux.go
-@@ -10,6 +10,7 @@ import "C"
+@@ -9,6 +9,7 @@
  import (
  	"fmt"
  	"os"
@@ -8,7 +8,7 @@
  	"sync"
  	"sync/atomic"
 
-@@ -24,6 +25,15 @@ const (
+@@ -25,6 +26,15 @@
  	menuPath = "/StatusNotifierMenu"
  )
 
@@ -24,14 +24,7 @@
  type linuxSystemTray struct {
  	parent *SystemTray
 
-@@ -606,13 +616,13 @@ func (s *linuxSystemTray) createPropSpec() map[string]map[string]*prop.Prop {
- 		},
-
- 		"IconName": {
--			Value:    "",
-+			Value:    "",
- 			Writable: false,
- 			Emit:     prop.EmitTrue,
+@@ -611,7 +621,7 @@
  			Callback: nil,
  		},
  		"IconThemePath": {
