@@ -28,7 +28,8 @@
         pkgs = import nixpkgs { inherit system; };
         goPkgs = import nixpkgs-go { inherit system; };
         lib = pkgs.lib;
-        go_1_25_12 = goPkgs.go_1_25;
+        # Track latest Go from nixpkgs-go (unstable). Rename when major bumps.
+        goToolchain = goPkgs.go_1_26;
 
         pre-commit = pre-commit-hooks.lib.${system}.run {
           src = ./.;
@@ -116,7 +117,7 @@
           version = "1.0.0";
           src = ./frontend;
           nodejs = pkgs.nodejs_22;
-          npmDepsHash = "sha256-68QKPaOQUBZHzADCN50X4VUxezvH+YRVIMn/ebpv3T8=";
+          npmDepsHash = "sha256-7peUiRKfdqDtUuO3D9ym40allTnLcxre2QfIuhMzBS4=";
           buildPhase = ''
             npm run build
           '';
@@ -126,17 +127,18 @@
           '';
         };
 
-        forte = pkgs.buildGoModule {
+        # Override the Go used by buildGoModule (the `go` attr is not a drv arg).
+        forte = (pkgs.buildGoModule.override { go = goToolchain; }) {
           pname = "forte";
           version = "1.0.0";
           src = ./.;
-          go = go_1_25_12;
           # Linux and Darwin vendoring differ: Linux applies Wails GTK patches in modBuildPhase.
           vendorHash =
             if pkgs.stdenv.isDarwin then
-              "sha256-2+zOwp6gFqgtVjcKdLbOZDjyrOBoITGmz2bVGCED5q8="
+              # Updated on Darwin CI if this mismatches after go.mod changes.
+              "sha256-QlhQms3GnvLVvpQF4r2uEfBOMCCSMtq87PJzo/hmT2k="
             else
-              "sha256-68QKPaOQUBZHzADCN50X4VUxezvH+YRVIMn/ebpv3T8=";
+              "sha256-QlhQms3GnvLVvpQF4r2uEfBOMCCSMtq87PJzo/hmT2k=";
           modBuildPhase = ''
             runHook preBuild
 
@@ -480,7 +482,7 @@
 
         devShellBase = {
           buildInputs = [
-            go_1_25_12
+            goToolchain
           ]
           ++ pre-commit.enabledPackages
           ++ (with pkgs; [
