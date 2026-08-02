@@ -148,12 +148,17 @@
             export GIT_SSL_CAINFO=$NIX_SSL_CERT_FILE
             go mod download
 
-            webview2Loader="$GOPATH/pkg/mod/github.com/wailsapp/wails/webview2@v1.0.27/webviewloader"
-            chmod -R u+w "$GOPATH/pkg/mod/github.com/wailsapp/wails/webview2@v1.0.27"
-            mkdir -p "$webview2Loader/x86" "$webview2Loader/x64" "$webview2Loader/arm64"
-            : > "$webview2Loader/x86/WebView2Loader.dll"
-            : > "$webview2Loader/x64/WebView2Loader.dll"
-            : > "$webview2Loader/arm64/WebView2Loader.dll"
+            # Older Wails alphas pulled webview2 with missing DLL placeholders; stub them if present.
+            for webview2Dir in "$GOPATH"/pkg/mod/github.com/wailsapp/wails/webview2@*; do
+              if [ -d "$webview2Dir" ]; then
+                chmod -R u+w "$webview2Dir"
+                webview2Loader="$webview2Dir/webviewloader"
+                mkdir -p "$webview2Loader/x86" "$webview2Loader/x64" "$webview2Loader/arm64"
+                : > "$webview2Loader/x86/WebView2Loader.dll"
+                : > "$webview2Loader/x64/WebView2Loader.dll"
+                : > "$webview2Loader/arm64/WebView2Loader.dll"
+              fi
+            done
 
             if (( "''${NIX_DEBUG:-0}" >= 1 )); then
               goModVendorFlags+=(-v)
