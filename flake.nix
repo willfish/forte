@@ -117,7 +117,7 @@
           version = "1.0.0";
           src = ./frontend;
           nodejs = pkgs.nodejs_22;
-          npmDepsHash = "sha256-7peUiRKfdqDtUuO3D9ym40allTnLcxre2QfIuhMzBS4=";
+          npmDepsHash = "sha256-TozDLpFKRvnLFftXUmmhbKb65eb3ErtAQK4t/M54JTw=";
           buildPhase = ''
             npm run build
           '';
@@ -138,7 +138,7 @@
               # Updated on Darwin CI if this mismatches after go.mod changes.
               "sha256-1zMhKwEbh5ef9tjDumsX1bsFvrMk2QvaHyTFqDwVc6E="
             else
-              "sha256-QlhQms3GnvLVvpQF4r2uEfBOMCCSMtq87PJzo/hmT2k=";
+              "sha256-TozDLpFKRvnLFftXUmmhbKb65eb3ErtAQK4t/M54JTw=";
           modBuildPhase = ''
             runHook preBuild
 
