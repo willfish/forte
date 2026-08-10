@@ -138,7 +138,7 @@
               # Updated on Darwin CI if this mismatches after go.mod changes.
               "sha256-1zMhKwEbh5ef9tjDumsX1bsFvrMk2QvaHyTFqDwVc6E="
             else
-              "sha256-QlhQms3GnvLVvpQF4r2uEfBOMCCSMtq87PJzo/hmT2k=";
+              "sha256-KVVGaANrRCZF4yl3oXUJ/PvYJzNEfI+cWDVnKO8nRtw=";
           modBuildPhase = ''
             runHook preBuild
 
