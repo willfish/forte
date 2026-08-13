@@ -54,8 +54,9 @@
   async function togglePlayPause() {
     if (playbackState === 'playing') {
       await PlayerService.Pause();
-    } else if (playbackState === 'paused') {
+    } else if (playbackState === 'paused' || radioMode) {
       await PlayerService.Resume();
+      await refreshPlaybackStatus();
     }
   }
 
@@ -154,7 +155,7 @@
           <Icon name="prev" size={14} />
         </button>
       {/if}
-      <button class="play-btn" onclick={togglePlayPause} disabled={isStopped} aria-label={playbackState === 'playing' ? 'Pause' : 'Play'}>
+      <button class="play-btn" onclick={togglePlayPause} disabled={isStopped && !radioMode} aria-label={playbackState === 'playing' ? 'Pause' : 'Play'}>
         <Icon name={playbackState === 'playing' ? 'pause' : 'play'} size={16} />
       </button>
       {#if !radioMode}
@@ -162,7 +163,7 @@
           <Icon name="next" size={14} />
         </button>
       {/if}
-      <button onclick={stop} disabled={isStopped} aria-label="Stop">
+      <button onclick={stop} disabled={isStopped && !radioMode} aria-label="Stop">
         <Icon name="stop" size={14} />
       </button>
       {#if !radioMode}

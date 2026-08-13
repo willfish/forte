@@ -37,16 +37,17 @@ var ErrMpvNotFound = errors.New(
 
 // Engine wraps an mpv instance for audio playback.
 type Engine struct {
-	mu            sync.Mutex
-	closeOnce     sync.Once
-	handle        *mpv.Mpv
-	state         PlaybackState
-	closed        bool // set by Close, checked by all public methods
-	stop          chan struct{}
-	done          chan struct{} // closed when event loop exits
-	onTrackChange func()        // called when mpv loads a new file
-	onPlaylistEnd func()        // called when the entire playlist finishes
-	onStreamError func()        // called when mpv fails to play a stream
+	mu             sync.Mutex
+	closeOnce      sync.Once
+	handle         *mpv.Mpv
+	state          PlaybackState
+	closed         bool // set by Close, checked by all public methods
+	stop           chan struct{}
+	done           chan struct{} // closed when event loop exits
+	onTrackChange  func()        // called when mpv loads a new file
+	onPlaylistEnd  func()        // called when the entire playlist finishes
+	onStreamError  func()        // called when mpv fails to play a stream
+	reconnectOnEOF bool          // treat clean stream EOF as a lost live stream
 }
 
 // NewEngine initialises mpv for audio-only playback.
@@ -63,6 +64,7 @@ func NewEngine() (*Engine, error) {
 		{"terminal", "no"},
 		{"gapless-audio", "yes"},
 		{"replaygain", "track"},
+		{"stream-lavf-o", "reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_delay_max=5"},
 	} {
 		if err := m.SetOptionString(opt[0], opt[1]); err != nil {
 			m.TerminateDestroy()
@@ -324,6 +326,14 @@ func (e *Engine) SetOnStreamError(fn func()) {
 	e.onStreamError = fn
 }
 
+// SetReconnectOnEOF treats a clean end-of-file as a lost stream when true.
+// Enable this for live radio so Icecast/HTTP drops retry instead of stopping.
+func (e *Engine) SetReconnectOnEOF(enabled bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.reconnectOnEOF = enabled
+}
+
 // SetLoopFile enables or disables single-file looping (for repeat-one).
 func (e *Engine) SetLoopFile(loop bool) {
 	e.mu.Lock()
@@ -514,46 +524,34 @@ func (e *Engine) handleEvent() (shutdown bool) {
 			break
 		}
 		ef := event.EndFile()
-		switch ef.Reason {
-		case mpv.EndFileError:
-			// Stream error: call onStreamError if set, else fall back to playlist-end logic.
-			e.mu.Lock()
-			errCb := e.onStreamError
+		e.mu.Lock()
+		errCb := e.onStreamError
+		reconnectOnEOF := e.reconnectOnEOF
+		e.mu.Unlock()
+
+		if StreamEndIsError(ef.Reason, reconnectOnEOF) && errCb != nil {
+			slog.Debug("stream error, invoking onStreamError", "reason", ef.Reason)
+			errCb()
+			break
+		}
+		if ef.Reason != mpv.EndFileError && ef.Reason != mpv.EndFileEOF && ef.Reason != mpv.EndFileStop {
+			break
+		}
+
+		// Check if mpv has more playlist entries queued.
+		e.mu.Lock()
+		pos, _ := e.handle.GetProperty("playlist-pos", mpv.FormatInt64)
+		if pos == nil || pos.(int64) < 0 {
+			e.state = StateStopped
+			cb := e.onPlaylistEnd
 			e.mu.Unlock()
-			if errCb != nil {
-				slog.Debug("stream error, invoking onStreamError")
-				errCb()
-			} else {
-				e.mu.Lock()
-				pos, _ := e.handle.GetProperty("playlist-pos", mpv.FormatInt64)
-				if pos == nil || pos.(int64) < 0 {
-					e.state = StateStopped
-					cb := e.onPlaylistEnd
-					e.mu.Unlock()
-					if cb != nil {
-						cb()
-					}
-					slog.Debug("playlist finished (after error)")
-				} else {
-					e.mu.Unlock()
-				}
+			if cb != nil {
+				cb()
 			}
-		case mpv.EndFileEOF, mpv.EndFileStop:
-			// Check if mpv has more playlist entries queued.
-			e.mu.Lock()
-			pos, _ := e.handle.GetProperty("playlist-pos", mpv.FormatInt64)
-			if pos == nil || pos.(int64) < 0 {
-				e.state = StateStopped
-				cb := e.onPlaylistEnd
-				e.mu.Unlock()
-				if cb != nil {
-					cb()
-				}
-				slog.Debug("playlist finished")
-			} else {
-				e.mu.Unlock()
-				slog.Debug("track ended, next track queued")
-			}
+			slog.Debug("playlist finished")
+		} else {
+			e.mu.Unlock()
+			slog.Debug("track ended, next track queued")
 		}
 	case mpv.EventFileLoaded:
 		e.mu.Lock()

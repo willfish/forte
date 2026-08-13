@@ -46,8 +46,9 @@
   async function togglePlayPause() {
     if (playbackState === 'playing') {
       await PlayerService.Pause();
-    } else if (playbackState === 'paused') {
+    } else if (playbackState === 'paused' || radioMode) {
       await PlayerService.Resume();
+      await refreshPlaybackStatus();
     }
   }
 
@@ -154,7 +155,7 @@
           </svg>
         </button>
       {/if}
-      <button class="npv-play-btn" onclick={togglePlayPause} disabled={isStopped} aria-label={playbackState === 'playing' ? 'Pause' : 'Play'}>
+      <button class="npv-play-btn" onclick={togglePlayPause} disabled={isStopped && !radioMode} aria-label={playbackState === 'playing' ? 'Pause' : 'Play'}>
         {#if playbackState === 'playing'}
           <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
             <path d="M6 19h4V5H6zm8-14v14h4V5z"/>
