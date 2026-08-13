@@ -18,6 +18,11 @@ func newTestEngine(t *testing.T) *Engine {
 	if err != nil {
 		t.Fatalf("NewEngine() error: %v", err)
 	}
+	// Headless CI has no sound card. Without ao=null, mpv fails to open the
+	// default PCM device and emits EndFileError instead of EOF.
+	if err := e.handle.SetPropertyString("ao", "null"); err != nil {
+		t.Fatalf("set ao=null: %v", err)
+	}
 	t.Cleanup(func() { e.Close() })
 	return e
 }
