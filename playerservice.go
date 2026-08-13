@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"os"
@@ -52,6 +54,7 @@ type PlayerService struct {
 	radioTags             string
 	radioLastTitle        string // last ICY stream title, for change detection
 	radioReconnectPending bool
+	radioReconnectGen     uint64 // bumped to cancel an in-flight reconnect loop
 	savedQueue            []player.QueueTrack
 	savedPosition         int
 }
@@ -508,12 +511,46 @@ func (p *PlayerService) Pause() {
 
 // Resume resumes paused playback.
 func (p *PlayerService) Resume() {
+	if p.restartStoppedRadio() {
+		return
+	}
 	if p.runtime != nil {
 		p.runtime.Resume()
 	}
 	if p.mpris != nil {
 		p.mpris.UpdatePlaybackStatus("playing")
 	}
+}
+
+func (p *PlayerService) restartStoppedRadio() bool {
+	p.radioMu.RLock()
+	radioMode := p.radioMode
+	stationUUID := p.radioStationUUID
+	name := p.radioName
+	streamURL := p.radioStreamURL
+	artworkURL := p.radioArtworkURL
+	homepage := p.radioHomepage
+	tags := p.radioTags
+	p.radioMu.RUnlock()
+
+	state := player.StateStopped
+	if p.engine != nil {
+		state = p.engine.State()
+	}
+	if !shouldRestartRadio(radioMode, streamURL, state) {
+		return false
+	}
+
+	go func() {
+		if err := p.playRadioStation(stationUUID, name, streamURL, artworkURL, homepage, tags, "", "", 0, false, true); err != nil {
+			slog.Warn("radio restart failed", "station", name, "err", err)
+		}
+	}()
+	return true
+}
+
+func shouldRestartRadio(radioMode bool, streamURL string, state player.PlaybackState) bool {
+	return radioMode && streamURL != "" && state == player.StateStopped
 }
 
 // Stop halts the current playback.
@@ -864,8 +901,10 @@ func (p *PlayerService) playRadioStation(stationUUID, stationName, streamURL, ar
 	p.radioLastTitle = ""
 	if resetReconnect {
 		p.radioReconnectPending = false
+		p.radioReconnectGen++
 	}
 	p.radioMu.Unlock()
+	p.engine.SetReconnectOnEOF(true)
 
 	if artworkURL != "" {
 		go p.fetchRadioArtwork(artworkURL)
@@ -956,6 +995,7 @@ func (p *PlayerService) StopRadio() {
 	p.radioTags = ""
 	p.radioLastTitle = ""
 	p.radioReconnectPending = false
+	p.radioReconnectGen++
 	savedQueue := p.savedQueue
 	savedPosition := p.savedPosition
 	p.savedQueue = nil
@@ -963,6 +1003,7 @@ func (p *PlayerService) StopRadio() {
 	p.radioMu.Unlock()
 
 	if p.engine != nil {
+		p.engine.SetReconnectOnEOF(false)
 		p.engine.Stop()
 	}
 
@@ -1049,6 +1090,7 @@ func (p *PlayerService) handleRadioStreamError() {
 		return
 	}
 	p.radioReconnectPending = true
+	gen := p.radioReconnectGen
 	stationUUID := p.radioStationUUID
 	name := p.radioName
 	streamURL := p.radioStreamURL
@@ -1068,32 +1110,40 @@ func (p *PlayerService) handleRadioStreamError() {
 		}
 	}
 	if !prefs.AutoReconnect {
+		slog.Warn("radio stream lost", "station", name)
 		p.toasts.Push("Radio stream lost", "warn")
 		p.StopRadio()
 		return
 	}
 
+	slog.Warn("radio stream lost, reconnecting", "station", name)
 	p.toasts.Push("Radio stream lost, reconnecting...", "warn")
 	go func() {
-		for attempt := 1; attempt <= 3; attempt++ {
-			time.Sleep(time.Duration(attempt*2) * time.Second)
-			p.radioMu.RLock()
-			stillCurrent := p.radioMode && p.radioStationUUID == stationUUID
-			p.radioMu.RUnlock()
-			if !stillCurrent {
+		for attempt := 1; ; attempt++ {
+			delay := player.RadioReconnectDelay(attempt, rand.Float64())
+			time.Sleep(delay)
+			if !p.radioReconnectStillCurrent(stationUUID, gen) {
 				return
 			}
-			if err := p.playRadioStation(stationUUID, name, streamURL, artworkURL, homepage, tags, "", "", 0, false, false); err == nil {
-				p.radioMu.Lock()
-				p.radioReconnectPending = false
-				p.radioMu.Unlock()
-				p.toasts.Push("Radio reconnected", "info")
-				return
+			slog.Warn("radio reconnect attempt", "station", name, "attempt", attempt, "delay", delay)
+			if err := p.playRadioStation(stationUUID, name, streamURL, artworkURL, homepage, tags, "", "", 0, false, false); err != nil {
+				slog.Warn("radio reconnect failed", "station", name, "attempt", attempt, "err", err)
+				continue
 			}
+			p.radioMu.Lock()
+			p.radioReconnectPending = false
+			p.radioMu.Unlock()
+			slog.Warn("radio reconnected", "station", name, "attempt", attempt)
+			p.toasts.Push("Radio reconnected", "info")
+			return
 		}
-		p.toasts.Push("Radio stream unavailable", "warn")
-		p.StopRadio()
 	}()
+}
+
+func (p *PlayerService) radioReconnectStillCurrent(stationUUID string, gen uint64) bool {
+	p.radioMu.RLock()
+	defer p.radioMu.RUnlock()
+	return p.radioMode && p.radioStationUUID == stationUUID && p.radioReconnectGen == gen
 }
 
 // IsRadioMode returns whether the player is currently in radio mode.

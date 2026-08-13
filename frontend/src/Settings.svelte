@@ -675,7 +675,7 @@
       <label class="preference-row">
         <span>
           <span class="option-label">Reconnect streams</span>
-          <span class="option-desc">Retry radio playback automatically after temporary stream failures</span>
+          <span class="option-desc">Retry radio playback automatically when a stream drops, with backoff</span>
         </span>
         <input
           type="checkbox"

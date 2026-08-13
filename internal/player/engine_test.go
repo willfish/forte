@@ -305,6 +305,75 @@ func TestGaplessOptionSet(t *testing.T) {
 	}
 }
 
+func TestStreamReconnectOptionsSet(t *testing.T) {
+	e := newTestEngine(t)
+
+	v := e.handle.GetPropertyString("stream-lavf-o")
+	if v != "reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_delay_max=5" {
+		t.Fatalf("expected lavf reconnect options, got %q", v)
+	}
+}
+
+func TestEOFInvokesStreamErrorWhenReconnectOnEOF(t *testing.T) {
+	e := newTestEngine(t)
+	e.SetReconnectOnEOF(true)
+
+	called := make(chan struct{})
+	var once sync.Once
+	e.SetOnStreamError(func() {
+		once.Do(func() { close(called) })
+	})
+	e.SetOnPlaylistEnd(func() {
+		t.Error("onPlaylistEnd should not run when radio EOF reconnects")
+	})
+
+	if err := e.Play(writeTestWAV(t)); err != nil {
+		t.Fatalf("Play() error: %v", err)
+	}
+
+	select {
+	case <-called:
+	case <-time.After(4 * time.Second):
+		t.Fatal("expected onStreamError after radio stream EOF")
+	}
+}
+
+func TestEOFDoesNotInvokeStreamErrorByDefault(t *testing.T) {
+	e := newTestEngine(t)
+
+	errored := make(chan struct{})
+	e.SetOnStreamError(func() { close(errored) })
+
+	if err := e.Play(writeTestWAV(t)); err != nil {
+		t.Fatalf("Play() error: %v", err)
+	}
+
+	select {
+	case <-errored:
+		t.Fatal("onStreamError should not run on EOF without reconnectOnEOF")
+	case <-time.After(2 * time.Second):
+	}
+}
+
+func TestStopDoesNotInvokeStreamErrorWhenReconnectOnEOF(t *testing.T) {
+	e := newTestEngine(t)
+	e.SetReconnectOnEOF(true)
+
+	errored := make(chan struct{})
+	e.SetOnStreamError(func() { close(errored) })
+
+	if err := e.Play(writeTestWAV(t)); err != nil {
+		t.Fatalf("Play() error: %v", err)
+	}
+	e.Stop()
+
+	select {
+	case <-errored:
+		t.Fatal("onStreamError should not run after Stop()")
+	case <-time.After(300 * time.Millisecond):
+	}
+}
+
 func writeTestWAV(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "tone.wav")
