@@ -52,7 +52,7 @@ environment.systemPackages = [
 
 Forte supports Linux and macOS (via Nix). The Nix flake provides a first-class `Forte.app` on darwin (proper Dock icon, menubar status item with menu on click, playback state, self-contained libmpv).
 
-The flake pins **nixos-25.11** (same channel as current NixOS/Home Manager) so `go`, `mpv`, and friends come from **cache.nixos.org** instead of a second unstable nixpkgs tree.
+The flake pins **nixos-25.11** for mpv, GTK, and WebKit (cache.nixos.org). Go 1.26 comes from a second `nixpkgs-go` input (nixos-unstable) until 25.11 carries that toolchain.
 
 ```sh
 # Fast dev shell: Go, Node, mpv, linters (no GTK/WebKit download)
@@ -65,11 +65,16 @@ task build
 ./bin/forte
 ```
 
-`go`, `mpv`, and other toolchain packages come from **cache.nixos.org** via the `nixos-25.11` pin. Home Manager still builds the **forte app** from source on input changes; that is separate from downloading Go itself.
+Home Manager still builds the **forte app** from source on input changes; that is separate from downloading Go itself.
+
+```sh
+# After a Nix package build
+./result/bin/forte --version
+```
 
 Without Nix, install:
 
-- Go 1.25+
+- Go 1.26+
 - Node.js 22+
 - GTK4
 - WebKitGTK 6.0
@@ -88,6 +93,12 @@ npm ci
 cd ..
 task build
 ```
+
+## Packaging
+
+A nixpkgs-shaped derivation lives in [`nix/package.nix`](nix/package.nix). The flake calls it with this tree as `src`. A later nixpkgs init can copy that file to `pkgs/by-name/fo/forte/package.nix`, switch `src` to `fetchFromGitHub` of a `v*` tag, and set `maintainers = with lib.maintainers; [ willfish ];`.
+
+Do not open a GitHub PR just to iterate on hashes — `nix build` locally. Tagging `v*` on GitHub runs the Release workflow.
 
 ## Development
 

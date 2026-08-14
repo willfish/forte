@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"log/slog"
@@ -129,31 +130,9 @@ func syncAlbum(ctx context.Context, db *DB, provider streaming.Provider, srv Ser
 			}
 		}
 
-		// Delete existing track data for re-sync.
-		if _, err := tx.ExecContext(ctx, "DELETE FROM fts_tracks WHERE rowid IN (SELECT id FROM tracks WHERE file_path = ?)", filePath); err != nil {
-			return nil, fmt.Errorf("delete existing track fts: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx, "DELETE FROM track_genres WHERE track_id IN (SELECT id FROM tracks WHERE file_path = ?)", filePath); err != nil {
-			return nil, fmt.Errorf("delete existing track genres: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx, "DELETE FROM tracks WHERE file_path = ?", filePath); err != nil {
-			return nil, fmt.Errorf("delete existing track: %w", err)
-		}
-
-		res, err := tx.ExecContext(ctx, `INSERT INTO tracks
-			(album_id, artist_id, title, track_number, disc_number, duration_ms,
-			 file_path, file_size, format, server_id, remote_id)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			albumID, artistID, t.Title, t.TrackNumber, t.DiscNumber,
-			t.DurationMs, filePath, t.Size, t.ContentType, srv.ID, t.ID,
-		)
+		trackID, err := upsertServerTrack(ctx, tx, albumID, artistID, srv.ID, album.Title, t, filePath)
 		if err != nil {
-			return nil, fmt.Errorf("insert track %q: %w", t.Title, err)
-		}
-
-		trackID, err := res.LastInsertId()
-		if err != nil {
-			return nil, fmt.Errorf("track insert id: %w", err)
+			return nil, fmt.Errorf("upsert track %q: %w", t.Title, err)
 		}
 
 		if t.Genre != "" {
@@ -161,14 +140,6 @@ func syncAlbum(ctx context.Context, db *DB, provider streaming.Provider, srv Ser
 				SELECT ?, id FROM genres WHERE name = ?`, trackID, t.Genre); err != nil {
 				return nil, fmt.Errorf("insert track genre: %w", err)
 			}
-		}
-
-		// FTS index.
-		if _, err := tx.ExecContext(ctx,
-			"INSERT INTO fts_tracks (rowid, title, artist, album, genre) VALUES (?, ?, ?, ?, ?)",
-			trackID, t.Title, t.Artist, album.Title, t.Genre,
-		); err != nil {
-			return nil, fmt.Errorf("insert track fts: %w", err)
 		}
 	}
 
@@ -191,6 +162,57 @@ func syncAlbum(ctx context.Context, db *DB, provider streaming.Provider, srv Ser
 	}
 
 	return trackFilePaths, nil
+}
+
+func upsertServerTrack(ctx context.Context, tx *sql.Tx, albumID, artistID int64, serverID, albumTitle string, t streaming.Track, filePath string) (int64, error) {
+	var trackID int64
+	err := tx.QueryRowContext(ctx, "SELECT id FROM tracks WHERE file_path = ?", filePath).Scan(&trackID)
+	switch {
+	case err == sql.ErrNoRows:
+		res, err := tx.ExecContext(ctx, `INSERT INTO tracks
+			(album_id, artist_id, title, track_number, disc_number, duration_ms,
+			 file_path, file_size, format, server_id, remote_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			albumID, artistID, t.Title, t.TrackNumber, t.DiscNumber,
+			t.DurationMs, filePath, t.Size, t.ContentType, serverID, t.ID,
+		)
+		if err != nil {
+			return 0, err
+		}
+		trackID, err = res.LastInsertId()
+		if err != nil {
+			return 0, err
+		}
+	case err != nil:
+		return 0, err
+	default:
+		if _, err := tx.ExecContext(ctx, `UPDATE tracks SET
+			album_id = ?, artist_id = ?, title = ?, track_number = ?, disc_number = ?,
+			duration_ms = ?, file_size = ?, format = ?, remote_id = ?,
+			updated_at = datetime('now')
+			WHERE id = ?`,
+			albumID, artistID, t.Title, t.TrackNumber, t.DiscNumber,
+			t.DurationMs, t.Size, t.ContentType, t.ID, trackID,
+		); err != nil {
+			return 0, err
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM fts_tracks WHERE rowid = ?", trackID); err != nil {
+		return 0, fmt.Errorf("refresh track fts: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		"INSERT INTO fts_tracks (rowid, title, artist, album, genre) VALUES (?, ?, ?, ?, ?)",
+		trackID, t.Title, t.Artist, albumTitle, t.Genre,
+	); err != nil {
+		return 0, fmt.Errorf("insert track fts: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM track_genres WHERE track_id = ?", trackID); err != nil {
+		return 0, fmt.Errorf("refresh track genres: %w", err)
+	}
+
+	return trackID, nil
 }
 
 func reconcile(ctx context.Context, db *DB, serverID string, seenAlbums map[string]bool, seenTracks map[string]bool) error {

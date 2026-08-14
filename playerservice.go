@@ -205,6 +205,12 @@ func (p *PlayerService) ServiceShutdown() error {
 }
 
 func (p *PlayerService) pushMPRISMetadata() {
+	p.radioMu.RLock()
+	radioMode := p.radioMode
+	p.radioMu.RUnlock()
+	if radioMode {
+		return
+	}
 	if p.runtime == nil {
 		return
 	}
@@ -252,7 +258,20 @@ func (p *PlayerService) saveState() {
 	if p.db == nil || p.runtime == nil {
 		return
 	}
+
+	p.radioMu.RLock()
+	radioMode := p.radioMode
+	savedQueue := p.savedQueue
+	savedPosition := p.savedPosition
+	p.radioMu.RUnlock()
+
 	tracks := p.runtime.QueueTracks()
+	position := p.runtime.QueuePosition()
+	if radioMode {
+		tracks = savedQueue
+		position = savedPosition
+	}
+
 	queueJSON, err := json.Marshal(tracks)
 	if err != nil {
 		log.Printf("save state: marshal queue: %v", err)
@@ -260,7 +279,7 @@ func (p *PlayerService) saveState() {
 	}
 
 	var posMs int
-	if p.engine != nil {
+	if p.engine != nil && !radioMode {
 		posMs = int(p.engine.Position() * 1000)
 	}
 
@@ -271,7 +290,7 @@ func (p *PlayerService) saveState() {
 
 	state := library.PlaybackState{
 		QueueJSON:       string(queueJSON),
-		Position:        p.runtime.QueuePosition(),
+		Position:        position,
 		TrackPositionMs: posMs,
 		Volume:          vol,
 		Shuffle:         p.runtime.Shuffled(),
@@ -374,10 +393,33 @@ func (p *PlayerService) PlayQueue(tracks []player.QueueTrack, startAt int) error
 	if p.runtime == nil {
 		return fmt.Errorf("player not initialised")
 	}
+	p.leaveRadioModeWithoutRestore()
 	err := p.runtime.PlayQueue(tracks, startAt)
 	p.pushMPRISMetadata()
 	p.startScrobbleTracking()
 	return err
+}
+
+// leaveRadioModeWithoutRestore drops radio chrome without putting the
+// pre-radio library queue back. Used when the user starts a library queue.
+func (p *PlayerService) leaveRadioModeWithoutRestore() {
+	p.radioMu.Lock()
+	if !p.radioMode {
+		p.radioMu.Unlock()
+		return
+	}
+	p.radioMode = false
+	p.radioStationUUID = ""
+	p.radioName = ""
+	p.radioStreamURL = ""
+	p.radioArtworkURL = ""
+	p.radioHomepage = ""
+	p.radioTags = ""
+	p.radioLastTitle = ""
+	p.radioReconnectPending = false
+	p.savedQueue = nil
+	p.savedPosition = 0
+	p.radioMu.Unlock()
 }
 
 // QueueAppend adds a track to the end of the queue.
@@ -690,6 +732,26 @@ func (p *PlayerService) MediaPath() string {
 		return ""
 	}
 	return p.runtime.MediaPath()
+}
+
+// logicalMediaPath is the path exposed over IPC. It is the queue's
+// library path (local file or server://…), never mpv's resolved stream URL
+// which may contain Subsonic/Jellyfin credentials.
+func (p *PlayerService) logicalMediaPath() string {
+	p.radioMu.RLock()
+	radioMode := p.radioMode
+	p.radioMu.RUnlock()
+	if radioMode {
+		return ""
+	}
+	if p.runtime == nil {
+		return ""
+	}
+	cur := p.runtime.CurrentTrack()
+	if cur == nil {
+		return ""
+	}
+	return cur.FilePath
 }
 
 // Next skips to the next track in the queue.
@@ -1202,7 +1264,7 @@ func (p *PlayerService) GetPlaybackStatus() PlaybackStatus {
 		Title:     p.MediaTitle(),
 		Artist:    p.MediaArtist(),
 		Album:     p.MediaAlbum(),
-		MediaPath: p.MediaPath(),
+		MediaPath: p.logicalMediaPath(),
 		Shuffle:   p.GetShuffle(),
 		Repeat:    p.GetRepeat(),
 	}

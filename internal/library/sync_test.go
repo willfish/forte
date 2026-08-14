@@ -96,3 +96,54 @@ func (p *countingProvider) CoverArtURL(string) string { return "" }
 func (p *countingProvider) Search(string) (streaming.SearchResults, error) {
 	return streaming.SearchResults{}, nil
 }
+
+func TestSyncAlbumKeepsTrackIDAndPlaylistMembership(t *testing.T) {
+	db := openTestDB(t)
+	provider := &countingProvider{
+		album: streaming.Album{ID: "album-1", Title: "Album", Artist: "Artist"},
+		tracks: []streaming.Track{
+			{ID: "track-1", Title: "Track 1", Artist: "Artist", TrackNumber: 1},
+		},
+	}
+	srv := Server{ID: "srv-1"}
+
+	if _, err := syncAlbum(context.Background(), db, provider, srv, provider.album); err != nil {
+		t.Fatalf("first syncAlbum: %v", err)
+	}
+
+	var trackID int64
+	if err := db.QueryRow("SELECT id FROM tracks WHERE file_path = ?", "server://srv-1/track-1").Scan(&trackID); err != nil {
+		t.Fatalf("select track: %v", err)
+	}
+	mustExec(t, db, "INSERT INTO playlists (id, name) VALUES (1, 'Favourites')")
+	mustExec(t, db, "INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES (1, ?, 0)", trackID)
+	mustExec(t, db, "INSERT INTO play_history (track_id) VALUES (?)", trackID)
+
+	provider.tracks[0].Title = "Track 1 (remaster)"
+	if _, err := syncAlbum(context.Background(), db, provider, srv, provider.album); err != nil {
+		t.Fatalf("second syncAlbum: %v", err)
+	}
+
+	var gotID int64
+	var title string
+	if err := db.QueryRow("SELECT id, title FROM tracks WHERE file_path = ?", "server://srv-1/track-1").Scan(&gotID, &title); err != nil {
+		t.Fatalf("select after resync: %v", err)
+	}
+	if gotID != trackID {
+		t.Fatalf("track id = %d, want %d", gotID, trackID)
+	}
+	if title != "Track 1 (remaster)" {
+		t.Fatalf("title = %q, want remastered title", title)
+	}
+
+	var playlistCount, historyCount int
+	if err := db.QueryRow("SELECT COUNT(*) FROM playlist_tracks WHERE track_id = ?", trackID).Scan(&playlistCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow("SELECT COUNT(*) FROM play_history WHERE track_id = ?", trackID).Scan(&historyCount); err != nil {
+		t.Fatal(err)
+	}
+	if playlistCount != 1 || historyCount != 1 {
+		t.Fatalf("playlist=%d history=%d, want 1 and 1", playlistCount, historyCount)
+	}
+}

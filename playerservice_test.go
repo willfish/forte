@@ -1,8 +1,12 @@
 package main
 
 import (
+	"encoding/json"
+	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/willfish/forte/internal/library"
 	"github.com/willfish/forte/internal/player"
 )
 
@@ -143,5 +147,115 @@ func TestCleanRadioMediaTitleFiltersStreamFallbacks(t *testing.T) {
 				t.Fatalf("cleanRadioMediaTitle(%q, %q) = %q, want %q", tt.title, tt.streamURL, got, tt.want)
 			}
 		})
+	}
+}
+
+type stubEngine struct{}
+
+func (stubEngine) Play(string) error           { return nil }
+func (stubEngine) Enqueue(string) error        { return nil }
+func (stubEngine) PlayAll([]string) error      { return nil }
+func (stubEngine) Pause()                      {}
+func (stubEngine) Resume()                     {}
+func (stubEngine) Stop()                       {}
+func (stubEngine) Seek(float64)                {}
+func (stubEngine) SetVolume(int)               {}
+func (stubEngine) Volume() int                 { return 80 }
+func (stubEngine) Position() float64           { return 0 }
+func (stubEngine) Duration() float64           { return 0 }
+func (stubEngine) State() player.PlaybackState { return player.StateStopped }
+func (stubEngine) MediaTitle() string          { return "" }
+func (stubEngine) MediaArtist() string         { return "" }
+func (stubEngine) MediaAlbum() string          { return "" }
+func (stubEngine) MediaPath() string           { return "https://example.invalid/stream?api_key=TEST" }
+func (stubEngine) Next()                       {}
+func (stubEngine) Previous()                   {}
+func (stubEngine) SetLoopFile(bool)            {}
+func (stubEngine) ReplaceUpcoming([]string)    {}
+func (stubEngine) SetOnTrackChange(func())     {}
+func (stubEngine) SetOnPlaylistEnd(func())     {}
+
+func testPlayerDB(t *testing.T) *library.DB {
+	t.Helper()
+	db, err := library.OpenDB(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	return db
+}
+
+func TestSaveStateKeepsLibraryQueueDuringRadio(t *testing.T) {
+	db := testPlayerDB(t)
+	tracks := []player.QueueTrack{
+		{TrackID: 1, Title: "Airbag", FilePath: "/music/airbag.flac"},
+		{TrackID: 2, Title: "Karma Police", FilePath: "/music/karma.flac"},
+	}
+	rt := player.NewRuntime(stubEngine{}, player.RuntimeOptions{})
+	if err := rt.PlayQueue(tracks, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	p := &PlayerService{db: db, runtime: rt}
+	p.radioMode = true
+	p.savedQueue = tracks
+	p.savedPosition = 1
+	rt.QueueClear()
+
+	p.saveState()
+
+	got, err := db.LoadPlaybackState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved []player.QueueTrack
+	if err := json.Unmarshal([]byte(got.QueueJSON), &saved); err != nil {
+		t.Fatal(err)
+	}
+	if len(saved) != 2 || saved[0].Title != "Airbag" {
+		t.Fatalf("saved queue = %#v, want library tracks", saved)
+	}
+	if got.Position != 1 {
+		t.Fatalf("saved position = %d, want 1", got.Position)
+	}
+}
+
+func TestPlayQueueLeavesRadioWithoutRestoringOldQueue(t *testing.T) {
+	rt := player.NewRuntime(stubEngine{}, player.RuntimeOptions{})
+	p := &PlayerService{runtime: rt}
+	p.radioMode = true
+	p.savedQueue = []player.QueueTrack{{Title: "Old", FilePath: "/old.flac"}}
+	p.radioName = "Jazz FM"
+
+	album := []player.QueueTrack{{TrackID: 3, Title: "Airbag", FilePath: "/music/airbag.flac"}}
+	if err := p.PlayQueue(album, 0); err != nil {
+		t.Fatal(err)
+	}
+	if p.IsRadioMode() {
+		t.Fatal("PlayQueue should leave radio mode")
+	}
+	got := p.GetQueue()
+	if len(got) != 1 || got[0].Title != "Airbag" {
+		t.Fatalf("queue = %#v, want album tracks", got)
+	}
+}
+
+func TestGetPlaybackStatusOmitsStreamCredentials(t *testing.T) {
+	rt := player.NewRuntime(stubEngine{}, player.RuntimeOptions{})
+	tracks := []player.QueueTrack{{
+		TrackID:  1,
+		Title:    "Airbag",
+		FilePath: "server://srv/remote-1",
+	}}
+	if err := rt.PlayQueue(tracks, 0); err != nil {
+		t.Fatal(err)
+	}
+	p := &PlayerService{runtime: rt}
+	status := p.GetPlaybackStatus()
+	if status.MediaPath != "server://srv/remote-1" {
+		t.Fatalf("MediaPath = %q, want logical server path", status.MediaPath)
+	}
+	if strings.Contains(status.MediaPath, "api_key") || strings.Contains(status.MediaPath, "t=") {
+		t.Fatalf("MediaPath leaked credentials: %q", status.MediaPath)
 	}
 }

@@ -1,11 +1,12 @@
 [Desktop Entry]
 Type=Application
 Name=Forte
+GenericName=Music Player
+Comment=Play internet radio and local or streaming music libraries
 Exec=forte
 Icon=io.github.willfish.forte
 Categories=AudioVideo;Audio;Music;Player;
 Terminal=false
 Keywords=music;audio;player;radio;
-Version=1.0
-StartupNotify=false
+StartupNotify=true
 StartupWMClass=io.github.willfish.forte

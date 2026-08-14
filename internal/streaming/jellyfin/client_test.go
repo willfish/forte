@@ -149,6 +149,23 @@ func TestGetAlbums(t *testing.T) {
 	}
 }
 
+func TestStreamURLAuthenticatesBeforeBuildingURL(t *testing.T) {
+	srv := cannedServer(t, map[string]any{})
+	defer srv.Close()
+
+	c := newClient(srv)
+	got := c.StreamURL("tr-1")
+	want := srv.URL + "/Audio/tr-1/stream?static=true&api_key=" + testToken
+	if got != want {
+		t.Fatalf("StreamURL = %q, want %q", got, want)
+	}
+
+	again := c.StreamURL("tr-2")
+	if again == "" || !strings.Contains(again, "api_key="+testToken) {
+		t.Fatalf("second StreamURL = %q", again)
+	}
+}
+
 func TestGetAlbum(t *testing.T) {
 	srv := cannedServer(t, map[string]any{
 		"GET /Users/" + testUserID + "/Items/al-1": itemJSON{

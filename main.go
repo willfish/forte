@@ -171,7 +171,37 @@ func setupCrashLog() *os.File {
 	return f
 }
 
+// version is overridden at link time with -X main.version=<semver>.
+var version = "1.1.0"
+
+func handleCLI(args []string) (handled bool, output string) {
+	if len(args) < 2 {
+		return false, ""
+	}
+	switch args[1] {
+	case "--version", "-V", "-version":
+		return true, "forte " + version + "\n"
+	case "--help", "-h":
+		return true, `Forte is a desktop music player for internet radio and local or streaming libraries.
+
+Usage:
+  forte [options]
+
+Options:
+  -h, --help      Show this help
+  -V, --version   Print version and exit
+`
+	default:
+		return false, ""
+	}
+}
+
 func main() {
+	if handled, output := handleCLI(os.Args); handled {
+		fmt.Print(output)
+		return
+	}
+
 	if f := setupCrashLog(); f != nil {
 		defer func() { _ = f.Close() }()
 	}
@@ -191,7 +221,7 @@ func main() {
 
 	app := application.New(application.Options{
 		Name:        "Forte",
-		Description: "A modern music player",
+		Description: "Play internet radio and local or streaming music libraries",
 		Logger:      logx.Logger(),
 		LogLevel:    logx.SlogLevel(),
 		Linux: application.LinuxOptions{

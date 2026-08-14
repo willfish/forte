@@ -111,15 +111,21 @@ func (r *Runtime) PlayQueue(tracks []QueueTrack, startAt int) error {
 
 func (r *Runtime) QueueAppend(track QueueTrack) {
 	r.queue.Append(track)
+	r.syncUpcoming()
 }
 
 func (r *Runtime) QueueInsertNext(track QueueTrack) {
 	r.queue.InsertAfterCurrent(track)
+	r.syncUpcoming()
 }
 
 func (r *Runtime) QueueRemove(index int) error {
 	wasCurrent := r.queue.Remove(index)
-	if !wasCurrent || r.engine == nil {
+	if r.engine == nil {
+		return nil
+	}
+	if !wasCurrent {
+		r.syncUpcoming()
 		return nil
 	}
 	cur := r.queue.Current()
@@ -137,6 +143,18 @@ func (r *Runtime) QueueRemove(index int) error {
 
 func (r *Runtime) QueueMove(from, to int) {
 	r.queue.Move(from, to)
+	r.syncUpcoming()
+}
+
+func (r *Runtime) syncUpcoming() {
+	if r.engine == nil {
+		return
+	}
+	pos := r.queue.Position()
+	if pos < 0 {
+		return
+	}
+	r.engine.ReplaceUpcoming(r.resolve(r.queue.Paths(pos + 1)))
 }
 
 func (r *Runtime) QueueClear() {
@@ -195,14 +213,7 @@ func (r *Runtime) SetQueuePosition(pos int) {
 
 func (r *Runtime) SetShuffle(enabled bool) {
 	r.queue.SetShuffle(enabled)
-	if r.engine == nil {
-		return
-	}
-	pos := r.queue.Position()
-	if pos < 0 {
-		return
-	}
-	r.engine.ReplaceUpcoming(r.resolve(r.queue.Paths(pos + 1)))
+	r.syncUpcoming()
 }
 
 func (r *Runtime) Shuffled() bool {

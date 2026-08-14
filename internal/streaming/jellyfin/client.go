@@ -228,6 +228,10 @@ func (c *Client) GetAlbum(id string) (streaming.Album, []streaming.Track, error)
 // StreamURL returns a URL for streaming a track.
 // No HTTP request is made; mpv handles the URL directly.
 func (c *Client) StreamURL(trackID string) string {
+	c.authenticate()
+	if c.authErr != nil {
+		return ""
+	}
 	return fmt.Sprintf("%s/Audio/%s/stream?static=true&api_key=%s", c.baseURL, trackID, c.token)
 }
 

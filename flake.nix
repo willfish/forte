@@ -1,8 +1,8 @@
 {
-  description = "Forte - A modern music player";
+  description = "Forte — desktop music player for radio and local or streaming libraries";
 
-  # Pin to the same channel as NixOS 25.11 / Home Manager so go, mpv, GTK, and
-  # WebKit reuse cache.nixos.org binaries instead of a second unstable tree.
+  # mpv/GTK/WebKit come from nixos-25.11 (cache.nixos.org). Go 1.26 is taken
+  # from nixpkgs-go (nixos-unstable) until 25.11 carries that toolchain.
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     nixpkgs-go.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -112,227 +112,35 @@
           };
         };
 
-        frontend = pkgs.buildNpmPackage {
-          pname = "forte-frontend";
-          version = "1.0.0";
-          src = ./frontend;
-          nodejs = pkgs.nodejs_22;
-          npmDepsHash = "sha256-7peUiRKfdqDtUuO3D9ym40allTnLcxre2QfIuhMzBS4=";
-          buildPhase = ''
-            npm run build
-          '';
-          installPhase = ''
-            mkdir -p $out
-            cp -r dist/* $out/
-          '';
+        forteSrc = lib.cleanSourceWith {
+          src = ./.;
+          filter =
+            path: type:
+            let
+              rel = lib.removePrefix (toString ./. + "/") (toString path);
+            in
+            lib.cleanSourceFilter path type
+            && !lib.hasPrefix "frontend/node_modules" rel
+            && !lib.hasPrefix "frontend/test-results" rel
+            && !lib.hasPrefix ".go" rel
+            && !lib.hasPrefix "advisor-plans" rel
+            && !lib.hasPrefix "cmd/stresstest" rel;
         };
 
-        # Override the Go used by buildGoModule (the `go` attr is not a drv arg).
-        forte = (pkgs.buildGoModule.override { go = goToolchain; }) {
-          pname = "forte";
-          version = "1.0.0";
-          src = ./.;
-          # Linux and Darwin vendoring differ: Linux applies Wails GTK patches in modBuildPhase.
+        forte = pkgs.callPackage ./nix/package.nix {
+          src = forteSrc;
+          version = "1.1.0";
+          buildGoModule = pkgs.buildGoModule.override { go = goToolchain; };
+          go = goToolchain;
+          npmDepsHash = "sha256-2AQVj9sZNYmOx9Qwln7cg7kzVErKg3nQzvVGqWuWPnA=";
           vendorHash =
             if pkgs.stdenv.isDarwin then
               # Updated on Darwin CI if this mismatches after go.mod changes.
               "sha256-1zMhKwEbh5ef9tjDumsX1bsFvrMk2QvaHyTFqDwVc6E="
             else
               "sha256-QlhQms3GnvLVvpQF4r2uEfBOMCCSMtq87PJzo/hmT2k=";
-          modBuildPhase = ''
-            runHook preBuild
-
-            if [ -d vendor ]; then
-              echo "vendor folder exists, please set 'vendorHash = null;' in your expression"
-              exit 10
-            fi
-
-            export GIT_SSL_CAINFO=$NIX_SSL_CERT_FILE
-            go mod download
-
-            # Wails embeds WebView2Loader.dll placeholders that are not present in the module
-            # source used by go mod vendor. Stub empty DLLs so embeds resolve.
-            mod_cache="$(go env GOMODCACHE)"
-            if [ -z "$mod_cache" ]; then
-              mod_cache="''${GOPATH:-$HOME/go}/pkg/mod"
-            fi
-            find "$mod_cache" -type d \( \
-              -path '*/wails/webview2@*/webviewloader' -o \
-              -path '*/wails/v3@*/internal/webview2/webviewloader' \
-            \) 2>/dev/null | while read -r webview2Loader; do
-              chmod -R u+w "$(dirname "$webview2Loader")"
-              mkdir -p "$webview2Loader/x86" "$webview2Loader/x64" "$webview2Loader/arm64"
-              : > "$webview2Loader/x86/WebView2Loader.dll"
-              : > "$webview2Loader/x64/WebView2Loader.dll"
-              : > "$webview2Loader/arm64/WebView2Loader.dll"
-            done
-
-            if (( "''${NIX_DEBUG:-0}" >= 1 )); then
-              goModVendorFlags+=(-v)
-            fi
-            go mod vendor "''${goModVendorFlags[@]}"
-            ${lib.optionalString pkgs.stdenv.isLinux ''
-              patch -p1 -d vendor/github.com/wailsapp/wails/v3 < ${./patches/wails-status-notifier-icon-name.patch}
-              patch -p1 -d vendor/github.com/wailsapp/wails/v3 < ${./patches/wails-gtk4-transparent-window.patch}
-            ''}
-
-            mkdir -p vendor
-            runHook postBuild
-          '';
-          tags = [
-            "production"
-            "nocgo"
-          ]
-          ++ lib.optionals pkgs.stdenv.isLinux [ "gtk4" ];
-          ldflags = [
-            "-s"
-            "-w"
-          ];
-          subPackages = [ "." ];
-          doCheck = false; # Tests need libmpv.so at runtime
-
-          nativeBuildInputs =
-            with pkgs;
-            [
-              pkg-config
-              makeWrapper
-            ]
-            ++ lib.optionals pkgs.stdenv.isLinux [
-              wrapGAppsHook4
-              imagemagick
-              desktop-file-utils
-            ]
-            ++ lib.optionals pkgs.stdenv.isDarwin [
-              imagemagick
-            ];
-
-          buildInputs =
-            with pkgs;
-            [
-              mpv
-            ]
-            ++ lib.optionals pkgs.stdenv.isLinux [
-              gtk4
-              webkitgtk_6_0
-            ]
-            ++ lib.optionals pkgs.stdenv.isDarwin [
-              pkgs.apple-sdk_14
-            ];
-
-          preBuild = ''
-            rm -rf frontend/dist
-            mkdir -p frontend/dist
-            cp -r ${frontend}/* frontend/dist/
-          '';
-
-          postInstall = ''
-            ${lib.optionalString pkgs.stdenv.isLinux ''
-              for size in 16 24 32 48 64 128 256 512; do
-                install -d "$out/share/icons/hicolor/''${size}x''${size}/apps"
-                magick build/appicon.png -resize "''${size}x''${size}" \
-                  "$out/share/icons/hicolor/''${size}x''${size}/apps/io.github.willfish.forte.png"
-                cp "$out/share/icons/hicolor/''${size}x''${size}/apps/io.github.willfish.forte.png" \
-                  "$out/share/icons/hicolor/''${size}x''${size}/apps/forte.png"
-              done
-              install -Dm644 build/logo.svg $out/share/icons/hicolor/scalable/apps/io.github.willfish.forte.svg
-              install -Dm644 build/logo.svg $out/share/icons/hicolor/scalable/apps/forte.svg
-              install -Dm644 build/tray-idle.svg $out/share/icons/hicolor/scalable/apps/io.github.willfish.forte-tray-idle.svg
-              install -Dm644 build/tray-playing.svg $out/share/icons/hicolor/scalable/apps/io.github.willfish.forte-tray-playing.svg
-              for size in 16 24 32 48; do
-                install -Dm644 "build/tray-idle-''${size}.png" \
-                  "$out/share/icons/hicolor/''${size}x''${size}/apps/io.github.willfish.forte-tray-idle.png"
-                install -Dm644 "build/tray-playing-''${size}.png" \
-                  "$out/share/icons/hicolor/''${size}x''${size}/apps/io.github.willfish.forte-tray-playing.png"
-              done
-              for theme in green-dark green-light blue-dark blue-light financial-times-dark financial-times-light; do
-                install -Dm644 "build/tray-''${theme}-idle-32.png" \
-                  "$out/share/icons/hicolor/32x32/apps/io.github.willfish.forte-tray-''${theme}-idle.png"
-                install -Dm644 "build/tray-''${theme}-playing-32.png" \
-                  "$out/share/icons/hicolor/32x32/apps/io.github.willfish.forte-tray-''${theme}-playing.png"
-              done
-              install -Dm644 build/appicon.png $out/share/pixmaps/forte.png
-              install -Dm644 build/linux/forte.desktop $out/share/applications/io.github.willfish.forte.desktop
-              desktop-file-validate $out/share/applications/io.github.willfish.forte.desktop
-            ''}
-
-            ${lib.optionalString pkgs.stdenv.isDarwin ''
-                            # Assemble macOS .app bundle (Approach 1) so the app has proper Dock icon
-                            # from install time and does not require external wrappers for libmpv.
-                            appDir="$out/Applications/Forte.app"
-                            mkdir -p "$appDir/Contents"/{MacOS,Resources}
-
-                            # Icon resources (png for association; iconset prepared for iconutil on mac builds if desired).
-                            cp build/appicon.png "$appDir/Contents/Resources/appicon.png"
-                            mkdir -p "$appDir/Contents/Resources/icon.iconset"
-                            for s in 16 32 128 256 512; do
-                              magick build/appicon.png -resize "''${s}x''${s}" -background none \
-                                "$appDir/Contents/Resources/icon.iconset/icon_''${s}x''${s}.png"
-                              magick build/appicon.png -resize "''${s}x''${s}" -background none \
-                                "$appDir/Contents/Resources/icon.iconset/icon_''${s}x''${s}@2x.png"
-                            done
-
-                            # Info.plist for bundle identity and icon.
-                            cat > "$appDir/Contents/Info.plist" << 'PLIST'
-              <?xml version="1.0" encoding="UTF-8"?>
-              <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-              <plist version="1.0">
-              <dict>
-              	<key>CFBundleDevelopmentRegion</key>
-              	<string>en</string>
-              	<key>CFBundleExecutable</key>
-              	<string>forte</string>
-              	<key>CFBundleIconFile</key>
-              	<string>appicon</string>
-              	<key>CFBundleIdentifier</key>
-              	<string>io.github.willfish.forte</string>
-              	<key>CFBundleInfoDictionaryVersion</key>
-              	<string>6.0</string>
-              	<key>CFBundleName</key>
-              	<string>Forte</string>
-              	<key>CFBundlePackageType</key>
-              	<string>APPL</string>
-              	<key>CFBundleShortVersionString</key>
-                <string>1.0.0</string>
-              	<key>CFBundleVersion</key>
-                <string>1.0.0</string>
-              	<key>LSMinimumSystemVersion</key>
-              	<string>10.13</string>
-              	<key>NSHighResolutionCapable</key>
-              	<true/>
-              </dict>
-              </plist>
-              PLIST
-
-                            # Real binary + launcher wrapper that injects DYLD path for libmpv (meets AC: no consumer wrapper needed).
-                            cp $out/bin/forte "$appDir/Contents/MacOS/forte-bin"
-                            chmod +x "$appDir/Contents/MacOS/forte-bin"
-
-                            makeWrapper "$appDir/Contents/MacOS/forte-bin" "$appDir/Contents/MacOS/forte" \
-                              --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.mpv ]}"
-
-                            # Keep a convenient bin/forte that is also wrapped.
-                            rm -f $out/bin/forte || true
-                            makeWrapper "$appDir/Contents/MacOS/forte" "$out/bin/forte" \
-                              --prefix DYLD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.mpv ]}"
-            ''}
-          '';
-
-          # preFixup kept for Linux only (gapps); darwin wrapper done in postInstall.
-          preFixup = lib.optionalString pkgs.stdenv.isLinux ''
-            gappsWrapperArgs+=(
-              --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.mpv ]}"
-            )
-          '';
-
-          meta = with pkgs.lib; {
-            description = "A modern desktop music player with local library and streaming server support";
-            homepage = "https://github.com/willfish/forte";
-            license = licenses.gpl3Only;
-            maintainers = [ ];
-            platforms = platforms.linux ++ platforms.darwin;
-            mainProgram = "forte";
-          };
         };
+        frontend = forte.frontend;
 
         vmUser = "forte";
 

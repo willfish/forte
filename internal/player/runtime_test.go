@@ -165,6 +165,44 @@ func TestRuntimePlaylistEndWithoutRepeatStopsMetadata(t *testing.T) {
 	}
 }
 
+func TestRuntimeQueueMoveRebuildsUpcoming(t *testing.T) {
+	engine := &fakeRuntimeEngine{}
+	runtime := NewRuntime(engine, RuntimeOptions{ResolvePaths: prefixResolved})
+	if err := runtime.PlayQueue(testRuntimeTracks(), 0); err != nil {
+		t.Fatalf("PlayQueue() error: %v", err)
+	}
+
+	runtime.QueueMove(2, 1)
+
+	if len(engine.replaceUpcomingCall) == 0 {
+		t.Fatal("QueueMove did not rebuild the mpv upcoming playlist")
+	}
+	got := engine.replaceUpcomingCall[len(engine.replaceUpcomingCall)-1]
+	want := []string{"resolved:/music/c.flac", "resolved:/music/b.flac"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ReplaceUpcoming after move = %#v, want %#v", got, want)
+	}
+}
+
+func TestRuntimeQueueAppendRebuildsUpcoming(t *testing.T) {
+	engine := &fakeRuntimeEngine{}
+	runtime := NewRuntime(engine, RuntimeOptions{ResolvePaths: prefixResolved})
+	if err := runtime.PlayQueue(testRuntimeTracks()[:1], 0); err != nil {
+		t.Fatalf("PlayQueue() error: %v", err)
+	}
+
+	runtime.QueueAppend(QueueTrack{TrackID: 9, Title: "Z", FilePath: "/music/z.flac"})
+
+	if len(engine.replaceUpcomingCall) == 0 {
+		t.Fatal("QueueAppend did not rebuild the mpv upcoming playlist")
+	}
+	got := engine.replaceUpcomingCall[len(engine.replaceUpcomingCall)-1]
+	want := []string{"resolved:/music/z.flac"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ReplaceUpcoming after append = %#v, want %#v", got, want)
+	}
+}
+
 func testRuntimeTracks() []QueueTrack {
 	return []QueueTrack{
 		{TrackID: 1, Title: "A", FilePath: "/music/a.flac"},

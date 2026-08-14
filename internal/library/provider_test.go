@@ -7,19 +7,22 @@ import (
 
 func TestNewServerProviderCreatesKnownProviders(t *testing.T) {
 	tests := []struct {
-		name       string
-		serverType string
-		streamURL  string
+		name           string
+		serverType     string
+		streamURL      string
+		checkStreamURL bool
 	}{
 		{
-			name:       "subsonic",
-			serverType: "subsonic",
-			streamURL:  "https://music.example/rest/stream.view?",
+			name:           "subsonic",
+			serverType:     "subsonic",
+			streamURL:      "https://music.example/rest/stream.view?",
+			checkStreamURL: true,
 		},
 		{
 			name:       "jellyfin",
 			serverType: "jellyfin",
-			streamURL:  "https://music.example/Audio/track-1/stream?static=true",
+			// StreamURL authenticates first; that is covered in
+			// internal/streaming/jellyfin, not with a fake host.
 		},
 	}
 
@@ -33,6 +36,9 @@ func TestNewServerProviderCreatesKnownProviders(t *testing.T) {
 			})
 			if err != nil {
 				t.Fatalf("NewServerProvider: %v", err)
+			}
+			if !tt.checkStreamURL {
+				return
 			}
 			if got := provider.StreamURL("track-1"); !strings.HasPrefix(got, tt.streamURL) {
 				t.Fatalf("StreamURL() = %q, want prefix %q", got, tt.streamURL)
