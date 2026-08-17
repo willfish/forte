@@ -13,7 +13,7 @@ require (
 	github.com/wailsapp/wails/v3 v3.0.0-beta.1
 	go.senan.xyz/taglib v0.14.0
 	golang.org/x/net v0.57.0
-	modernc.org/sqlite v1.55.0
+	modernc.org/sqlite v1.56.0
 )
 
 require (
