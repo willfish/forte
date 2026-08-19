@@ -110,9 +110,12 @@ buildGoModule (finalAttrs: {
   checkFlags = [
     "-tags=nocgo"
   ];
-  # go-mpv (nocgo/purego) dlopens libmpv at package init.
+  # go-mpv (nocgo/purego) dlopens libmpv at package init. Linux uses
+  # LD_LIBRARY_PATH; Darwin dyld ignores that and needs DYLD_LIBRARY_PATH.
   preCheck = ''
     export LD_LIBRARY_PATH="${lib.makeLibraryPath [ mpv ]}:''${LD_LIBRARY_PATH-}"
+    export DYLD_LIBRARY_PATH="${lib.makeLibraryPath [ mpv ]}:''${DYLD_LIBRARY_PATH-}"
+    export DYLD_FALLBACK_LIBRARY_PATH="${lib.makeLibraryPath [ mpv ]}:''${DYLD_FALLBACK_LIBRARY_PATH-}"
   '';
 
   nativeBuildInputs = [

@@ -30,7 +30,10 @@ trim = true
 [git]
 conventional_commits = true
 filter_unconventional = true
-require_conventional = true
+# Historical GitHub squash titles such as "Fix recurring WebKitGTK crashes
+# (#245)" are not conventional. Fail-closed here aborts `git cliff --latest`
+# and therefore the release workflow. Skip those commits instead.
+require_conventional = false
 split_commits = false
 protect_breaking_commits = true
 filter_commits = false
